@@ -68,12 +68,23 @@ interface Notification {
   quantity: number;
 }
 
+interface AuthorizedUser {
+  cpf: string;
+  status: 'pending' | 'approved' | 'denied';
+  requestDate: string;
+}
+
 export default function App() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [currentPage, setCurrentPage] = useState<'suppliers' | 'shopping' | 'history'>('suppliers');
-  const [loginUser, setLoginUser] = useState('');
-  const [loginPass, setLoginPass] = useState('');
+  const [loginCpf, setLoginCpf] = useState('');
+  const [loggedCpf, setLoggedCpf] = useState('');
   const [loginError, setLoginError] = useState('');
+
+  const [authorizedUsers, setAuthorizedUsers] = useState<AuthorizedUser[]>(() => {
+    const saved = localStorage.getItem('labarr_authorized_users');
+    return saved ? JSON.parse(saved) : [];
+  });
 
   const [suppliers, setSuppliers] = useState<Supplier[]>(() => {
     const saved = localStorage.getItem('labarr_suppliers');
@@ -123,6 +134,10 @@ export default function App() {
     localStorage.setItem('labarr_categories', JSON.stringify(categories));
   }, [categories]);
 
+  useEffect(() => {
+    localStorage.setItem('labarr_authorized_users', JSON.stringify(authorizedUsers));
+  }, [authorizedUsers]);
+
   // Form state
   const [newName, setNewName] = useState('');
   const [newPhone, setNewPhone] = useState('');
@@ -136,18 +151,57 @@ export default function App() {
 
   const handleLogin = (e: FormEvent) => {
     e.preventDefault();
-    if (loginUser === 'LabarrGestor' && loginPass === 'labarrchocolate') {
+    const adminCpf = '05839352144';
+    const cleanCpf = loginCpf.replace(/\D/g, '');
+
+    if (cleanCpf.length !== 11) {
+      setLoginError('CPF inválido. Digite os 11 números.');
+      return;
+    }
+
+    if (cleanCpf === adminCpf) {
       setIsLoggedIn(true);
+      setLoggedCpf(cleanCpf);
       setLoginError('');
+      return;
+    }
+
+    const user = authorizedUsers.find(u => u.cpf === cleanCpf);
+
+    if (user) {
+      if (user.status === 'approved') {
+        setIsLoggedIn(true);
+        setLoggedCpf(cleanCpf);
+        setLoginError('');
+      } else if (user.status === 'pending') {
+        setLoginError('Aguardando liberação do administrador.');
+      } else {
+        setLoginError('Seu acesso foi negado pelo administrador.');
+      }
     } else {
-      setLoginError('Usuário ou senha incorretos');
+      // New request
+      const newUser: AuthorizedUser = {
+        cpf: cleanCpf,
+        status: 'pending',
+        requestDate: new Date().toISOString()
+      };
+      setAuthorizedUsers([...authorizedUsers, newUser]);
+      setLoginError('Solicitação enviada. Aguarde a liberação do administrador.');
     }
   };
 
   const handleLogout = () => {
     setIsLoggedIn(false);
-    setLoginUser('');
-    setLoginPass('');
+    setLoginCpf('');
+    setLoggedCpf('');
+  };
+
+  const updateUserStatus = (cpf: string, status: 'approved' | 'denied') => {
+    setAuthorizedUsers(prev => prev.map(u => u.cpf === cpf ? { ...u, status } : u));
+  };
+
+  const removeUserRequest = (cpf: string) => {
+    setAuthorizedUsers(prev => prev.filter(u => u.cpf !== cpf));
   };
 
   const addProduct = () => {
@@ -506,23 +560,23 @@ export default function App() {
           <form onSubmit={handleLogin} className="p-8 space-y-6">
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-semibold text-slate-700 mb-1.5">Usuário</label>
+                <label className="block text-sm font-semibold text-slate-700 mb-1.5">Digite seu CPF</label>
                 <input 
                   type="text" 
-                  value={loginUser}
-                  onChange={(e) => setLoginUser(e.target.value)}
-                  className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
-                  placeholder="Seu usuário"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-semibold text-slate-700 mb-1.5">Senha</label>
-                <input 
-                  type="password" 
-                  value={loginPass}
-                  onChange={(e) => setLoginPass(e.target.value)}
-                  className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
-                  placeholder="Sua senha"
+                  maxLength={14}
+                  value={loginCpf}
+                  onChange={(e) => {
+                    let val = e.target.value.replace(/\D/g, '');
+                    if (val.length <= 11) {
+                      // Simple mask
+                      if (val.length > 9) val = val.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4');
+                      else if (val.length > 6) val = val.replace(/(\d{3})(\d{3})(\d{3})/, '$1.$2.$3');
+                      else if (val.length > 3) val = val.replace(/(\d{3})(\d{3})/, '$1.$2');
+                      setLoginCpf(val);
+                    }
+                  }}
+                  className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all text-center text-lg font-bold tracking-widest"
+                  placeholder="000.000.000-00"
                 />
               </div>
             </div>
@@ -610,13 +664,15 @@ export default function App() {
                 <span className="hidden sm:inline">Novo Fornecedor</span>
               </button>
             )}
-            <button 
-              onClick={() => setIsSettingsOpen(true)}
-              className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all"
-              title="Configurações"
-            >
-              <Settings className="w-5 h-5" />
-            </button>
+            {loggedCpf === '05839352144' && (
+              <button 
+                onClick={() => setIsSettingsOpen(true)}
+                className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all"
+                title="Configurações"
+              >
+                <Settings className="w-5 h-5" />
+              </button>
+            )}
             <button 
               onClick={handleLogout}
               className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
@@ -1498,6 +1554,70 @@ export default function App() {
                     O arquivo deve conter as colunas:<br/>
                     <span className="font-bold">Empresa Razão Social</span>, <span className="font-bold">Produto</span>, <span className="font-bold">Telefone</span> e <span className="font-bold">Valor Unitário</span>.
                   </p>
+                </div>
+
+                <div className="space-y-4 pt-4 border-t border-slate-100">
+                  <h3 className="text-sm font-bold text-slate-800 flex items-center gap-2">
+                    <UserPlus className="w-4 h-4 text-indigo-500" />
+                    Gerenciar Acessos
+                  </h3>
+                  
+                  <div className="space-y-2">
+                    {authorizedUsers.length === 0 ? (
+                      <p className="text-xs text-slate-400 text-center py-4 italic">Nenhuma solicitação de acesso.</p>
+                    ) : (
+                      authorizedUsers.map((user) => (
+                        <div 
+                          key={user.cpf}
+                          className="flex items-center justify-between bg-slate-50 p-3 rounded-xl border border-slate-100"
+                        >
+                          <div>
+                            <div className="text-sm font-bold text-slate-700">
+                              {user.cpf.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4')}
+                            </div>
+                            <div className="text-[10px] text-slate-400">
+                              {new Date(user.requestDate).toLocaleDateString()}
+                            </div>
+                          </div>
+                          
+                          <div className="flex items-center gap-1">
+                            {user.status === 'pending' ? (
+                              <>
+                                <button 
+                                  onClick={() => updateUserStatus(user.cpf, 'approved')}
+                                  className="p-1.5 bg-emerald-100 text-emerald-600 hover:bg-emerald-200 rounded-lg transition-all"
+                                  title="Aprovar"
+                                >
+                                  <Check className="w-4 h-4" />
+                                </button>
+                                <button 
+                                  onClick={() => updateUserStatus(user.cpf, 'denied')}
+                                  className="p-1.5 bg-red-100 text-red-600 hover:bg-red-200 rounded-lg transition-all"
+                                  title="Negar"
+                                >
+                                  <X className="w-4 h-4" />
+                                </button>
+                              </>
+                            ) : (
+                              <div className="flex items-center gap-2">
+                                <span className={`text-[10px] font-bold uppercase px-2 py-1 rounded ${
+                                  user.status === 'approved' ? 'bg-emerald-100 text-emerald-600' : 'bg-red-100 text-red-600'
+                                }`}>
+                                  {user.status === 'approved' ? 'Aprovado' : 'Negado'}
+                                </span>
+                                <button 
+                                  onClick={() => removeUserRequest(user.cpf)}
+                                  className="p-1.5 text-slate-300 hover:text-slate-500 hover:bg-slate-200 rounded-lg transition-all"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
                 </div>
               </div>
             </motion.div>
