@@ -13,17 +13,14 @@ import {
   Package, 
   X, 
   Search,
-  ChevronRight,
   UserPlus,
   Pencil,
   ShoppingCart,
   LayoutDashboard,
   LogOut,
-  ArrowLeft,
   Minus,
   Check,
   ListChecks,
-  History,
   Calendar,
   ChevronDown,
   ChevronUp,
@@ -43,9 +40,7 @@ import {
   deleteDoc, 
   updateDoc,
   query,
-  orderBy,
-  getDocFromServer,
-  getDoc
+  orderBy
 } from 'firebase/firestore';
 
 // --- INTERFACES E TIPAGENS ---
@@ -91,6 +86,10 @@ interface AuthorizedUser {
   requestDate: string;
   role?: 'admin' | 'user';
 }
+
+// --- UTILITÁRIOS ---
+// Função para gerar IDs únicos compatível com diferentes ambientes.
+const generateId = () => (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).substring(2, 11));
 
 export default function App() {
   // --- ESTADOS GLOBAIS DA APLICAÇÃO ---
@@ -355,7 +354,7 @@ export default function App() {
     e.preventDefault();
     if (!newName || !newPhone || productList.length === 0) return;
 
-    const supplierId = editingSupplierId || crypto.randomUUID();
+    const supplierId = editingSupplierId || generateId();
     const supplier: Supplier = {
       id: supplierId,
       name: newName,
@@ -397,7 +396,7 @@ export default function App() {
   };
 
   const addNotification = (name: string, quantity: number) => {
-    const id = (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).substring(2, 11));
+    const id = generateId();
     setNotifications(prev => [...prev, { id, name, quantity }]);
     setTimeout(() => {
       setNotifications(prev => prev.filter(n => n.id !== id));
@@ -461,7 +460,7 @@ export default function App() {
     }
 
     const total = cart.reduce((acc, item) => acc + (item.price * item.quantity), 0);
-    const listId = editingListId || (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).substring(2, 11));
+    const listId = editingListId || generateId();
     const newList: SavedList = {
       id: listId,
       name: listName.trim(),
@@ -500,7 +499,7 @@ export default function App() {
 
   const handleAddCategory = async () => {
     if (newCategoryName.trim() && !categories.includes(newCategoryName.trim())) {
-      const catId = crypto.randomUUID();
+      const catId = generateId();
       await setDoc(doc(db, 'categories', catId), { name: newCategoryName.trim() });
       setNewCategoryName('');
     }
@@ -567,7 +566,7 @@ export default function App() {
 
           if (!newSuppliersMap[sName]) {
             newSuppliersMap[sName] = {
-              id: (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).substring(2, 11)),
+              id: generateId(),
               name: sName,
               phone: phone.toString().trim(),
               products: []
