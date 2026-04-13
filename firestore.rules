@@ -26,17 +26,17 @@ service cloud.firestore {
     // ===============================================================
 
     match /suppliers/{supplierId} {
-      allow read: if isApproved();
+      allow read: if isAuthenticated();
       allow write: if isApproved();
     }
 
     match /lists/{listId} {
-      allow read: if isApproved();
+      allow read: if isAuthenticated();
       allow write: if isApproved();
     }
 
     match /categories/{categoryId} {
-      allow read: if isApproved();
+      allow read: if isAuthenticated();
       allow write: if isApproved();
     }
 

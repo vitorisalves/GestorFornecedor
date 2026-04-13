@@ -34,7 +34,7 @@ import {
   FileSpreadsheet
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
-import { db } from './firebase';
+import { db, auth, signInAnonymously, onAuthStateChanged } from './firebase';
 import { 
   collection, 
   onSnapshot, 
@@ -44,7 +44,8 @@ import {
   updateDoc,
   query,
   orderBy,
-  getDocFromServer
+  getDocFromServer,
+  getDoc
 } from 'firebase/firestore';
 
 // --- INTERFACES E TIPAGENS ---
@@ -84,9 +85,11 @@ interface Notification {
 }
 
 interface AuthorizedUser {
+  uid?: string;
   cpf: string;
   status: 'pending' | 'approved' | 'denied';
   requestDate: string;
+  role?: 'admin' | 'user';
 }
 
 export default function App() {
@@ -97,6 +100,7 @@ export default function App() {
   const [loginCpf, setLoginCpf] = useState('');
   const [loggedCpf, setLoggedCpf] = useState('');
   const [loginError, setLoginError] = useState('');
+  const [isAuthReady, setIsAuthReady] = useState(false);
 
   const [authorizedUsers, setAuthorizedUsers] = useState<AuthorizedUser[]>([]);
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
@@ -123,22 +127,42 @@ export default function App() {
 
   // --- FIREBASE SYNC EFFECTS ---
   useEffect(() => {
-    // Test connection
-    const testConnection = async () => {
-      try {
-        await getDocFromServer(doc(db, 'system', 'connection'));
-      } catch (error) {
-        if (error instanceof Error && error.message.includes('offline')) {
-          console.error("Firebase connection error. Check configuration.");
-        }
+    // Handle Firebase Auth
+    const unsubAuth = onAuthStateChanged(auth, (user) => {
+      if (user) {
+        setIsAuthReady(true);
+      } else {
+        signInAnonymously(auth).catch(err => console.error("Auth error:", err));
       }
-    };
-    testConnection();
+    });
+
+    return () => unsubAuth();
+  }, []);
+
+  useEffect(() => {
+    if (!isAuthReady) return;
+
+    // Sync Authorized Users (needed for login check and admin view)
+    // We only listen if we are the admin or if we need to check our own status
+    const unsubAuthorized = onSnapshot(collection(db, 'authorized_users'), (snapshot) => {
+      const data = snapshot.docs.map(doc => doc.data() as AuthorizedUser);
+      setAuthorizedUsers(data);
+    }, (error) => {
+      console.error("Authorized users listener error:", error);
+    });
+
+    return () => unsubAuthorized();
+  }, [isAuthReady]);
+
+  useEffect(() => {
+    if (!isAuthReady || !isLoggedIn) return;
 
     // Sync Suppliers
     const unsubSuppliers = onSnapshot(collection(db, 'suppliers'), (snapshot) => {
       const data = snapshot.docs.map(doc => doc.data() as Supplier);
       setSuppliers(data);
+    }, (error) => {
+      console.error("Suppliers listener error:", error);
     });
 
     // Sync Categories
@@ -147,27 +171,24 @@ export default function App() {
         const data = snapshot.docs.map(doc => doc.data().name as string);
         setCategories(data);
       }
+    }, (error) => {
+      console.error("Categories listener error:", error);
     });
 
     // Sync Lists
     const unsubLists = onSnapshot(query(collection(db, 'lists'), orderBy('date', 'desc')), (snapshot) => {
       const data = snapshot.docs.map(doc => doc.data() as SavedList);
       setSavedLists(data);
-    });
-
-    // Sync Authorized Users
-    const unsubAuth = onSnapshot(collection(db, 'authorized_users'), (snapshot) => {
-      const data = snapshot.docs.map(doc => doc.data() as AuthorizedUser);
-      setAuthorizedUsers(data);
+    }, (error) => {
+      console.error("Lists listener error:", error);
     });
 
     return () => {
       unsubSuppliers();
       unsubCategories();
       unsubLists();
-      unsubAuth();
     };
-  }, []);
+  }, [isAuthReady, isLoggedIn]);
 
   // --- EFEITOS DE PERSISTÊNCIA (LocalStorage para estados locais) ---
   useEffect(() => {
@@ -187,44 +208,84 @@ export default function App() {
 
   // --- GERENCIAMENTO DE AUTENTICAÇÃO E ACESSOS ---
   // Lida com o login via CPF e o sistema de aprovação de novos usuários.
-  const handleLogin = (e: FormEvent) => {
+  const handleLogin = async (e: FormEvent) => {
     e.preventDefault();
     const adminCpf = '05839352144';
     const cleanCpf = loginCpf.replace(/\D/g, '');
+    const currentUid = auth.currentUser?.uid;
+
+    if (!currentUid) {
+      setLoginError('Erro de autenticação. Tente recarregar a página.');
+      return;
+    }
 
     if (cleanCpf.length !== 11) {
       setLoginError('CPF inválido. Digite os 11 números.');
       return;
     }
 
-    if (cleanCpf === adminCpf) {
-      setIsLoggedIn(true);
-      setLoggedCpf(cleanCpf);
-      setLoginError('');
-      return;
-    }
-
-    const user = authorizedUsers.find(u => u.cpf === cleanCpf);
-
-    if (user) {
-      if (user.status === 'approved') {
+    // Check if current UID is already approved
+    const currentUserDoc = authorizedUsers.find(u => u.uid === currentUid);
+    
+    if (currentUserDoc && currentUserDoc.cpf === cleanCpf) {
+      if (currentUserDoc.status === 'approved') {
         setIsLoggedIn(true);
         setLoggedCpf(cleanCpf);
         setLoginError('');
-      } else if (user.status === 'pending') {
+        return;
+      } else if (currentUserDoc.status === 'pending') {
         setLoginError('Aguardando liberação do administrador.');
+        return;
       } else {
         setLoginError('Seu acesso foi negado pelo administrador.');
+        return;
+      }
+    }
+
+    // If not found by UID, check if this CPF exists under another UID or is new
+    const existingUserByCpf = authorizedUsers.find(u => u.cpf === cleanCpf);
+
+    if (existingUserByCpf) {
+      // If found by CPF but UID is different (or missing), we update the UID
+      // This allows users to "re-link" if they change devices (simple logic for now)
+      const updatedUser: AuthorizedUser = {
+        ...existingUserByCpf,
+        uid: currentUid
+      };
+      
+      // If it's the admin CPF, we auto-approve and set role
+      if (cleanCpf === adminCpf) {
+        updatedUser.status = 'approved';
+        updatedUser.role = 'admin';
+      }
+
+      await setDoc(doc(db, 'authorized_users', currentUid), updatedUser);
+      
+      if (updatedUser.status === 'approved') {
+        setIsLoggedIn(true);
+        setLoggedCpf(cleanCpf);
+        setLoginError('');
+      } else {
+        setLoginError(updatedUser.status === 'pending' ? 'Aguardando liberação.' : 'Acesso negado.');
       }
     } else {
       // New request
       const newUser: AuthorizedUser = {
+        uid: currentUid,
         cpf: cleanCpf,
-        status: 'pending',
-        requestDate: new Date().toISOString()
+        status: cleanCpf === adminCpf ? 'approved' : 'pending',
+        requestDate: new Date().toISOString(),
+        role: cleanCpf === adminCpf ? 'admin' : 'user'
       };
-      setDoc(doc(db, 'authorized_users', cleanCpf), newUser);
-      setLoginError('Solicitação enviada. Aguarde a liberação do administrador.');
+      await setDoc(doc(db, 'authorized_users', currentUid), newUser);
+      
+      if (newUser.status === 'approved') {
+        setIsLoggedIn(true);
+        setLoggedCpf(cleanCpf);
+        setLoginError('');
+      } else {
+        setLoginError('Solicitação enviada. Aguarde a liberação do administrador.');
+      }
     }
   };
 
@@ -234,12 +295,12 @@ export default function App() {
     setLoggedCpf('');
   };
 
-  const updateUserStatus = async (cpf: string, status: 'approved' | 'denied') => {
-    await updateDoc(doc(db, 'authorized_users', cpf), { status });
+  const updateUserStatus = async (uid: string, status: 'approved' | 'denied') => {
+    await updateDoc(doc(db, 'authorized_users', uid), { status });
   };
 
-  const removeUserRequest = async (cpf: string) => {
-    await deleteDoc(doc(db, 'authorized_users', cpf));
+  const removeUserRequest = async (uid: string) => {
+    await deleteDoc(doc(db, 'authorized_users', uid));
   };
 
   // --- GERENCIAMENTO DE PRODUTOS E FORNECEDORES ---
@@ -525,29 +586,37 @@ export default function App() {
 
         const importedSuppliers = Object.values(newSuppliersMap);
         if (importedSuppliers.length > 0) {
-          setSuppliers(prev => {
-            const merged = [...prev];
-            importedSuppliers.forEach(imp => {
-              const existingIdx = merged.findIndex(s => s.name.toLowerCase() === imp.name.toLowerCase());
-              if (existingIdx >= 0) {
-                const existingProducts = [...merged[existingIdx].products];
-                imp.products.forEach(p => {
-                  if (!existingProducts.find(ep => ep.name.toLowerCase() === p.name.toLowerCase())) {
-                    existingProducts.push(p);
-                  }
-                });
-                merged[existingIdx] = {
-                  ...merged[existingIdx],
-                  products: existingProducts,
-                  phone: imp.phone || merged[existingIdx].phone
-                };
-              } else {
-                merged.push(imp);
-              }
-            });
-            return merged;
+          // Save to Firebase
+          const savePromises = importedSuppliers.map(async (imp) => {
+            const existing = suppliers.find(s => s.name.toLowerCase() === imp.name.toLowerCase());
+            let supplierToSave: Supplier;
+
+            if (existing) {
+              const existingProducts = [...existing.products];
+              imp.products.forEach(p => {
+                if (!existingProducts.find(ep => ep.name.toLowerCase() === p.name.toLowerCase())) {
+                  existingProducts.push(p);
+                }
+              });
+              supplierToSave = {
+                ...existing,
+                products: existingProducts,
+                phone: imp.phone || existing.phone
+              };
+            } else {
+              supplierToSave = imp;
+            }
+            return setDoc(doc(db, 'suppliers', supplierToSave.id), supplierToSave);
           });
-          addNotification('Importação concluída!', importedSuppliers.length);
+
+          Promise.all(savePromises)
+            .then(() => {
+              addNotification('Importação concluída!', importedSuppliers.length);
+            })
+            .catch(err => {
+              console.error("Error saving imported suppliers:", err);
+              addNotification('Erro ao salvar no banco', 0);
+            });
         } else {
           addNotification('Nenhum dado válido encontrado', 0);
         }
@@ -639,7 +708,7 @@ export default function App() {
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 font-sans">
       {/* CABEÇALHO: Contém o logo, navegação entre abas e botões de ação (Carrinho, Novo, Configurações, Sair) */}
-      <header className="bg-white border-b border-slate-200 sticky top-0 z-10">
+      <header className="bg-white border-b border-slate-300 sticky top-0 z-10">
         <div className="max-w-5xl mx-auto px-4 h-16 flex items-center justify-between">
           <div className="flex items-center gap-6">
             <div className="flex items-center gap-2">
@@ -668,8 +737,8 @@ export default function App() {
                 onClick={() => setCurrentPage('history')}
                 className={`flex items-center gap-2 px-4 py-1.5 rounded-lg text-sm font-bold transition-all ${currentPage === 'history' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
               >
-                <History className="w-4 h-4" />
-                Histórico
+                <ListChecks className="w-4 h-4" />
+                Lista de Compras
               </button>
             </nav>
           </div>
@@ -729,7 +798,7 @@ export default function App() {
               placeholder="Buscar por nome ou produto..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
+              className="w-full pl-10 pr-4 py-2 bg-white border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
             />
           </div>
           <div className="text-sm text-slate-500 font-medium">
@@ -748,7 +817,7 @@ export default function App() {
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, scale: 0.95 }}
-                  className="bg-white rounded-2xl border border-slate-200 shadow-sm hover:shadow-md transition-shadow overflow-hidden"
+                  className="bg-white rounded-2xl border border-slate-300 shadow-sm hover:shadow-md transition-shadow overflow-hidden"
                 >
                   <div className="p-6">
                     <div className="flex flex-col md:flex-row md:items-start justify-between gap-4 mb-6">
@@ -794,7 +863,7 @@ export default function App() {
                         {supplier.products.map((product, idx) => (
                           <div 
                             key={idx}
-                            className="p-3 bg-slate-50 border border-slate-100 rounded-xl flex flex-col gap-1"
+                            className="p-3 bg-slate-50 border border-slate-200 rounded-xl flex flex-col gap-1"
                           >
                             <div className="flex justify-between items-start">
                               <span className="font-bold text-slate-700 text-sm">{product.name}</span>
@@ -816,7 +885,7 @@ export default function App() {
               <motion.div 
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
-                className="text-center py-20 bg-white rounded-3xl border border-dashed border-slate-300"
+                className="text-center py-20 bg-white rounded-3xl border border-dashed border-slate-400"
               >
                 <div className="bg-slate-50 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
                   <Building2 className="w-8 h-8 text-slate-300" />
@@ -843,15 +912,15 @@ export default function App() {
                 placeholder="Buscar produtos ou fornecedores..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
+                className="w-full pl-10 pr-4 py-2 bg-white border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
               />
             </div>
           </div>
 
-          <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
+          <div className="bg-white rounded-3xl border border-slate-300 shadow-sm overflow-hidden">
             <table className="w-full text-left border-collapse">
               <thead>
-                <tr className="bg-slate-50 border-b border-slate-200">
+                <tr className="bg-slate-50 border-b border-slate-300">
                   <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-slate-500">Produto</th>
                   <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-slate-500">Categoria</th>
                   <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-slate-500">Fornecedor</th>
@@ -859,7 +928,7 @@ export default function App() {
                   <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-slate-500 text-right">Ação</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100">
+              <tbody className="divide-y divide-slate-200">
                 {suppliers.flatMap(s => s.products.map(p => ({ ...p, supplierName: s.name })))
                   .filter(item => 
                     item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -951,10 +1020,10 @@ export default function App() {
           </div>
         </main>
       ) : (
-        /* PÁGINA DE HISTÓRICO: Exibe as listas de compras finalizadas anteriormente */
+        /* PÁGINA DE LISTA DE COMPRAS: Exibe as listas de compras finalizadas anteriormente */
         <main className="max-w-5xl mx-auto px-4 py-8">
           <div className="mb-8">
-            <h2 className="text-2xl font-bold text-slate-800">Histórico de Listas</h2>
+            <h2 className="text-2xl font-bold text-slate-800">Lista de Compras</h2>
             <p className="text-slate-500 text-sm">Suas listas de compras finalizadas</p>
           </div>
 
@@ -962,7 +1031,7 @@ export default function App() {
             {savedLists.length === 0 ? (
               <div className="text-center py-20 bg-white rounded-3xl border border-dashed border-slate-300">
                 <div className="bg-slate-50 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <History className="w-8 h-8 text-slate-300" />
+                  <ListChecks className="w-8 h-8 text-slate-300" />
                 </div>
                 <p className="text-slate-500 font-medium">Nenhuma lista salva ainda</p>
                 <p className="text-slate-400 text-sm mt-1">Finalize uma lista de compras para vê-la aqui.</p>
@@ -976,7 +1045,7 @@ export default function App() {
                     key={list.id}
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
-                    className={`bg-white p-6 rounded-2xl border transition-all shadow-sm flex flex-col gap-6 ${isConcluded ? 'border-emerald-200 bg-emerald-50/30' : 'border-slate-200'}`}
+                    className={`bg-white p-6 rounded-2xl border transition-all shadow-sm flex flex-col gap-6 ${isConcluded ? 'border-emerald-200 bg-emerald-50/30' : 'border-slate-300'}`}
                   >
                     <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                       <div className="flex items-center gap-4">
@@ -1035,12 +1104,12 @@ export default function App() {
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 pt-4 border-t border-slate-100">
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 pt-4 border-t border-slate-200">
                       {list.items.map((item, i) => (
                         <button
                           key={i}
                           onClick={() => toggleSavedListItemBought(list.id, item.name, item.supplierName)}
-                          className={`flex items-center gap-3 p-3 rounded-xl border transition-all text-left ${item.bought ? 'bg-emerald-50 border-emerald-100' : 'bg-slate-50 border-slate-100 hover:border-slate-200'}`}
+                          className={`flex items-center gap-3 p-3 rounded-xl border transition-all text-left ${item.bought ? 'bg-emerald-50 border-emerald-100' : 'bg-slate-50 border-slate-200 hover:border-slate-300'}`}
                         >
                           <div className={`w-5 h-5 rounded-md border-2 flex items-center justify-center transition-colors ${item.bought ? 'bg-emerald-500 border-emerald-500 text-white' : 'bg-white border-slate-300'}`}>
                             {item.bought && <Check className="w-3.5 h-3.5" />}
@@ -1084,7 +1153,7 @@ export default function App() {
               transition={{ type: 'spring', damping: 25, stiffness: 200 }}
               className="fixed right-0 top-0 bottom-0 w-full max-w-md bg-white shadow-2xl z-[80] flex flex-col"
             >
-              <div className="p-6 border-b border-slate-100 flex items-center justify-between">
+              <div className="p-6 border-b border-slate-200 flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <ListChecks className="w-6 h-6 text-indigo-600" />
                   <h2 className="text-xl font-bold text-slate-800">
@@ -1099,7 +1168,7 @@ export default function App() {
                 </button>
               </div>
 
-              <div className="p-4 bg-indigo-50/50 border-b border-slate-100">
+              <div className="p-4 bg-indigo-50/50 border-b border-slate-200">
                 <label className="block text-[10px] uppercase font-bold text-indigo-400 mb-1 px-2">Nome da Lista</label>
                 <input 
                   type="text"
@@ -1126,7 +1195,7 @@ export default function App() {
                       key={`${item.supplierName}-${item.name}`}
                       initial={{ opacity: 0, x: 20 }}
                       animate={{ opacity: 1, x: 0 }}
-                      className="p-4 rounded-2xl border border-slate-100 bg-slate-50 space-y-3"
+                      className="p-4 rounded-2xl border border-slate-200 bg-slate-50 space-y-3"
                     >
                       <div className="flex justify-between items-start">
                         <div>
@@ -1145,7 +1214,7 @@ export default function App() {
                       </div>
                       
                       <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-1 bg-white border border-slate-200 rounded-xl p-1">
+                        <div className="flex items-center gap-1 bg-white border border-slate-300 rounded-xl p-1">
                           <button 
                             onClick={() => updateCartQuantity(item.name, item.supplierName, -1)}
                             className="p-1.5 hover:bg-slate-50 rounded-lg text-slate-500 transition-colors"
@@ -1184,7 +1253,7 @@ export default function App() {
               </div>
 
               {cart.length > 0 && (
-                <div className="p-6 border-t border-slate-100 bg-slate-50 space-y-4">
+                <div className="p-6 border-t border-slate-200 bg-slate-50 space-y-4">
                   <div className="flex justify-between items-center">
                     <span className="text-slate-500 font-medium">Total da Lista</span>
                     <span className="text-2xl font-bold text-slate-800">
@@ -1232,7 +1301,7 @@ export default function App() {
               exit={{ opacity: 0, scale: 0.9, y: 20 }}
               className="relative bg-white w-full max-w-2xl rounded-3xl shadow-2xl overflow-hidden max-h-[90vh] flex flex-col"
             >
-              <div className="p-6 border-b border-slate-100 flex items-center justify-between shrink-0">
+              <div className="p-6 border-b border-slate-200 flex items-center justify-between shrink-0">
                 <h2 className="text-xl font-bold text-slate-800">
                   {editingSupplierId ? 'Editar Fornecedor' : 'Novo Fornecedor'}
                 </h2>
@@ -1261,7 +1330,7 @@ export default function App() {
                         value={newName}
                         onChange={(e) => setNewName(e.target.value)}
                         placeholder="Ex: Tech Solutions Ltda"
-                        className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
+                        className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
                       />
                     </div>
                   </div>
@@ -1278,13 +1347,13 @@ export default function App() {
                         value={newPhone}
                         onChange={(e) => setNewPhone(e.target.value)}
                         placeholder="(11) 99999-9999"
-                        className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
+                        className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
                       />
                     </div>
                   </div>
                 </div>
 
-                <div className="bg-slate-50 p-6 rounded-2xl border border-slate-200 space-y-4">
+                <div className="bg-slate-50 p-6 rounded-2xl border border-slate-300 space-y-4">
                   <h3 className="text-sm font-bold text-slate-800 flex items-center gap-2">
                     <Plus className="w-4 h-4 text-indigo-500" />
                     Adicionar Produtos
@@ -1346,7 +1415,7 @@ export default function App() {
                             initial={{ x: -10, opacity: 0 }}
                             animate={{ x: 0, opacity: 1 }}
                             key={index}
-                            className="flex items-center justify-between bg-white p-3 rounded-xl border border-slate-100 shadow-sm group"
+                            className="flex items-center justify-between bg-white p-3 rounded-xl border border-slate-200 shadow-sm group"
                           >
                             <div className="flex items-center gap-3">
                               <div className="w-8 h-8 bg-indigo-50 rounded-lg flex items-center justify-center text-indigo-600 font-bold text-xs">
@@ -1390,7 +1459,7 @@ export default function App() {
                       setIsAdding(false);
                       resetForm();
                     }}
-                    className="flex-1 px-4 py-3 border border-slate-200 text-slate-600 font-semibold rounded-xl hover:bg-slate-50 transition-colors"
+                    className="flex-1 px-4 py-3 border border-slate-300 text-slate-600 font-semibold rounded-xl hover:bg-slate-50 transition-colors"
                   >
                     Cancelar
                   </button>
@@ -1475,7 +1544,7 @@ export default function App() {
               </div>
               <h2 className="text-xl font-bold text-slate-800 mb-2">Excluir Lista?</h2>
               <p className="text-slate-500 text-sm mb-8">
-                Esta ação removerá permanentemente esta lista do seu histórico.
+                Esta ação removerá permanentemente esta lista.
               </p>
               <div className="flex gap-3">
                 <button 
@@ -1514,7 +1583,7 @@ export default function App() {
               exit={{ opacity: 0, scale: 0.9, y: 20 }}
               className="relative bg-white w-full max-w-lg rounded-3xl shadow-2xl overflow-hidden max-h-[90vh] flex flex-col"
             >
-              <div className="p-6 border-b border-slate-100 flex items-center justify-between shrink-0">
+              <div className="p-6 border-b border-slate-200 flex items-center justify-between shrink-0">
                 <div className="flex items-center gap-2">
                   <Settings className="w-5 h-5 text-indigo-600" />
                   <h2 className="text-xl font-bold text-slate-800">Configurações</h2>
@@ -1541,7 +1610,7 @@ export default function App() {
                       onChange={(e) => setNewCategoryName(e.target.value)}
                       onKeyDown={(e) => e.key === 'Enter' && handleAddCategory()}
                       placeholder="Nova categoria..."
-                      className="flex-1 px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all text-sm"
+                      className="flex-1 px-4 py-2 bg-slate-50 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all text-sm"
                     />
                     <button 
                       onClick={handleAddCategory}
@@ -1569,7 +1638,7 @@ export default function App() {
                   </div>
                 </div>
 
-                <div className="space-y-4 pt-4 border-t border-slate-100">
+                <div className="space-y-4 pt-4 border-t border-slate-200">
                   <h3 className="text-sm font-bold text-slate-800 flex items-center gap-2">
                     <FileSpreadsheet className="w-4 h-4 text-indigo-500" />
                     Dados (Excel)
@@ -1577,7 +1646,7 @@ export default function App() {
                   <div className="grid grid-cols-2 gap-3">
                     <button 
                       onClick={handleExportExcel}
-                      className="flex items-center justify-center gap-2 px-4 py-3 bg-slate-50 border border-slate-200 text-slate-700 font-bold rounded-xl hover:bg-white transition-all text-sm"
+                      className="flex items-center justify-center gap-2 px-4 py-3 bg-slate-50 border border-slate-300 text-slate-700 font-bold rounded-xl hover:bg-white transition-all text-sm"
                     >
                       <Download className="w-4 h-4" />
                       Exportar
@@ -1599,7 +1668,7 @@ export default function App() {
                   </p>
                 </div>
 
-                <div className="space-y-4 pt-4 border-t border-slate-100">
+                <div className="space-y-4 pt-4 border-t border-slate-200">
                   <h3 className="text-sm font-bold text-slate-800 flex items-center gap-2">
                     <UserPlus className="w-4 h-4 text-indigo-500" />
                     Gerenciar Acessos
@@ -1611,8 +1680,8 @@ export default function App() {
                     ) : (
                       authorizedUsers.map((user) => (
                         <div 
-                          key={user.cpf}
-                          className="flex items-center justify-between bg-slate-50 p-3 rounded-xl border border-slate-100"
+                          key={user.uid || user.cpf}
+                          className="flex items-center justify-between bg-slate-50 p-3 rounded-xl border border-slate-200"
                         >
                           <div>
                             <div className="text-sm font-bold text-slate-700">
@@ -1627,14 +1696,14 @@ export default function App() {
                             {user.status === 'pending' ? (
                               <>
                                 <button 
-                                  onClick={() => updateUserStatus(user.cpf, 'approved')}
+                                  onClick={() => updateUserStatus(user.uid || user.cpf, 'approved')}
                                   className="p-1.5 bg-emerald-100 text-emerald-600 hover:bg-emerald-200 rounded-lg transition-all"
                                   title="Aprovar"
                                 >
                                   <Check className="w-4 h-4" />
                                 </button>
                                 <button 
-                                  onClick={() => updateUserStatus(user.cpf, 'denied')}
+                                  onClick={() => updateUserStatus(user.uid || user.cpf, 'denied')}
                                   className="p-1.5 bg-red-100 text-red-600 hover:bg-red-200 rounded-lg transition-all"
                                   title="Negar"
                                 >
@@ -1649,7 +1718,7 @@ export default function App() {
                                   {user.status === 'approved' ? 'Aprovado' : 'Negado'}
                                 </span>
                                 <button 
-                                  onClick={() => removeUserRequest(user.cpf)}
+                                  onClick={() => removeUserRequest(user.uid || user.cpf)}
                                   className="p-1.5 text-slate-300 hover:text-slate-500 hover:bg-slate-200 rounded-lg transition-all"
                                 >
                                   <Trash2 className="w-4 h-4" />
@@ -1678,7 +1747,7 @@ export default function App() {
               initial={{ opacity: 0, x: 50, scale: 0.9 }}
               animate={{ opacity: 1, x: 0, scale: 1 }}
               exit={{ opacity: 0, x: 20, scale: 0.9 }}
-              className="bg-white border border-slate-200 shadow-xl rounded-2xl p-4 flex items-center gap-4 min-w-[240px] pointer-events-auto"
+              className="bg-white border border-slate-300 shadow-xl rounded-2xl p-4 flex items-center gap-4 min-w-[240px] pointer-events-auto"
             >
               <div className="bg-indigo-600 w-10 h-10 rounded-xl flex items-center justify-center text-white">
                 <ShoppingCart className="w-5 h-5" />

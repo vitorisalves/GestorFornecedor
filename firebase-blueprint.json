@@ -40,9 +40,11 @@
       "description": "A user with access permissions",
       "type": "object",
       "properties": {
+        "uid": { "type": "string" },
         "cpf": { "type": "string" },
         "status": { "type": "string", "enum": ["pending", "approved", "denied"] },
-        "requestDate": { "type": "string" }
+        "requestDate": { "type": "string" },
+        "role": { "type": "string", "enum": ["admin", "user"] }
       },
       "required": ["cpf", "status", "requestDate"]
     },
