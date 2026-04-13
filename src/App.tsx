@@ -34,6 +34,21 @@ import {
   FileSpreadsheet
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
+import { db } from './firebase';
+import { 
+  collection, 
+  onSnapshot, 
+  doc, 
+  setDoc, 
+  deleteDoc, 
+  updateDoc,
+  query,
+  orderBy,
+  getDocFromServer
+} from 'firebase/firestore';
+
+// --- INTERFACES E TIPAGENS ---
+// Define a estrutura de dados para Produtos, Fornecedores, Carrinho, Listas Salvas e Usuários.
 
 interface Product {
   name: string;
@@ -75,25 +90,17 @@ interface AuthorizedUser {
 }
 
 export default function App() {
+  // --- ESTADOS GLOBAIS DA APLICAÇÃO ---
+  // Controle de autenticação, navegação e dados principais (fornecedores, categorias, carrinho).
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [currentPage, setCurrentPage] = useState<'suppliers' | 'shopping' | 'history'>('suppliers');
   const [loginCpf, setLoginCpf] = useState('');
   const [loggedCpf, setLoggedCpf] = useState('');
   const [loginError, setLoginError] = useState('');
 
-  const [authorizedUsers, setAuthorizedUsers] = useState<AuthorizedUser[]>(() => {
-    const saved = localStorage.getItem('labarr_authorized_users');
-    return saved ? JSON.parse(saved) : [];
-  });
-
-  const [suppliers, setSuppliers] = useState<Supplier[]>(() => {
-    const saved = localStorage.getItem('labarr_suppliers');
-    return saved ? JSON.parse(saved) : [];
-  });
-  const [categories, setCategories] = useState<string[]>(() => {
-    const saved = localStorage.getItem('labarr_categories');
-    return saved ? JSON.parse(saved) : ['Embalagens', 'Ingredientes', 'Limpeza', 'Escritório', 'Outros'];
-  });
+  const [authorizedUsers, setAuthorizedUsers] = useState<AuthorizedUser[]>([]);
+  const [suppliers, setSuppliers] = useState<Supplier[]>([]);
+  const [categories, setCategories] = useState<string[]>(['Embalagens', 'Ingredientes', 'Limpeza', 'Escritório', 'Outros']);
   const [isAdding, setIsAdding] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isCartOpen, setIsCartOpen] = useState(false);
@@ -101,10 +108,7 @@ export default function App() {
     const saved = localStorage.getItem('labarr_cart');
     return saved ? JSON.parse(saved) : [];
   });
-  const [savedLists, setSavedLists] = useState<SavedList[]>(() => {
-    const saved = localStorage.getItem('labarr_lists');
-    return saved ? JSON.parse(saved) : [];
-  });
+  const [savedLists, setSavedLists] = useState<SavedList[]>([]);
   const [listName, setListName] = useState('');
   const [editingListId, setEditingListId] = useState<string | null>(null);
   const [editingSupplierId, setEditingSupplierId] = useState<string | null>(null);
@@ -117,26 +121,58 @@ export default function App() {
 
   const productNameRef = useRef<HTMLInputElement>(null);
 
-  // Persistence Effects
+  // --- FIREBASE SYNC EFFECTS ---
   useEffect(() => {
-    localStorage.setItem('labarr_suppliers', JSON.stringify(suppliers));
-  }, [suppliers]);
+    // Test connection
+    const testConnection = async () => {
+      try {
+        await getDocFromServer(doc(db, 'system', 'connection'));
+      } catch (error) {
+        if (error instanceof Error && error.message.includes('offline')) {
+          console.error("Firebase connection error. Check configuration.");
+        }
+      }
+    };
+    testConnection();
 
+    // Sync Suppliers
+    const unsubSuppliers = onSnapshot(collection(db, 'suppliers'), (snapshot) => {
+      const data = snapshot.docs.map(doc => doc.data() as Supplier);
+      setSuppliers(data);
+    });
+
+    // Sync Categories
+    const unsubCategories = onSnapshot(collection(db, 'categories'), (snapshot) => {
+      if (!snapshot.empty) {
+        const data = snapshot.docs.map(doc => doc.data().name as string);
+        setCategories(data);
+      }
+    });
+
+    // Sync Lists
+    const unsubLists = onSnapshot(query(collection(db, 'lists'), orderBy('date', 'desc')), (snapshot) => {
+      const data = snapshot.docs.map(doc => doc.data() as SavedList);
+      setSavedLists(data);
+    });
+
+    // Sync Authorized Users
+    const unsubAuth = onSnapshot(collection(db, 'authorized_users'), (snapshot) => {
+      const data = snapshot.docs.map(doc => doc.data() as AuthorizedUser);
+      setAuthorizedUsers(data);
+    });
+
+    return () => {
+      unsubSuppliers();
+      unsubCategories();
+      unsubLists();
+      unsubAuth();
+    };
+  }, []);
+
+  // --- EFEITOS DE PERSISTÊNCIA (LocalStorage para estados locais) ---
   useEffect(() => {
     localStorage.setItem('labarr_cart', JSON.stringify(cart));
   }, [cart]);
-
-  useEffect(() => {
-    localStorage.setItem('labarr_lists', JSON.stringify(savedLists));
-  }, [savedLists]);
-
-  useEffect(() => {
-    localStorage.setItem('labarr_categories', JSON.stringify(categories));
-  }, [categories]);
-
-  useEffect(() => {
-    localStorage.setItem('labarr_authorized_users', JSON.stringify(authorizedUsers));
-  }, [authorizedUsers]);
 
   // Form state
   const [newName, setNewName] = useState('');
@@ -149,6 +185,8 @@ export default function App() {
   const [productList, setProductList] = useState<Product[]>([]);
   const [editingProductIndex, setEditingProductIndex] = useState<number | null>(null);
 
+  // --- GERENCIAMENTO DE AUTENTICAÇÃO E ACESSOS ---
+  // Lida com o login via CPF e o sistema de aprovação de novos usuários.
   const handleLogin = (e: FormEvent) => {
     e.preventDefault();
     const adminCpf = '05839352144';
@@ -185,7 +223,7 @@ export default function App() {
         status: 'pending',
         requestDate: new Date().toISOString()
       };
-      setAuthorizedUsers([...authorizedUsers, newUser]);
+      setDoc(doc(db, 'authorized_users', cleanCpf), newUser);
       setLoginError('Solicitação enviada. Aguarde a liberação do administrador.');
     }
   };
@@ -196,14 +234,16 @@ export default function App() {
     setLoggedCpf('');
   };
 
-  const updateUserStatus = (cpf: string, status: 'approved' | 'denied') => {
-    setAuthorizedUsers(prev => prev.map(u => u.cpf === cpf ? { ...u, status } : u));
+  const updateUserStatus = async (cpf: string, status: 'approved' | 'denied') => {
+    await updateDoc(doc(db, 'authorized_users', cpf), { status });
   };
 
-  const removeUserRequest = (cpf: string) => {
-    setAuthorizedUsers(prev => prev.filter(u => u.cpf !== cpf));
+  const removeUserRequest = async (cpf: string) => {
+    await deleteDoc(doc(db, 'authorized_users', cpf));
   };
 
+  // --- GERENCIAMENTO DE PRODUTOS E FORNECEDORES ---
+  // Funções para adicionar, editar e remover fornecedores e seus respectivos produtos.
   const addProduct = () => {
     if (newProductName.trim() && newProductPrice && newProductCategory.trim()) {
       if (!categories.includes(newProductCategory.trim())) {
@@ -250,27 +290,19 @@ export default function App() {
     }
   };
 
-  const handleAddSupplier = (e: FormEvent) => {
+  const handleAddSupplier = async (e: FormEvent) => {
     e.preventDefault();
     if (!newName || !newPhone || productList.length === 0) return;
 
-    if (editingSupplierId) {
-      // Update existing supplier
-      setSuppliers(suppliers.map(s => 
-        s.id === editingSupplierId 
-          ? { ...s, name: newName, phone: newPhone, products: productList }
-          : s
-      ));
-    } else {
-      // Create new supplier
-      const supplier: Supplier = {
-        id: crypto.randomUUID(),
-        name: newName,
-        phone: newPhone,
-        products: productList,
-      };
-      setSuppliers([supplier, ...suppliers]);
-    }
+    const supplierId = editingSupplierId || crypto.randomUUID();
+    const supplier: Supplier = {
+      id: supplierId,
+      name: newName,
+      phone: newPhone,
+      products: productList,
+    };
+
+    await setDoc(doc(db, 'suppliers', supplierId), supplier);
 
     resetForm();
     setIsAdding(false);
@@ -296,9 +328,9 @@ export default function App() {
     setEditingSupplierId(null);
   };
 
-  const confirmDelete = () => {
+  const confirmDelete = async () => {
     if (supplierToDelete) {
-      setSuppliers(suppliers.filter(s => s.id !== supplierToDelete));
+      await deleteDoc(doc(db, 'suppliers', supplierToDelete));
       setSupplierToDelete(null);
     }
   };
@@ -311,6 +343,8 @@ export default function App() {
     }, 2500);
   };
 
+  // --- SISTEMA DE CARRINHO E LISTA DE COMPRAS ---
+  // Funções para adicionar itens ao carrinho, atualizar quantidades e finalizar listas.
   const addToCart = (product: Product, supplierName: string, quantity: number = 1) => {
     setCart(prev => {
       const existing = prev.find(item => item.name === product.name && item.supplierName === supplierName);
@@ -326,20 +360,17 @@ export default function App() {
     addNotification(product.name, quantity);
   };
 
-  const toggleSavedListItemBought = (listId: string, productName: string, supplierName: string) => {
-    setSavedLists(prev => prev.map(list => {
-      if (list.id === listId) {
-        return {
-          ...list,
-          items: list.items.map(item => 
-            (item.name === productName && item.supplierName === supplierName)
-              ? { ...item, bought: !item.bought }
-              : item
-          )
-        };
-      }
-      return list;
-    }));
+  const toggleSavedListItemBought = async (listId: string, productName: string, supplierName: string) => {
+    const list = savedLists.find(l => l.id === listId);
+    if (!list) return;
+
+    const updatedItems = list.items.map(item => 
+      (item.name === productName && item.supplierName === supplierName)
+        ? { ...item, bought: !item.bought }
+        : item
+    );
+
+    await updateDoc(doc(db, 'lists', listId), { items: updatedItems });
   };
 
   const updateCartQuantity = (productName: string, supplierName: string, delta: number) => {
@@ -362,26 +393,23 @@ export default function App() {
     setEditingListId(null);
   };
 
-  const finalizeList = () => {
+  const finalizeList = async () => {
     if (!listName.trim()) {
       addNotification('Dê um nome para a lista', 0);
       return;
     }
 
     const total = cart.reduce((acc, item) => acc + (item.price * item.quantity), 0);
+    const listId = editingListId || (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).substring(2, 11));
     const newList: SavedList = {
-      id: editingListId || (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).substring(2, 11)),
+      id: listId,
       name: listName.trim(),
-      date: new Date().toLocaleString('pt-BR'),
+      date: new Date().toISOString(),
       items: [...cart],
       total
     };
 
-    if (editingListId) {
-      setSavedLists(prev => prev.map(l => l.id === editingListId ? newList : l));
-    } else {
-      setSavedLists(prev => [newList, ...prev]);
-    }
+    await setDoc(doc(db, 'lists', listId), newList);
 
     setCart([]);
     setListName('');
@@ -402,20 +430,23 @@ export default function App() {
     setListToDelete(id);
   };
 
-  const confirmDeleteList = () => {
+  const confirmDeleteList = async () => {
     if (listToDelete) {
-      setSavedLists(prev => prev.filter(l => l.id !== listToDelete));
+      await deleteDoc(doc(db, 'lists', listToDelete));
       setListToDelete(null);
     }
   };
 
-  const handleAddCategory = () => {
+  const handleAddCategory = async () => {
     if (newCategoryName.trim() && !categories.includes(newCategoryName.trim())) {
-      setCategories([...categories, newCategoryName.trim()]);
+      const catId = crypto.randomUUID();
+      await setDoc(doc(db, 'categories', catId), { name: newCategoryName.trim() });
       setNewCategoryName('');
     }
   };
 
+  // --- INTEGRAÇÃO COM EXCEL (EXPORTAÇÃO E IMPORTAÇÃO) ---
+  // Permite baixar os dados atuais ou carregar novos fornecedores via planilha .xlsx.
   const handleExportExcel = () => {
     const exportData = suppliers.flatMap(supplier => 
       supplier.products.map(product => ({
@@ -541,6 +572,8 @@ export default function App() {
     s.products.some(p => p.name.toLowerCase().includes(searchTerm.toLowerCase()))
   );
 
+  // --- RENDERIZAÇÃO DA INTERFACE ---
+  // Se não estiver logado, exibe a tela de login. Caso contrário, exibe o painel principal.
   if (!isLoggedIn) {
     return (
       <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4 font-sans">
@@ -605,7 +638,7 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 font-sans">
-      {/* Header */}
+      {/* CABEÇALHO: Contém o logo, navegação entre abas e botões de ação (Carrinho, Novo, Configurações, Sair) */}
       <header className="bg-white border-b border-slate-200 sticky top-0 z-10">
         <div className="max-w-5xl mx-auto px-4 h-16 flex items-center justify-between">
           <div className="flex items-center gap-6">
@@ -685,6 +718,7 @@ export default function App() {
       </header>
 
       {currentPage === 'suppliers' ? (
+        /* PÁGINA DE FORNECEDORES: Lista todos os fornecedores cadastrados e seus produtos */
         <main className="max-w-5xl mx-auto px-4 py-8">
         {/* Search and Stats */}
         <div className="mb-8 flex flex-col md:flex-row gap-4 items-center justify-between">
@@ -795,6 +829,7 @@ export default function App() {
         </div>
       </main>
       ) : currentPage === 'shopping' ? (
+        /* PÁGINA DE COMPRAS: Interface para selecionar produtos e adicionar ao carrinho */
         <main className="max-w-5xl mx-auto px-4 py-8">
           <div className="mb-8 flex flex-col md:flex-row gap-4 items-center justify-between">
             <div>
@@ -916,6 +951,7 @@ export default function App() {
           </div>
         </main>
       ) : (
+        /* PÁGINA DE HISTÓRICO: Exibe as listas de compras finalizadas anteriormente */
         <main className="max-w-5xl mx-auto px-4 py-8">
           <div className="mb-8">
             <h2 className="text-2xl font-bold text-slate-800">Histórico de Listas</h2>
@@ -959,7 +995,13 @@ export default function App() {
                           <div className="flex items-center gap-3 text-xs text-slate-400 mt-1">
                             <span className="flex items-center gap-1">
                               <Calendar className="w-3 h-3" />
-                              {list.date}
+                              {new Date(list.date).toLocaleString('pt-BR', { 
+                                day: '2-digit', 
+                                month: '2-digit', 
+                                year: 'numeric', 
+                                hour: '2-digit', 
+                                minute: '2-digit' 
+                              })}
                             </span>
                             <span>•</span>
                             <span>{list.items.length} itens</span>
@@ -1024,7 +1066,7 @@ export default function App() {
         </main>
       )}
 
-      {/* Shopping List Sidebar */}
+      {/* BARRA LATERAL DO CARRINHO (LISTA DE COMPRAS ATUAL) */}
       <AnimatePresence>
         {isCartOpen && (
           <>
@@ -1172,6 +1214,7 @@ export default function App() {
       </AnimatePresence>
 
       {/* Add Supplier Modal */}
+      {/* MODAL DE ADICIONAR/EDITAR FORNECEDOR */}
       <AnimatePresence>
         {isAdding && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
@@ -1453,7 +1496,7 @@ export default function App() {
         )}
       </AnimatePresence>
 
-      {/* Settings Modal */}
+      {/* MODAL DE CONFIGURAÇÕES: Gerenciamento de categorias, exportação/importação e acessos */}
       <AnimatePresence>
         {isSettingsOpen && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4">

@@ -1,0 +1,77 @@
+{
+  "entities": {
+    "Supplier": {
+      "title": "Supplier",
+      "description": "A supplier of products",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "phone": { "type": "string" },
+        "products": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": { "type": "string" },
+              "price": { "type": "number" },
+              "category": { "type": "string" }
+            }
+          }
+        }
+      },
+      "required": ["id", "name", "phone", "products"]
+    },
+    "SavedList": {
+      "title": "Saved List",
+      "description": "A finalized shopping list",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "date": { "type": "string" },
+        "total": { "type": "number" },
+        "items": { "type": "array" }
+      },
+      "required": ["id", "name", "date", "total", "items"]
+    },
+    "AuthorizedUser": {
+      "title": "Authorized User",
+      "description": "A user with access permissions",
+      "type": "object",
+      "properties": {
+        "cpf": { "type": "string" },
+        "status": { "type": "string", "enum": ["pending", "approved", "denied"] },
+        "requestDate": { "type": "string" }
+      },
+      "required": ["cpf", "status", "requestDate"]
+    },
+    "Category": {
+      "title": "Category",
+      "description": "Product category",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" }
+      },
+      "required": ["name"]
+    }
+  },
+  "firestore": {
+    "/suppliers/{supplierId}": {
+      "schema": "Supplier",
+      "description": "Collection of suppliers"
+    },
+    "/lists/{listId}": {
+      "schema": "SavedList",
+      "description": "Collection of saved shopping lists"
+    },
+    "/authorized_users/{cpf}": {
+      "schema": "AuthorizedUser",
+      "description": "Collection of authorized CPFs"
+    },
+    "/categories/{categoryId}": {
+      "schema": "Category",
+      "description": "Collection of product categories"
+    }
+  }
+}
