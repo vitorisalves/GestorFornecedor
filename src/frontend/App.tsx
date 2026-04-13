@@ -28,7 +28,9 @@ import {
   Tags,
   Download,
   Upload,
-  FileSpreadsheet
+  FileSpreadsheet,
+  RefreshCw,
+  Globe
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { db, auth, signInAnonymously, onAuthStateChanged } from './firebase';
@@ -87,6 +89,13 @@ interface AuthorizedUser {
   role?: 'admin' | 'user';
 }
 
+interface OmieProduct {
+  codigo_produto: number;
+  descricao: string;
+  valor_unitario: number;
+  unidade: string;
+}
+
 // --- UTILITÁRIOS ---
 // Função para gerar IDs únicos compatível com diferentes ambientes.
 const generateId = () => (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).substring(2, 11));
@@ -95,7 +104,7 @@ export default function App() {
   // --- ESTADOS GLOBAIS DA APLICAÇÃO ---
   // Controle de autenticação, navegação e dados principais (fornecedores, categorias, carrinho).
   const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [currentPage, setCurrentPage] = useState<'suppliers' | 'shopping' | 'history'>('suppliers');
+  const [currentPage, setCurrentPage] = useState<'suppliers' | 'shopping' | 'history' | 'omie'>('suppliers');
   const [loginCpf, setLoginCpf] = useState('');
   const [loggedCpf, setLoggedCpf] = useState('');
   const [loginError, setLoginError] = useState('');
@@ -121,6 +130,11 @@ export default function App() {
   const [shoppingQuantities, setShoppingQuantities] = useState<Record<string, number>>({});
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [newCategoryName, setNewCategoryName] = useState('');
+  const [omieProducts, setOmieProducts] = useState<OmieProduct[]>([]);
+  const [omieApiPath, setOmieApiPath] = useState('https://production-manager-api.onrender.com/v1/omie/products');
+  const [omieSearchTerm, setOmieSearchTerm] = useState('');
+  const [isSyncingOmie, setIsSyncingOmie] = useState(false);
+  const [isTriggeringSync, setIsTriggeringSync] = useState(false);
 
   const productNameRef = useRef<HTMLInputElement>(null);
 
@@ -505,6 +519,113 @@ export default function App() {
     }
   };
 
+  // --- INTEGRAÇÃO OMIE ---
+  const triggerOmieSync = async () => {
+    setIsTriggeringSync(true);
+    try {
+      // Extraímos a base da URL do omieApiPath (ex: https://dominio.com/v1)
+      const urlObj = new URL(omieApiPath);
+      const pathParts = urlObj.pathname.split('/');
+      // Se o path já contém 'omie', pegamos a parte antes dele
+      const v1Index = pathParts.indexOf('v1');
+      const baseUrlPath = pathParts.slice(0, v1Index + 1).join('/');
+      const baseUrl = urlObj.origin + baseUrlPath;
+      const syncUrl = `${baseUrl}/omie/sync/products`;
+
+      // Chama o endpoint de sincronização (POST) via proxy
+      // O proxy no backend já adiciona /omie/ se não for passado via query 'url'
+      // Mas aqui estamos passando a URL completa via query 'url', então o proxy usará ela.
+      const response = await fetch(`/api/omie/sync/products?url=${encodeURIComponent(syncUrl)}`, { 
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({})
+      });
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Erro ao disparar sincronização Omie');
+      }
+      addNotification('Sincronização disparada! Aguarde alguns segundos...', 0);
+      // Após disparar, aguarda um pouco mais (5s) e atualiza a lista
+      setTimeout(fetchOmieProducts, 5000);
+    } catch (error) {
+      console.error('Erro ao disparar sync Omie:', error);
+      addNotification(error instanceof Error ? error.message : 'Erro ao disparar sync', 0);
+    } finally {
+      setIsTriggeringSync(false);
+    }
+  };
+
+  const fetchOmieProducts = async () => {
+    setIsSyncingOmie(true);
+    try {
+      // Monta a URL com o filtro de descrição se houver
+      let url = `/api/omie/products?url=${encodeURIComponent(omieApiPath)}`;
+      if (omieSearchTerm) {
+        url += `&descricao=${encodeURIComponent(omieSearchTerm)}`;
+      }
+
+      // Usamos o proxy do backend para evitar problemas de CORS
+      const response = await fetch(url);
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Erro ao buscar produtos da Omie');
+      }
+      const result = await response.json();
+      console.log('--- DEBUG OMIE API ---');
+      console.log('URL:', omieApiPath);
+      console.log('Resposta completa:', result);
+      
+      // Lógica robusta para encontrar a lista de produtos na resposta
+      let products = [];
+      
+      const findArray = (obj: any): any[] | null => {
+        if (!obj) return null;
+        if (Array.isArray(obj)) return obj;
+        
+        // Se for um objeto, procuramos por chaves que contenham arrays
+        // Prioridade para chaves conhecidas
+        const priorityKeys = ['data', 'products', 'produtos', 'items', 'rows', 'list'];
+        for (const key of priorityKeys) {
+          if (Array.isArray(obj[key])) return obj[key];
+        }
+
+        // Se não encontrou nas chaves de prioridade, busca qualquer array
+        for (const key in obj) {
+          if (Array.isArray(obj[key])) return obj[key];
+        }
+        
+        // Se houver um campo 'data' que é objeto, busca recursivamente nele
+        if (obj.data && typeof obj.data === 'object' && !Array.isArray(obj.data)) {
+          return findArray(obj.data);
+        }
+        
+        return null;
+      };
+
+      products = findArray(result) || [];
+      console.log('Produtos extraídos:', products);
+      console.log('----------------------');
+
+      setOmieProducts(products);
+      if (products.length > 0) {
+        addNotification('Produtos Omie carregados!', products.length);
+      } else {
+        addNotification('Nenhum produto encontrado na API.', 0);
+      }
+    } catch (error) {
+      console.error('Erro Omie:', error);
+      addNotification(error instanceof Error ? error.message : 'Erro na sincronização Omie', 0);
+    } finally {
+      setIsSyncingOmie(false);
+    }
+  };
+
+  useEffect(() => {
+    if (currentPage === 'omie' && omieProducts.length === 0) {
+      fetchOmieProducts();
+    }
+  }, [currentPage]);
+
   // --- INTEGRAÇÃO COM EXCEL (EXPORTAÇÃO E IMPORTAÇÃO) ---
   // Permite baixar os dados atuais ou carregar novos fornecedores via planilha .xlsx.
   const handleExportExcel = () => {
@@ -739,6 +860,13 @@ export default function App() {
                 <ListChecks className="w-4 h-4" />
                 Lista de Compras
               </button>
+              <button 
+                onClick={() => setCurrentPage('omie')}
+                className={`flex items-center gap-2 px-4 py-1.5 rounded-lg text-sm font-bold transition-all ${currentPage === 'omie' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+              >
+                <Globe className="w-4 h-4" />
+                Omie
+              </button>
             </nav>
           </div>
           
@@ -867,7 +995,7 @@ export default function App() {
                             <div className="flex justify-between items-start">
                               <span className="font-bold text-slate-700 text-sm">{product.name}</span>
                               <span className="text-indigo-600 font-bold text-sm">
-                                R$ {product.price.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                                R$ {(product.price ?? 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                               </span>
                             </div>
                             <span className="text-[10px] uppercase font-bold text-slate-400 tracking-tight bg-white px-1.5 py-0.5 rounded border border-slate-100 self-start">
@@ -952,7 +1080,7 @@ export default function App() {
                       </td>
                       <td className="px-6 py-4 text-right">
                         <div className="font-bold text-indigo-600">
-                          R$ {item.price.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                          R$ {(item.price ?? 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                         </div>
                       </td>
                       <td className="px-6 py-4 text-right">
@@ -1011,6 +1139,144 @@ export default function App() {
                   <tr>
                     <td colSpan={4} className="px-6 py-20 text-center text-slate-400 italic">
                       Nenhum fornecedor cadastrado para listar produtos.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </main>
+      ) : currentPage === 'omie' ? (
+        /* PÁGINA OMIE: Integração com API externa para listar produtos */
+        <main className="max-w-5xl mx-auto px-4 py-8">
+          <div className="mb-8 space-y-4">
+            <div className="flex flex-col md:flex-row gap-4 items-center justify-between">
+              <div>
+                <h2 className="text-2xl font-bold text-slate-800">Integração Omie</h2>
+                <p className="text-slate-500 text-sm">Produtos sincronizados via API externa</p>
+              </div>
+              <div className="relative w-full md:w-80">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                <input 
+                  type="text" 
+                  placeholder="Buscar por descrição..."
+                  value={omieSearchTerm}
+                  onChange={(e) => setOmieSearchTerm(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && fetchOmieProducts()}
+                  className="w-full pl-10 pr-4 py-2 bg-white border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all text-sm"
+                />
+              </div>
+            </div>
+
+            <div className="flex flex-col md:flex-row gap-3 w-full">
+              <div className="relative flex-1">
+                <Globe className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                <input 
+                  type="text" 
+                  value={omieApiPath}
+                  onChange={(e) => setOmieApiPath(e.target.value)}
+                  placeholder="URL da API..."
+                  className="w-full pl-10 pr-4 py-2.5 bg-white border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all text-sm"
+                />
+              </div>
+              <div className="flex gap-2">
+                <button 
+                  onClick={triggerOmieSync}
+                  disabled={isTriggeringSync}
+                  className="bg-slate-800 hover:bg-slate-900 text-white px-4 py-2.5 rounded-xl font-bold transition-all flex items-center gap-2 shadow-lg disabled:opacity-50 whitespace-nowrap text-sm"
+                  title="Dispara a sincronização do Omie para o banco da API"
+                >
+                  <RefreshCw className={`w-4 h-4 ${isTriggeringSync ? 'animate-spin' : ''}`} />
+                  {isTriggeringSync ? 'Sincronizando...' : 'Sincronizar Omie'}
+                </button>
+                <button 
+                  onClick={fetchOmieProducts}
+                  disabled={isSyncingOmie}
+                  className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2.5 rounded-xl font-bold transition-all flex items-center gap-2 shadow-lg shadow-indigo-500/20 disabled:opacity-50 whitespace-nowrap text-sm"
+                  title="Atualiza a lista de produtos exibida"
+                >
+                  <Download className={`w-4 h-4 ${isSyncingOmie ? 'animate-spin' : ''}`} />
+                  {isSyncingOmie ? 'Buscando...' : 'Listar Produtos'}
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-3xl border border-slate-300 shadow-sm overflow-hidden">
+            <table className="w-full text-left border-collapse">
+              <thead>
+                <tr className="bg-slate-50 border-b border-slate-300">
+                  <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-slate-500">Cód. Produto</th>
+                  <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-slate-500">Descrição</th>
+                  <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-slate-500">Unidade</th>
+                  <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-slate-500 text-right">Valor Unitário</th>
+                  <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-slate-500 text-right">Ação</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-200">
+                {omieProducts.length > 0 ? (
+                  omieProducts.map((product, idx) => (
+                    <tr key={idx} className="hover:bg-slate-50 transition-colors group">
+                      <td className="px-6 py-4">
+                        <span className="text-xs font-mono font-bold text-slate-400 bg-slate-100 px-2 py-1 rounded">
+                          {product.codigo_produto || 'N/A'}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="font-bold text-slate-800">{product.descricao || 'Sem descrição'}</div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <span className="text-[10px] uppercase font-bold text-slate-400 tracking-tight bg-slate-100 px-2 py-1 rounded">
+                          {product.unidade || 'UN'}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 text-right">
+                        <div className="font-bold text-indigo-600">
+                          R$ {(product.valor_unitario ?? 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 text-right">
+                        <button 
+                          onClick={async () => {
+                            try {
+                              const response = await fetch('/api/omie/products', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ codigo_produto: product.codigo_produto })
+                              });
+                              if (!response.ok) throw new Error('Erro ao adicionar produto');
+                              addNotification('Produto adicionado ao gerenciador!', 1);
+                            } catch (error) {
+                              addNotification('Erro ao adicionar produto', 0);
+                            }
+                          }}
+                          className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all"
+                          title="Adicionar ao Gerenciador de Produtos"
+                        >
+                          <Plus className="w-5 h-5" />
+                        </button>
+                      </td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
+                    <td colSpan={5} className="px-6 py-20 text-center text-slate-400 italic">
+                      <div className="flex flex-col items-center gap-2">
+                        {isSyncingOmie ? (
+                          <>
+                            <RefreshCw className="w-8 h-8 animate-spin text-indigo-400" />
+                            <span>Buscando produtos na API...</span>
+                          </>
+                        ) : (
+                          <>
+                            <Globe className="w-8 h-8 text-slate-200" />
+                            <span>Nenhum produto sincronizado.</span>
+                            <p className="text-xs max-w-xs">
+                              Clique em <b>Sincronizar Omie</b> para buscar dados do Omie, ou verifique se a URL da API está correta.
+                            </p>
+                          </>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 )}
@@ -1081,7 +1347,7 @@ export default function App() {
                         <div className="text-right">
                           <div className="text-xs text-slate-400 uppercase font-bold">Total</div>
                           <div className="text-lg font-bold text-indigo-600">
-                            R$ {list.total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                            R$ {(list.total ?? 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                           </div>
                         </div>
                         <div className="flex items-center gap-2">
@@ -1242,7 +1508,7 @@ export default function App() {
                         <div className="text-right">
                           <div className="text-xs text-slate-400">Total</div>
                           <div className="font-bold text-indigo-600">
-                            R$ {(item.price * item.quantity).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                            R$ {((item.price ?? 0) * (item.quantity ?? 0)).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                           </div>
                         </div>
                       </div>
@@ -1256,7 +1522,7 @@ export default function App() {
                   <div className="flex justify-between items-center">
                     <span className="text-slate-500 font-medium">Total da Lista</span>
                     <span className="text-2xl font-bold text-slate-800">
-                      R$ {cart.reduce((acc, item) => acc + (item.price * item.quantity), 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                      R$ {(cart.reduce((acc, item) => acc + ((item.price ?? 0) * (item.quantity ?? 0)), 0)).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                     </span>
                   </div>
                   <div className="flex gap-3">
