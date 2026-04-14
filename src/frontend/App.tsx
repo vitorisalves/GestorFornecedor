@@ -131,10 +131,11 @@ export default function App() {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [newCategoryName, setNewCategoryName] = useState('');
   const [omieProducts, setOmieProducts] = useState<OmieProduct[]>([]);
-  const [omieApiPath, setOmieApiPath] = useState('https://production-manager-api.onrender.com/v1/omie/products');
   const [omieSearchTerm, setOmieSearchTerm] = useState('');
   const [isSyncingOmie, setIsSyncingOmie] = useState(false);
   const [isTriggeringSync, setIsTriggeringSync] = useState(false);
+  const [managedProducts, setManagedProducts] = useState<any[]>([]);
+  const [isFetchingManaged, setIsFetchingManaged] = useState(false);
 
   const productNameRef = useRef<HTMLInputElement>(null);
 
@@ -519,36 +520,27 @@ export default function App() {
     }
   };
 
-  // --- INTEGRAÇÃO OMIE ---
+  // --- INTEGRAÇÃO API EXTERNA ---
   const triggerOmieSync = async () => {
     setIsTriggeringSync(true);
     try {
-      // Extraímos a base da URL do omieApiPath (ex: https://dominio.com/v1)
-      const urlObj = new URL(omieApiPath);
-      const pathParts = urlObj.pathname.split('/');
-      // Se o path já contém 'omie', pegamos a parte antes dele
-      const v1Index = pathParts.indexOf('v1');
-      const baseUrlPath = pathParts.slice(0, v1Index + 1).join('/');
-      const baseUrl = urlObj.origin + baseUrlPath;
-      const syncUrl = `${baseUrl}/omie/sync/products`;
-
-      // Chama o endpoint de sincronização (POST) via proxy
-      // O proxy no backend já adiciona /omie/ se não for passado via query 'url'
-      // Mas aqui estamos passando a URL completa via query 'url', então o proxy usará ela.
-      const response = await fetch(`/api/omie/sync/products?url=${encodeURIComponent(syncUrl)}`, { 
+      // Chama o endpoint de sincronização (POST) via novo proxy
+      const response = await fetch('/api/v1/omie/sync/products', { 
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({})
       });
+      
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.error || 'Erro ao disparar sincronização Omie');
+        throw new Error(errorData.error || errorData.message || 'Erro ao disparar sincronização');
       }
-      addNotification('Sincronização disparada! Aguarde alguns segundos...', 0);
-      // Após disparar, aguarda um pouco mais (5s) e atualiza a lista
+      
+      addNotification('Sincronização disparada! Aguarde o processamento...', 0);
+      // Após disparar, aguarda 5s e atualiza a lista
       setTimeout(fetchOmieProducts, 5000);
     } catch (error) {
-      console.error('Erro ao disparar sync Omie:', error);
+      console.error('Erro ao disparar sync:', error);
       addNotification(error instanceof Error ? error.message : 'Erro ao disparar sync', 0);
     } finally {
       setIsTriggeringSync(false);
@@ -556,72 +548,105 @@ export default function App() {
   };
 
   const fetchOmieProducts = async () => {
+    console.log('--- CHAMANDO fetchOmieProducts ---');
     setIsSyncingOmie(true);
     try {
-      // Monta a URL com o filtro de descrição se houver
-      let url = `/api/omie/products?url=${encodeURIComponent(omieApiPath)}`;
-      if (omieSearchTerm) {
-        url += `&descricao=${encodeURIComponent(omieSearchTerm)}`;
-      }
+      const url = `/api/omie-direct/products`;
+      console.log('Fetching from:', url);
 
-      // Usamos o proxy do backend para evitar problemas de CORS
       const response = await fetch(url);
+      console.log('Response status:', response.status);
+      
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.error || 'Erro ao buscar produtos da Omie');
+        console.error('Erro na resposta:', errorData);
+        throw new Error(errorData.error || errorData.message || 'Erro ao buscar produtos');
       }
+      
       const result = await response.json();
-      console.log('--- DEBUG OMIE API ---');
-      console.log('URL:', omieApiPath);
-      console.log('Resposta completa:', result);
+      console.log('--- RESULTADO API OMIE ---', result);
       
-      // Lógica robusta para encontrar a lista de produtos na resposta
       let products = [];
-      
-      const findArray = (obj: any): any[] | null => {
-        if (!obj) return null;
-        if (Array.isArray(obj)) return obj;
-        
-        // Se for um objeto, procuramos por chaves que contenham arrays
-        // Prioridade para chaves conhecidas
-        const priorityKeys = ['data', 'products', 'produtos', 'items', 'rows', 'list'];
-        for (const key of priorityKeys) {
-          if (Array.isArray(obj[key])) return obj[key];
-        }
+      if (result && result.data && result.data.length > 0) {
+        console.log('Exemplo de produto recebido:', result.data[0]);
+      }
+      if (result && result.data && Array.isArray(result.data)) {
+        products = result.data;
+      } else if (Array.isArray(result)) {
+        products = result;
+      } else {
+        console.log('Estrutura inesperada, tentando fallback...');
+        const findArray = (obj: any): any[] | null => {
+          if (!obj) return null;
+          if (Array.isArray(obj)) return obj;
+          const priorityKeys = ['data', 'products', 'produtos', 'items', 'rows', 'list'];
+          for (const key of priorityKeys) {
+            if (Array.isArray(obj[key])) return obj[key];
+          }
+          return null;
+        };
+        products = findArray(result) || [];
+      }
 
-        // Se não encontrou nas chaves de prioridade, busca qualquer array
-        for (const key in obj) {
-          if (Array.isArray(obj[key])) return obj[key];
-        }
-        
-        // Se houver um campo 'data' que é objeto, busca recursivamente nele
-        if (obj.data && typeof obj.data === 'object' && !Array.isArray(obj.data)) {
-          return findArray(obj.data);
-        }
-        
-        return null;
-      };
-
-      products = findArray(result) || [];
-      console.log('Produtos extraídos:', products);
-      console.log('----------------------');
-
+      console.log('Produtos extraídos com sucesso:', products.length);
       setOmieProducts(products);
+      
       if (products.length > 0) {
-        addNotification('Produtos Omie carregados!', products.length);
+        addNotification('Produtos carregados!', products.length);
       } else {
         addNotification('Nenhum produto encontrado na API.', 0);
       }
     } catch (error) {
-      console.error('Erro Omie:', error);
-      addNotification(error instanceof Error ? error.message : 'Erro na sincronização Omie', 0);
+      console.error('Erro CRÍTICO no fetchOmieProducts:', error);
+      addNotification(error instanceof Error ? error.message : 'Erro fatal ao buscar produtos', 0);
     } finally {
       setIsSyncingOmie(false);
     }
   };
 
+  const fetchManagedProducts = async () => {
+    setIsFetchingManaged(true);
+    try {
+      const response = await fetch('/api/v1/products');
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || errorData.message || 'Erro ao buscar produtos gerenciados');
+      }
+      const result = await response.json();
+      const data = result.data || result;
+      setManagedProducts(Array.isArray(data) ? data : (data.products || []));
+    } catch (error) {
+      console.error('Erro ao buscar gerenciados:', error);
+    } finally {
+      setIsFetchingManaged(false);
+    }
+  };
+
+  const addToManager = async (codigo: string) => {
+    try {
+      const response = await fetch('/api/v1/products', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ codigo_produto: codigo })
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || errorData.message || 'Erro ao adicionar');
+      }
+      
+      addNotification('Produto adicionado ao gerenciador!', 1);
+      fetchManagedProducts();
+    } catch (error) {
+      console.error('Erro ao adicionar:', error);
+      addNotification(error instanceof Error ? error.message : 'Erro ao adicionar', 0);
+    }
+  };
+
   useEffect(() => {
+    console.log('--- EFFECT OMIE TRIGGERED ---', { currentPage, productsCount: omieProducts.length });
     if (currentPage === 'omie' && omieProducts.length === 0) {
+      console.log('Auto-fetching Omie products...');
       fetchOmieProducts();
     }
   }, [currentPage]);
@@ -1168,31 +1193,21 @@ export default function App() {
               </div>
             </div>
 
-            <div className="flex flex-col md:flex-row gap-3 w-full">
-              <div className="relative flex-1">
-                <Globe className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                <input 
-                  type="text" 
-                  value={omieApiPath}
-                  onChange={(e) => setOmieApiPath(e.target.value)}
-                  placeholder="URL da API..."
-                  className="w-full pl-10 pr-4 py-2.5 bg-white border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all text-sm"
-                />
-              </div>
-              <div className="flex gap-2">
+            <div className="mt-4 flex flex-col md:flex-row gap-3 w-full">
+              <div className="flex gap-2 w-full">
                 <button 
                   onClick={triggerOmieSync}
                   disabled={isTriggeringSync}
-                  className="bg-slate-800 hover:bg-slate-900 text-white px-4 py-2.5 rounded-xl font-bold transition-all flex items-center gap-2 shadow-lg disabled:opacity-50 whitespace-nowrap text-sm"
+                  className="flex-1 bg-slate-800 hover:bg-slate-900 text-white px-4 py-2.5 rounded-xl font-bold transition-all flex items-center justify-center gap-2 shadow-lg disabled:opacity-50 whitespace-nowrap text-sm"
                   title="Dispara a sincronização do Omie para o banco da API"
                 >
                   <RefreshCw className={`w-4 h-4 ${isTriggeringSync ? 'animate-spin' : ''}`} />
-                  {isTriggeringSync ? 'Sincronizando...' : 'Sincronizar Omie'}
+                  {isTriggeringSync ? 'Sincronizar Omie' : 'Sincronizar Omie'}
                 </button>
                 <button 
                   onClick={fetchOmieProducts}
                   disabled={isSyncingOmie}
-                  className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2.5 rounded-xl font-bold transition-all flex items-center gap-2 shadow-lg shadow-indigo-500/20 disabled:opacity-50 whitespace-nowrap text-sm"
+                  className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2.5 rounded-xl font-bold transition-all flex items-center justify-center gap-2 shadow-lg shadow-indigo-500/20 disabled:opacity-50 whitespace-nowrap text-sm"
                   title="Atualiza a lista de produtos exibida"
                 >
                   <Download className={`w-4 h-4 ${isSyncingOmie ? 'animate-spin' : ''}`} />
@@ -1208,7 +1223,7 @@ export default function App() {
                 <tr className="bg-slate-50 border-b border-slate-300">
                   <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-slate-500">Cód. Produto</th>
                   <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-slate-500">Descrição</th>
-                  <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-slate-500">Unidade</th>
+                  <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-slate-500">Quantidade</th>
                   <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-slate-500 text-right">Valor Unitário</th>
                   <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-slate-500 text-right">Ação</th>
                 </tr>
@@ -1219,37 +1234,27 @@ export default function App() {
                     <tr key={idx} className="hover:bg-slate-50 transition-colors group">
                       <td className="px-6 py-4">
                         <span className="text-xs font-mono font-bold text-slate-400 bg-slate-100 px-2 py-1 rounded">
-                          {product.codigo_produto || 'N/A'}
+                          {product.codigo_produto || product.codigo || product.id || 'N/A'}
                         </span>
                       </td>
                       <td className="px-6 py-4">
-                        <div className="font-bold text-slate-800">{product.descricao || 'Sem descrição'}</div>
+                        <div className="font-bold text-slate-800">
+                          {product.descricao || product.nome || product.description || 'Sem descrição'}
+                        </div>
                       </td>
                       <td className="px-6 py-4">
                         <span className="text-[10px] uppercase font-bold text-slate-400 tracking-tight bg-slate-100 px-2 py-1 rounded">
-                          {product.unidade || 'UN'}
+                          {product.stock ?? product.estoque_fisico ?? product.quantidade_estoque ?? product.estoque ?? product.saldo ?? product.quantity ?? 0}
                         </span>
                       </td>
                       <td className="px-6 py-4 text-right">
                         <div className="font-bold text-indigo-600">
-                          R$ {(product.valor_unitario ?? 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                          R$ {(product.valor_unitario || product.preco || product.price || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                         </div>
                       </td>
                       <td className="px-6 py-4 text-right">
                         <button 
-                          onClick={async () => {
-                            try {
-                              const response = await fetch('/api/omie/products', {
-                                method: 'POST',
-                                headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify({ codigo_produto: product.codigo_produto })
-                              });
-                              if (!response.ok) throw new Error('Erro ao adicionar produto');
-                              addNotification('Produto adicionado ao gerenciador!', 1);
-                            } catch (error) {
-                              addNotification('Erro ao adicionar produto', 0);
-                            }
-                          }}
+                          onClick={() => addToManager(product.codigo_produto || product.codigo || product.id)}
                           className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all"
                           title="Adicionar ao Gerenciador de Produtos"
                         >
