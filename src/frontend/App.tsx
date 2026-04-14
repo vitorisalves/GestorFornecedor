@@ -94,6 +94,8 @@ interface OmieProduct {
   descricao: string;
   valor_unitario: number;
   unidade: string;
+  stock?: number;
+  estoque_fisico?: number;
 }
 
 // --- UTILITÁRIOS ---
@@ -568,7 +570,7 @@ export default function App() {
       
       let products = [];
       if (result && result.data && result.data.length > 0) {
-        console.log('Exemplo de produto recebido:', result.data[0]);
+        console.log('DEBUG: Exemplo de produto com estoque:', result.data[0]);
       }
       if (result && result.data && Array.isArray(result.data)) {
         products = result.data;
@@ -912,7 +914,7 @@ export default function App() {
             {currentPage === 'suppliers' && (
               <button 
                 onClick={() => setIsAdding(true)}
-                className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg font-medium transition-colors flex items-center gap-2 shadow-sm"
+                className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-1.5 rounded-lg text-sm font-bold transition-all flex items-center gap-2 shadow-sm"
               >
                 <UserPlus className="w-4 h-4" />
                 <span className="hidden sm:inline">Novo Fornecedor</span>
