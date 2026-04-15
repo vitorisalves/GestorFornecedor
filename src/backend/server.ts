@@ -74,88 +74,56 @@ async function startServer() {
       const productList = productsData.produto_servico_cadastro || productsData.produto_servico_list || [];
       console.log(`Encontrados ${productList.length} produtos.`);
 
-      // 2. Buscar Estoque (Usando PosicaoEstoque para saldo atual consolidado)
+      // 2. Buscar Estoque (Usando ListarEstoque para saldo atual)
       console.log("Buscando posição de estoque atual...");
       let stockList: any[] = [];
       try {
-        // O endpoint correto para PosicaoEstoque geralmente é /estoque/consulta/
-        const stockPosUrl = `${OMIE_CONFIG.base_url}/estoque/consulta/`;
+        const stockUrl = `${OMIE_CONFIG.base_url}/estoque/consulta/`;
         const now = new Date();
         const d = now.getDate().toString().padStart(2, '0');
         const m = (now.getMonth() + 1).toString().padStart(2, '0');
         const y = now.getFullYear();
         const dateStr = `${d}/${m}/${y}`;
         
-        const hh = now.getHours().toString().padStart(2, '0');
-        const mm = now.getMinutes().toString().padStart(2, '0');
-        const ss = now.getSeconds().toString().padStart(2, '0');
-        const timeStr = `${hh}:${mm}:${ss}`;
-
-        const stockResponse = await fetch(stockPosUrl, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            call: "PosicaoEstoque",
-            app_key: OMIE_CONFIG.app_key,
-            app_secret: OMIE_CONFIG.app_secret,
-            param: [{
-              data: dateStr
-            }]
-          })
-        });
-
-        if (stockResponse.ok) {
-          const stockData: any = await stockResponse.json();
-          if (stockData.faultstring) {
-            console.warn("Aviso na PosicaoEstoque:", stockData.faultstring);
+        const fetchStockPage = async (page: number) => {
+          try {
+            const response = await fetch(stockUrl, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                call: "ListarEstoque",
+                app_key: OMIE_CONFIG.app_key,
+                app_secret: OMIE_CONFIG.app_secret,
+                param: [{
+                  pagina: page,
+                  registros_por_pagina: 500,
+                  cExibirTodos: "S",
+                  dDataPosicao: dateStr
+                }]
+              })
+            });
+            if (response.ok) {
+              const data = await response.json();
+              return data;
+            } else {
+              const errText = await response.text();
+              console.error(`Erro Omie ListarEstoque (Página ${page}):`, response.status, errText);
+            }
+          } catch (e) {
+            console.error(`Erro ao buscar página ${page} de estoque:`, e);
           }
-          // PosicaoEstoque retorna em 'listaPosicaoEstoque'
-          stockList = stockData.listaPosicaoEstoque || [];
-          console.log(`Encontrados ${stockList.length} registros na Posição de Estoque.`);
-        } else {
-          const errText = await stockResponse.text();
-          console.error("Erro ao chamar PosicaoEstoque:", stockResponse.status, errText);
-        }
+          return null;
+        };
 
-        // Se PosicaoEstoque falhar ou vier vazio, tenta o ListarEstoque como fallback
-        if (stockList.length === 0) {
-          console.log("PosicaoEstoque vazio ou falhou, tentando ListarEstoque (Multi-página)...");
-          const stockUrl = `${OMIE_CONFIG.base_url}/estoque/consulta/`;
-          
-          const fetchStockPage = async (page: number) => {
-            try {
-              const response = await fetch(stockUrl, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  call: "ListarEstoque",
-                  app_key: OMIE_CONFIG.app_key,
-                  app_secret: OMIE_CONFIG.app_secret,
-                  param: [{
-                    pagina: page,
-                    registros_por_pagina: 500,
-                    cExibirTodos: "S",
-                    dDataPosicao: dateStr
-                  }]
-                })
-              });
-              if (response.ok) return await response.json();
-            } catch (e) {
-              console.error(`Erro ao buscar página ${page} de estoque:`, e);
-            }
-            return null;
-          };
-
-          const pagesToFetch = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
-          const stockResults = await Promise.all(pagesToFetch.map(p => fetchStockPage(p)));
-          
-          stockResults.forEach((data, index) => {
-            if (data && data.estoque_list) {
-              stockList.push(...data.estoque_list);
-              console.log(`Página ${index + 1} de ListarEstoque: ${data.estoque_list.length} registros.`);
-            }
-          });
-        }
+        const pagesToFetch = [1, 2, 3, 4, 5]; // Busca as primeiras 5 páginas (2500 itens)
+        const stockResults = await Promise.all(pagesToFetch.map(p => fetchStockPage(p)));
+        
+        stockResults.forEach((data, index) => {
+          if (data && data.estoque_list) {
+            stockList.push(...data.estoque_list);
+            console.log(`Página ${index + 1} de ListarEstoque: ${data.estoque_list.length} registros.`);
+          }
+        });
       } catch (stockErr) {
         console.warn("Erro crítico ao buscar estoque:", stockErr);
       }

@@ -22,6 +22,7 @@ import {
   Check,
   ListChecks,
   Calendar,
+  User,
   ChevronDown,
   ChevronUp,
   Settings,
@@ -30,7 +31,9 @@ import {
   Upload,
   FileSpreadsheet,
   RefreshCw,
-  Globe
+  Globe,
+  Bell,
+  BellRing
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { db, auth, signInAnonymously, onAuthStateChanged } from './firebase';
@@ -71,6 +74,7 @@ interface SavedList {
   id: string;
   name: string;
   date: string;
+  buyerName?: string;
   items: CartItem[];
   total: number;
 }
@@ -84,9 +88,17 @@ interface Notification {
 interface AuthorizedUser {
   uid?: string;
   cpf: string;
+  name?: string;
   status: 'pending' | 'approved' | 'denied';
   requestDate: string;
   role?: 'admin' | 'user';
+}
+
+interface Reminder {
+  id: string;
+  productName: string;
+  date: string;
+  notified: boolean;
 }
 
 interface OmieProduct {
@@ -106,9 +118,11 @@ export default function App() {
   // --- ESTADOS GLOBAIS DA APLICAÇÃO ---
   // Controle de autenticação, navegação e dados principais (fornecedores, categorias, carrinho).
   const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [currentPage, setCurrentPage] = useState<'suppliers' | 'shopping' | 'history' | 'omie'>('suppliers');
+  const [currentPage, setCurrentPage] = useState<'suppliers' | 'shopping' | 'history' | 'omie' | 'reminders'>('suppliers');
   const [loginCpf, setLoginCpf] = useState('');
+  const [loginName, setLoginName] = useState('');
   const [loggedCpf, setLoggedCpf] = useState('');
+  const [loggedName, setLoggedName] = useState('');
   const [loginError, setLoginError] = useState('');
   const [isAuthReady, setIsAuthReady] = useState(false);
 
@@ -129,8 +143,13 @@ export default function App() {
   const [supplierToDelete, setSupplierToDelete] = useState<string | null>(null);
   const [listToDelete, setListToDelete] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
-  const [shoppingQuantities, setShoppingQuantities] = useState<Record<string, number>>({});
+  const [shoppingQuantities, setShoppingQuantities] = useState<Record<string, number | string>>({});
   const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [appNotifications, setAppNotifications] = useState<{id: string, title: string, message: string, date: string, read: boolean}[]>(() => {
+    const saved = localStorage.getItem('labarr_notifications');
+    return saved ? JSON.parse(saved) : [];
+  });
+  const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
   const [newCategoryName, setNewCategoryName] = useState('');
   const [omieProducts, setOmieProducts] = useState<OmieProduct[]>([]);
   const [omieSearchTerm, setOmieSearchTerm] = useState('');
@@ -138,6 +157,9 @@ export default function App() {
   const [isTriggeringSync, setIsTriggeringSync] = useState(false);
   const [managedProducts, setManagedProducts] = useState<any[]>([]);
   const [isFetchingManaged, setIsFetchingManaged] = useState(false);
+  const [reminders, setReminders] = useState<Reminder[]>([]);
+  const [reminderProductName, setReminderProductName] = useState('');
+  const [reminderDate, setReminderDate] = useState('');
 
   const productNameRef = useRef<HTMLInputElement>(null);
 
@@ -211,6 +233,48 @@ export default function App() {
     localStorage.setItem('labarr_cart', JSON.stringify(cart));
   }, [cart]);
 
+  useEffect(() => {
+    localStorage.setItem('labarr_notifications', JSON.stringify(appNotifications));
+  }, [appNotifications]);
+
+  useEffect(() => {
+    if (!isAuthReady) return;
+    const q = query(collection(db, 'reminders'), orderBy('date', 'asc'));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Reminder));
+      setReminders(data);
+    }, (error) => {
+      console.error("Reminders listener error:", error);
+    });
+    return () => unsubscribe();
+  }, [isAuthReady]);
+
+  useEffect(() => {
+    const checkReminders = async () => {
+      const today = new Date().toISOString().split('T')[0];
+      const pendingReminders = reminders.filter(r => !r.notified && r.date <= today);
+      
+      for (const r of pendingReminders) {
+        addAppNotification('Lembrete de Compra', `Hoje é o dia de comprar: ${r.productName}`);
+        await updateDoc(doc(db, 'reminders', r.id), { notified: true });
+      }
+    };
+
+    const interval = setInterval(checkReminders, 1000 * 60 * 60); // Check every hour
+    checkReminders(); // Initial check
+    return () => clearInterval(interval);
+  }, [reminders]);
+
+  useEffect(() => {
+    const cleanCpf = loginCpf.replace(/\D/g, '');
+    if (cleanCpf.length === 11) {
+      const user = authorizedUsers.find(u => u.cpf === cleanCpf);
+      if (user && user.name) {
+        setLoginName(user.name);
+      }
+    }
+  }, [loginCpf, authorizedUsers]);
+
   // Form state
   const [newName, setNewName] = useState('');
   const [newPhone, setNewPhone] = useState('');
@@ -247,6 +311,7 @@ export default function App() {
       if (currentUserDoc.status === 'approved') {
         setIsLoggedIn(true);
         setLoggedCpf(cleanCpf);
+        setLoggedName(currentUserDoc.name || '');
         setLoginError('');
         return;
       } else if (currentUserDoc.status === 'pending') {
@@ -266,7 +331,8 @@ export default function App() {
       // This allows users to "re-link" if they change devices (simple logic for now)
       const updatedUser: AuthorizedUser = {
         ...existingUserByCpf,
-        uid: currentUid
+        uid: currentUid,
+        name: loginName.trim() || existingUserByCpf.name
       };
       
       // If it's the admin CPF, we auto-approve and set role
@@ -280,6 +346,7 @@ export default function App() {
       if (updatedUser.status === 'approved') {
         setIsLoggedIn(true);
         setLoggedCpf(cleanCpf);
+        setLoggedName(updatedUser.name || '');
         setLoginError('');
       } else {
         setLoginError(updatedUser.status === 'pending' ? 'Aguardando liberação.' : 'Acesso negado.');
@@ -289,6 +356,7 @@ export default function App() {
       const newUser: AuthorizedUser = {
         uid: currentUid,
         cpf: cleanCpf,
+        name: loginName.trim(),
         status: cleanCpf === adminCpf ? 'approved' : 'pending',
         requestDate: new Date().toISOString(),
         role: cleanCpf === adminCpf ? 'admin' : 'user'
@@ -298,6 +366,7 @@ export default function App() {
       if (newUser.status === 'approved') {
         setIsLoggedIn(true);
         setLoggedCpf(cleanCpf);
+        setLoggedName(newUser.name || '');
         setLoginError('');
       } else {
         setLoginError('Solicitação enviada. Aguarde a liberação do administrador.');
@@ -308,7 +377,9 @@ export default function App() {
   const handleLogout = () => {
     setIsLoggedIn(false);
     setLoginCpf('');
+    setLoginName('');
     setLoggedCpf('');
+    setLoggedName('');
   };
 
   const updateUserStatus = async (uid: string, status: 'approved' | 'denied') => {
@@ -420,6 +491,47 @@ export default function App() {
     }, 2500);
   };
 
+  const addAppNotification = (title: string, message: string) => {
+    const id = generateId();
+    setNotifications(prev => [...prev, { id, name: title, quantity: 0 }]); // Show floating notification too
+    
+    // Auto-remove from floating notifications after 3 seconds
+    setTimeout(() => {
+      setNotifications(prev => prev.filter(n => n.id !== id));
+    }, 3000);
+
+    const newNotif = {
+      id,
+      title,
+      message,
+      date: new Date().toISOString(),
+      read: false
+    };
+    setAppNotifications(prev => [newNotif, ...prev].slice(0, 50)); // Keep last 50
+  };
+
+  const handleScheduleReminder = async () => {
+    if (!reminderProductName || !reminderDate) {
+      addNotification('Preencha todos os campos', 0);
+      return;
+    }
+    const id = generateId();
+    try {
+      await setDoc(doc(db, 'reminders', id), {
+        id,
+        productName: reminderProductName,
+        date: reminderDate,
+        notified: false
+      });
+      setReminderProductName('');
+      setReminderDate('');
+      addNotification('Lembrete agendado!', 1);
+    } catch (error) {
+      console.error("Erro ao agendar lembrete:", error);
+      addNotification('Erro ao agendar', 0);
+    }
+  };
+
   // --- SISTEMA DE CARRINHO E LISTA DE COMPRAS ---
   // Funções para adicionar itens ao carrinho, atualizar quantidades e finalizar listas.
   const addToCart = (product: Product, supplierName: string, quantity: number = 1) => {
@@ -482,6 +594,7 @@ export default function App() {
       id: listId,
       name: listName.trim(),
       date: new Date().toISOString(),
+      buyerName: loggedName || 'Usuário Desconhecido',
       items: [...cart],
       total
     };
@@ -494,6 +607,7 @@ export default function App() {
     setIsCartOpen(false);
     setCurrentPage('history');
     addNotification('Lista finalizada!', 1);
+    addAppNotification('Nova Lista de Compras', `A lista "${newList.name}" foi criada com sucesso.`);
   };
 
   const editSavedList = (list: SavedList) => {
@@ -828,6 +942,18 @@ export default function App() {
                   placeholder="000.000.000-00"
                 />
               </div>
+
+              <div>
+                <label className="block text-sm font-semibold text-slate-700 mb-1.5">Seu Nome</label>
+                <input 
+                  type="text" 
+                  value={loginName}
+                  onChange={(e) => setLoginName(e.target.value)}
+                  className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all text-center font-bold"
+                  placeholder="Nome Completo"
+                  required
+                />
+              </div>
             </div>
 
             {loginError && (
@@ -862,7 +988,10 @@ export default function App() {
               <div className="bg-indigo-600 p-2 rounded-lg">
                 <Building2 className="w-5 h-5 text-white" />
               </div>
-              <h1 className="text-xl font-bold tracking-tight">Labarr Gestor</h1>
+              <div>
+                <h1 className="text-xl font-bold tracking-tight">Labarr Gestor</h1>
+                {loggedName && <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Olá, {loggedName}</p>}
+              </div>
             </div>
             
             <nav className="hidden md:flex items-center gap-1 bg-slate-100 p-1 rounded-xl">
@@ -894,6 +1023,13 @@ export default function App() {
                 <Globe className="w-4 h-4" />
                 Omie
               </button>
+              <button 
+                onClick={() => setCurrentPage('reminders')}
+                className={`flex items-center gap-2 px-4 py-1.5 rounded-lg text-sm font-bold transition-all ${currentPage === 'reminders' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+              >
+                <BellRing className="w-4 h-4" />
+                Lembretes
+              </button>
             </nav>
           </div>
           
@@ -901,9 +1037,9 @@ export default function App() {
             <button 
               onClick={() => setIsCartOpen(true)}
               className="relative p-2 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all"
-              title="Lista de Compras"
+              title="Carrinho"
             >
-              <ListChecks className="w-6 h-6" />
+              <ShoppingCart className="w-6 h-6" />
               {cart.length > 0 && (
                 <span className="absolute top-0 right-0 bg-red-500 text-white text-[10px] font-bold w-4 h-4 flex items-center justify-center rounded-full border-2 border-white">
                   {cart.length}
@@ -911,15 +1047,96 @@ export default function App() {
               )}
             </button>
 
-            {currentPage === 'suppliers' && (
+            <div className="relative">
               <button 
-                onClick={() => setIsAdding(true)}
-                className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-1.5 rounded-lg text-sm font-bold transition-all flex items-center gap-2 shadow-sm"
+                onClick={() => setIsNotificationsOpen(!isNotificationsOpen)}
+                className="relative p-2 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all"
+                title="Notificações"
               >
-                <UserPlus className="w-4 h-4" />
-                <span className="hidden sm:inline">Novo Fornecedor</span>
+                <Bell className="w-6 h-6" />
+                {appNotifications.filter(n => !n.read).length > 0 && (
+                  <span className="absolute top-0 right-0 bg-red-500 text-white text-[10px] font-bold w-4 h-4 flex items-center justify-center rounded-full border-2 border-white">
+                    {appNotifications.filter(n => !n.read).length}
+                  </span>
+                )}
               </button>
-            )}
+
+              <AnimatePresence>
+                {isNotificationsOpen && (
+                  <>
+                    <div 
+                      className="fixed inset-0 z-40" 
+                      onClick={() => setIsNotificationsOpen(false)}
+                    />
+                    <motion.div
+                      initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                      exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                      className="absolute right-0 mt-2 w-80 bg-white rounded-2xl shadow-2xl border border-slate-200 z-50 overflow-hidden"
+                    >
+                      <div className="p-4 border-b border-slate-100 flex items-center justify-between bg-slate-50">
+                        <h3 className="font-bold text-slate-800 flex items-center gap-2">
+                          <Bell className="w-4 h-4 text-indigo-600" />
+                          Notificações
+                        </h3>
+                        {appNotifications.length > 0 && (
+                          <button 
+                            onClick={() => {
+                              setAppNotifications(prev => prev.map(n => ({ ...n, read: true })));
+                            }}
+                            className="text-[10px] font-bold text-indigo-600 hover:underline uppercase"
+                          >
+                            Marcar todas como lidas
+                          </button>
+                        )}
+                      </div>
+                      <div className="max-h-96 overflow-y-auto">
+                        {appNotifications.length === 0 ? (
+                          <div className="p-8 text-center text-slate-400">
+                            <Bell className="w-8 h-8 mx-auto mb-2 opacity-20" />
+                            <p className="text-sm">Nenhuma notificação</p>
+                          </div>
+                        ) : (
+                          <div className="divide-y divide-slate-50">
+                            {appNotifications.map(notif => (
+                              <div 
+                                key={notif.id} 
+                                className={`p-4 hover:bg-slate-50 transition-colors cursor-default ${!notif.read ? 'bg-indigo-50/30' : ''}`}
+                                onClick={() => {
+                                  setAppNotifications(prev => prev.map(n => n.id === notif.id ? { ...n, read: true } : n));
+                                }}
+                              >
+                                <div className="flex justify-between items-start mb-1">
+                                  <h4 className="text-sm font-bold text-slate-800">{notif.title}</h4>
+                                  <span className="text-[10px] text-slate-400 whitespace-nowrap ml-2">
+                                    {new Date(notif.date).toLocaleDateString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                                  </span>
+                                </div>
+                                <p className="text-xs text-slate-500 leading-relaxed">{notif.message}</p>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                      {appNotifications.length > 0 && (
+                        <div className="p-2 bg-slate-50 border-t border-slate-100 text-center">
+                          <button 
+                            onClick={() => {
+                              setAppNotifications([]);
+                              setIsNotificationsOpen(false);
+                            }}
+                            className="text-[10px] font-bold text-red-500 hover:underline uppercase"
+                          >
+                            Limpar tudo
+                          </button>
+                        </div>
+                      )}
+                    </motion.div>
+                  </>
+                )}
+              </AnimatePresence>
+            </div>
+
             {loggedCpf === '05839352144' && (
               <button 
                 onClick={() => setIsSettingsOpen(true)}
@@ -945,17 +1162,26 @@ export default function App() {
         <main className="max-w-5xl mx-auto px-4 py-8">
         {/* Search and Stats */}
         <div className="mb-8 flex flex-col md:flex-row gap-4 items-center justify-between">
-          <div className="relative w-full md:w-96">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-            <input 
-              type="text" 
-              placeholder="Buscar por nome ou produto..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 bg-white border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
-            />
+          <div className="flex flex-col md:flex-row gap-4 items-center w-full md:w-auto">
+            <div className="relative w-full md:w-96">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+              <input 
+                type="text" 
+                placeholder="Buscar por nome ou produto..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full pl-10 pr-4 py-2 bg-white border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
+              />
+            </div>
+            <button 
+              onClick={() => setIsAdding(true)}
+              className="w-full md:w-auto bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-2 rounded-xl font-bold transition-all flex items-center justify-center gap-2 shadow-lg shadow-indigo-500/20"
+            >
+              <UserPlus className="w-5 h-5" />
+              Novo Fornecedor
+            </button>
           </div>
-          <div className="text-sm text-slate-500 font-medium">
+          <div className="text-sm text-slate-500 font-medium whitespace-nowrap">
             {suppliers.length} fornecedores cadastrados
           </div>
         </div>
@@ -1116,7 +1342,7 @@ export default function App() {
                             <button 
                               onClick={() => {
                                 const key = `${item.supplierName}-${item.name}`;
-                                const current = shoppingQuantities[key] || 1;
+                                const current = Number(shoppingQuantities[key]) || 1;
                                 setShoppingQuantities({ ...shoppingQuantities, [key]: Math.max(1, current - 1) });
                               }}
                               className="p-1 hover:bg-white rounded text-slate-500 transition-colors"
@@ -1126,18 +1352,23 @@ export default function App() {
                             <input 
                               type="number"
                               min="1"
-                              value={shoppingQuantities[`${item.supplierName}-${item.name}`] || 1}
+                              value={shoppingQuantities[`${item.supplierName}-${item.name}`] ?? 1}
                               onChange={(e) => {
-                                const val = parseInt(e.target.value);
+                                const val = e.target.value;
                                 const key = `${item.supplierName}-${item.name}`;
-                                setShoppingQuantities({ ...shoppingQuantities, [key]: isNaN(val) ? 1 : Math.max(1, val) });
+                                if (val === '') {
+                                  setShoppingQuantities({ ...shoppingQuantities, [key]: '' });
+                                } else {
+                                  const numVal = parseInt(val);
+                                  setShoppingQuantities({ ...shoppingQuantities, [key]: isNaN(numVal) ? 1 : Math.max(1, numVal) });
+                                }
                               }}
                               className="text-xs font-bold w-10 text-center bg-transparent focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                             />
                             <button 
                               onClick={() => {
                                 const key = `${item.supplierName}-${item.name}`;
-                                const current = shoppingQuantities[key] || 1;
+                                const current = Number(shoppingQuantities[key]) || 1;
                                 setShoppingQuantities({ ...shoppingQuantities, [key]: current + 1 });
                               }}
                               className="p-1 hover:bg-white rounded text-slate-500 transition-colors"
@@ -1147,7 +1378,8 @@ export default function App() {
                           </div>
                           <button 
                             onClick={() => {
-                              const qty = shoppingQuantities[`${item.supplierName}-${item.name}`] || 1;
+                              const qtyVal = shoppingQuantities[`${item.supplierName}-${item.name}`];
+                              const qty = (qtyVal === '' || qtyVal === undefined) ? 1 : Number(qtyVal);
                               addToCart({ name: item.name, price: item.price, category: item.category }, item.supplierName, qty);
                               // Reset quantity after adding
                               setShoppingQuantities({ ...shoppingQuantities, [`${item.supplierName}-${item.name}`]: 1 });
@@ -1171,6 +1403,105 @@ export default function App() {
                 )}
               </tbody>
             </table>
+          </div>
+        </main>
+      ) : currentPage === 'reminders' ? (
+        /* PÁGINA DE LEMBRETES: Gerenciamento de alertas para compras futuras */
+        <main className="max-w-5xl mx-auto px-4 py-8">
+          <div className="mb-8">
+            <h2 className="text-2xl font-bold text-slate-800">Lembretes de Compra</h2>
+            <p className="text-slate-500 text-sm">Agende notificações para produtos que precisam ser comprados</p>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            <div className="lg:col-span-1">
+              <div className="bg-white p-6 rounded-3xl border border-slate-300 shadow-sm sticky top-24">
+                <h3 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2">
+                  <Plus className="w-5 h-5 text-indigo-600" />
+                  Novo Lembrete
+                </h3>
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-semibold text-slate-700 mb-1.5">Produto</label>
+                    <input 
+                      type="text"
+                      list="all-products-list"
+                      value={reminderProductName}
+                      onChange={(e) => setReminderProductName(e.target.value)}
+                      onKeyDown={(e) => e.key === 'Enter' && handleScheduleReminder()}
+                      placeholder="Ex: Papel Toalha"
+                      className="w-full px-4 py-2.5 bg-slate-50 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
+                    />
+                    <datalist id="all-products-list">
+                      {suppliers.flatMap(s => s.products.map(p => p.name)).map((name, i) => (
+                        <option key={i} value={name} />
+                      ))}
+                    </datalist>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-slate-700 mb-1.5">Data do Alerta</label>
+                    <input 
+                      type="date"
+                      value={reminderDate}
+                      onChange={(e) => setReminderDate(e.target.value)}
+                      onKeyDown={(e) => e.key === 'Enter' && handleScheduleReminder()}
+                      className="w-full px-4 py-2.5 bg-slate-50 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
+                    />
+                  </div>
+                  <button 
+                    onClick={handleScheduleReminder}
+                    className="w-full py-3 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 transition-colors shadow-lg shadow-indigo-500/20 flex items-center justify-center gap-2"
+                  >
+                    <Calendar className="w-5 h-5" />
+                    Agendar Lembrete
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div className="lg:col-span-2">
+              <div className="bg-white rounded-3xl border border-slate-300 shadow-sm overflow-hidden">
+                <div className="p-4 bg-slate-50 border-b border-slate-200">
+                  <h3 className="font-bold text-slate-800">Meus Lembretes</h3>
+                </div>
+                <div className="divide-y divide-slate-100">
+                  {reminders.length === 0 ? (
+                    <div className="p-12 text-center text-slate-400 italic">
+                      Nenhum lembrete agendado.
+                    </div>
+                  ) : (
+                    reminders.map(r => (
+                      <div key={r.id} className={`p-4 flex items-center justify-between hover:bg-slate-50 transition-colors ${r.notified ? 'opacity-60' : ''}`}>
+                        <div className="flex items-center gap-4">
+                          <div className={`p-2 rounded-lg ${r.notified ? 'bg-slate-100 text-slate-400' : 'bg-indigo-50 text-indigo-600'}`}>
+                            <BellRing className="w-5 h-5" />
+                          </div>
+                          <div>
+                            <div className={`font-bold ${r.notified ? 'text-slate-500 line-through' : 'text-slate-800'}`}>
+                              {r.productName}
+                            </div>
+                            <div className="text-xs text-slate-400 flex items-center gap-1">
+                              <Calendar className="w-3 h-3" />
+                              {new Date(r.date + 'T12:00:00').toLocaleDateString('pt-BR')}
+                              {r.notified && <span className="ml-2 text-emerald-500 font-bold uppercase text-[10px]">• Notificado</span>}
+                            </div>
+                          </div>
+                        </div>
+                        <button 
+                          onClick={async () => {
+                            await deleteDoc(doc(db, 'reminders', r.id));
+                            addNotification('Lembrete removido', 1);
+                          }}
+                          className="p-2 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
+                        >
+                          <Trash2 className="w-5 h-5" />
+                        </button>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            </div>
           </div>
         </main>
       ) : currentPage === 'omie' ? (
@@ -1346,6 +1677,15 @@ export default function App() {
                             </span>
                             <span>•</span>
                             <span>{list.items.length} itens</span>
+                            {list.buyerName && (
+                              <>
+                                <span>•</span>
+                                <span className="flex items-center gap-1 text-indigo-500 font-medium">
+                                  <User className="w-3 h-3" />
+                                  {list.buyerName}
+                                </span>
+                              </>
+                            )}
                           </div>
                         </div>
                       </div>
@@ -1957,6 +2297,9 @@ export default function App() {
                         >
                           <div>
                             <div className="text-sm font-bold text-slate-700">
+                              {user.name || 'Sem Nome'}
+                            </div>
+                            <div className="text-[10px] text-slate-500 font-mono">
                               {user.cpf.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4')}
                             </div>
                             <div className="text-[10px] text-slate-400">
