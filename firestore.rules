@@ -30,7 +30,7 @@ service cloud.firestore {
       allow write: if isApproved();
     }
 
-    match /lists/{listId} {
+    match /shopping_lists/{listId} {
       allow read: if isAuthenticated();
       allow write: if isApproved();
     }
