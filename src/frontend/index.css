@@ -1,11 +1,42 @@
 @import "tailwindcss";
 
 @theme {
-  --color-indigo-50: #fdf8f6;
-  --color-indigo-100: #f2e8e5;
-  --color-indigo-200: #eaddd7;
-  --color-indigo-400: #c2a69a;
-  --color-indigo-500: #a6867a;
-  --color-indigo-600: #8b6b5d;
-  --color-indigo-700: #72564b;
+  /* Rich Brown Palette - Based on #895129 */
+  --color-brand-50: #fbf6f3;
+  --color-brand-100: #f5eae2;
+  --color-brand-200: #ead3c4;
+  --color-brand-300: #dab39b;
+  --color-brand-400: #c68c6c;
+  --color-brand-500: #b36b46;
+  --color-brand-600: #895129; /* Primary Brown Requested */
+  --color-brand-700: #714223;
+  --color-brand-800: #5a351d;
+  --color-brand-900: #4a2c1a;
+  --color-brand-950: #2b180d;
+
+  /* Legacy overrides to ensure existing indigo/slate classes map to brown or neutral black */
+  --color-indigo-50: #fbf6f3;
+  --color-indigo-100: #f5eae2;
+  --color-indigo-200: #ead3c4;
+  --color-indigo-300: #dab39b;
+  --color-indigo-400: #c68c6c;
+  --color-indigo-500: #b36b46;
+  --color-indigo-600: #895129; /* Primary Brown Requested */
+  --color-indigo-700: #714223;
+  --color-indigo-800: #5a351d;
+  --color-indigo-900: #351f1a;
+  --color-indigo-950: #1b0f0c;
+
+  /* Force slate to be warm neutrals/browns instead of cold blue-grays */
+  --color-slate-50: #fafaf9;
+  --color-slate-100: #f5f5f4;
+  --color-slate-200: #e7e5e4;
+  --color-slate-300: #d6d3d1;
+  --color-slate-400: #a8a29e;
+  --color-slate-500: #78716c;
+  --color-slate-600: #57534e;
+  --color-slate-700: #44403c;
+  --color-slate-800: #351f1a;
+  --color-slate-900: #1b0f0c; /* Rich Black-Brown */
+  --color-slate-950: #000000;
 }

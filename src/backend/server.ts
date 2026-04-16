@@ -15,16 +15,14 @@ async function startServer() {
   // Middleware para parsear JSON no corpo das requisições
   app.use(express.json());
 
-  // Configurações do Omie (podem ser passadas via env ou fixas para teste)
+  // Configurações da API Externa (podem ser passadas via env ou fixas para teste)
   const sanitizeEnv = (val: string | undefined, fallback: string) => {
     if (!val) return fallback;
     return val.trim().replace(/^["']|["']$/g, '');
   };
 
-  const OMIE_CONFIG = {
-    app_key: sanitizeEnv(process.env.OMIE_APP_KEY, "3830837835825"),
-    app_secret: sanitizeEnv(process.env.OMIE_APP_SECRET, "fa30baf859eaf8a1f0b1e7b209013775"),
-    base_url: sanitizeEnv(process.env.OMIE_BASE_URL, "https://app.omie.com.br/api/v1").replace(/\/$/, "")
+  const EXTERNAL_API_CONFIG = {
+    base_url: sanitizeEnv(process.env.EXTERNAL_API_URL, "https://production-manager-api.onrender.com/v1").replace(/\/$/, "")
   };
 
   // --- ROTAS DE API ---
@@ -33,228 +31,109 @@ async function startServer() {
     res.json({ status: "ok" });
   });
 
-  // --- ROTA DIRETA OMIE (TESTE) ---
+  // --- ROTA DIRETA PRODUTOS (NOVA API) ---
   app.get("/api/omie-direct/products", async (req, res) => {
     try {
-      console.log("--- INICIANDO CHAMADA DIRETA OMIE ---");
-      console.log("Config:", { app_key: OMIE_CONFIG.app_key, base_url: OMIE_CONFIG.base_url });
+      console.log("--- INICIANDO CHAMADA NOVA API (FULL FETCH) ---");
+      const baseUrl = EXTERNAL_API_CONFIG.base_url;
       
-      // 1. Buscar Produtos
-      const productsUrl = `${OMIE_CONFIG.base_url}/geral/produtos/`;
-      console.log(`Chamando Omie Produtos: "${productsUrl}" (length: ${productsUrl.length})`);
-      
-      const productsResponse = await fetch(productsUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          call: "ListarProdutos",
-          app_key: OMIE_CONFIG.app_key,
-          app_secret: OMIE_CONFIG.app_secret,
-          param: [{
-            pagina: 1,
-            registros_por_pagina: 500
-          }]
-        })
-      });
-
-      if (!productsResponse.ok) {
-        const errText = await productsResponse.text();
-        console.error("Erro HTTP na API Omie (Produtos):", productsResponse.status, errText);
-        return res.status(productsResponse.status).json({ error: `Erro Omie Produtos: ${errText}` });
-      }
-
-      const productsData: any = await productsResponse.json();
-      
-      if (productsData.faultstring) {
-        console.error("Falha Omie (Produtos):", productsData.faultstring);
-        return res.status(400).json({ error: productsData.faultstring });
-      }
-
-      // Omie pode retornar em 'produto_servico_cadastro' ou 'produto_servico_list'
-      const productList = productsData.produto_servico_cadastro || productsData.produto_servico_list || [];
-      console.log(`Encontrados ${productList.length} produtos.`);
-
-      // 2. Buscar Estoque (Usando ListarEstoque para saldo atual)
-      console.log("Buscando posição de estoque atual...");
-      let stockList: any[] = [];
-      try {
-        const stockUrl = `${OMIE_CONFIG.base_url}/estoque/consulta/`;
-        const now = new Date();
-        const d = now.getDate().toString().padStart(2, '0');
-        const m = (now.getMonth() + 1).toString().padStart(2, '0');
-        const y = now.getFullYear();
-        const dateStr = `${d}/${m}/${y}`;
+      // Helper para buscar todas as páginas de um endpoint
+      const fetchAllPages = async (endpoint: string) => {
+        console.log(`Buscando todas as páginas de: ${endpoint}`);
+        const firstUrl = `${baseUrl}${endpoint}${endpoint.includes('?') ? '&' : '?'}page=1&pageSize=50`;
+        const firstRes = await fetch(firstUrl);
+        if (!firstRes.ok) return [];
         
-        const fetchStockPage = async (page: number) => {
-          try {
-            const response = await fetch(stockUrl, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                call: "ListarEstoque",
-                app_key: OMIE_CONFIG.app_key,
-                app_secret: OMIE_CONFIG.app_secret,
-                param: [{
-                  pagina: page,
-                  registros_por_pagina: 500,
-                  cExibirTodos: "S",
-                  dDataPosicao: dateStr
-                }]
-              })
-            });
-            if (response.ok) {
-              const data = await response.json();
-              return data;
-            } else {
-              const errText = await response.text();
-              console.error(`Erro Omie ListarEstoque (Página ${page}):`, response.status, errText);
-            }
-          } catch (e) {
-            console.error(`Erro ao buscar página ${page} de estoque:`, e);
-          }
-          return null;
-        };
-
-        const pagesToFetch = [1, 2, 3, 4, 5]; // Busca as primeiras 5 páginas (2500 itens)
-        const stockResults = await Promise.all(pagesToFetch.map(p => fetchStockPage(p)));
+        const firstData: any = await firstRes.json();
+        const results = Array.isArray(firstData) ? [...firstData] : [...(firstData.data || [])];
         
-        stockResults.forEach((data, index) => {
-          if (data && data.estoque_list) {
-            stockList.push(...data.estoque_list);
-            console.log(`Página ${index + 1} de ListarEstoque: ${data.estoque_list.length} registros.`);
+        if (firstData.meta && firstData.meta.total && firstData.meta.total > (firstData.meta.pageSize || 50)) {
+          const total = firstData.meta.total;
+          const pageSize = firstData.meta.pageSize || 50;
+          const totalPages = Math.ceil(total / pageSize);
+          console.log(`Detectadas ${totalPages} páginas para ${endpoint}. Buscando restantes...`);
+          
+          const pageNumbers = [];
+          for (let i = 2; i <= totalPages; i++) pageNumbers.push(i);
+          
+          // Busca em lotes de 5 para não sobrecarregar
+          const batchSize = 5;
+          for (let i = 0; i < pageNumbers.length; i += batchSize) {
+            const batch = pageNumbers.slice(i, i + batchSize);
+            const batchResults = await Promise.all(batch.map(async (page) => {
+              try {
+                const res = await fetch(`${baseUrl}${endpoint}${endpoint.includes('?') ? '&' : '?'}page=${page}&pageSize=${pageSize}`);
+                if (res.ok) {
+                  const d = await res.json();
+                  return Array.isArray(d) ? d : (d.data || []);
+                }
+              } catch (e) {
+                console.error(`Erro na página ${page} de ${endpoint}:`, e);
+              }
+              return [];
+            }));
+            batchResults.forEach(list => results.push(...list));
           }
-        });
-      } catch (stockErr) {
-        console.warn("Erro crítico ao buscar estoque:", stockErr);
-      }
-
-      // 3. ObterEstoqueProduto (Mais preciso para estoque individual)
-      console.log("Consultando estoque individual (ObterEstoqueProduto) para os primeiros 15 itens...");
-      const topProducts = productList.slice(0, 15);
-      
-      const fetchIndividualStock = async (p: any) => {
-        try {
-          const stockResUrl = `${OMIE_CONFIG.base_url}/estoque/resumo/`;
-          const now = new Date();
-          const d = now.getDate().toString().padStart(2, '0');
-          const m = (now.getMonth() + 1).toString().padStart(2, '0');
-          const y = now.getFullYear();
-          const dateStr = `${d}/${m}/${y}`;
-
-          const response = await fetch(stockResUrl, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              call: "ObterEstoqueProduto",
-              app_key: OMIE_CONFIG.app_key,
-              app_secret: OMIE_CONFIG.app_secret,
-              param: [{ 
-                nIdProduto: p.codigo_produto,
-                dDia: dateStr
-              }]
-            })
-          });
-
-          if (response.ok) {
-            const data: any = await response.json();
-            // ObterEstoqueProduto retorna 'listaEstoqueArray'
-            if (data && data.listaEstoqueArray) {
-              const total = data.listaEstoqueArray.reduce((acc: number, curr: any) => acc + Number(curr.quantidade_estoque || 0), 0);
-              return { id: p.codigo_produto, stock: total };
-            }
-          }
-        } catch (e) {
-          console.error(`Erro ao consultar estoque do produto ${p.codigo_produto}:`, e);
         }
-        return null;
+        return results;
       };
 
-      const individualStocks = await Promise.all(topProducts.map(p => fetchIndividualStock(p)));
-      const individualStockMap = new Map<string, number>();
-      individualStocks.forEach(item => {
-        if (item) individualStockMap.set(String(item.id), item.stock);
-      });
-
-      // 4. Mesclar Dados
-      const stockMap = new Map<string, number>();
+      // 1. Buscar Todos os Produtos
+      const rawProductList = await fetchAllPages('/products');
       
-      stockList.forEach((s: any) => {
-        // Mapeia códigos possíveis tanto de PosicaoEstoque quanto de ListarEstoque
-        const codes = [
-          s.codigo_produto, 
-          s.cCodProd, 
-          s.cCodProdInt,
-          s.codigo_produto_integracao, 
-          s.codigo,
-          s.codInt,
-          s.codigo_item
-        ].filter(c => c !== undefined && c !== null && c !== "");
+      // Filtra apenas produtos ativos
+      const productList = rawProductList.filter((p: any) => p.active === true);
+      console.log(`Total: ${rawProductList.length} produtos. Ativos: ${productList.length}.`);
 
-        // Quantidade (nSaldo para ListarEstoque, estoque para PosicaoEstoque)
-        const qty = Number(
-          s.estoque ?? 
-          s.nSaldo ?? 
-          s.estoque_fisico ?? 
-          s.quantidade ?? 
-          s.saldo ?? 
-          s.nSaldoFisico ?? 
-          0
-        );
-
-        codes.forEach(code => {
-          const codeStr = String(code).trim();
-          if (codeStr) {
-            const current = stockMap.get(codeStr) || 0;
-            stockMap.set(codeStr, current + qty);
+      // 2. Buscar Todo o Estoque
+      console.log("Buscando posição de estoque completa...");
+      let stockMap = new Map<string, number>();
+      try {
+        const stockList = await fetchAllPages('/products/stockQuantity');
+        
+        stockList.forEach((s: any) => {
+          const code = s.productId || s.product_id || s.id || s.codigo;
+          const qty = Number(s.quantity || s.stock || s.stockQuantity || 0);
+          if (code) {
+            stockMap.set(String(code), qty);
           }
         });
-      });
+        console.log(`Mapa de estoque criado com ${stockMap.size} registros.`);
+      } catch (stockErr) {
+        console.warn("Erro ao buscar estoque completo:", stockErr);
+      }
 
-      console.log(`Mapa de estoque criado com ${stockMap.size} chaves únicas.`);
-      
+      // 3. Mesclar Dados
       const mergedProducts = productList.map((p: any) => {
-        const prodId = String(p.codigo_produto || "").trim();
-        const prodCode = String(p.codigo || "").trim();
-        const prodInt = String(p.codigo_produto_integracao || "").trim();
+        const prodId = String(p.id || p.productId || p.codigo_produto || "").trim();
         
-        // Prioridade 1: ObterEstoqueProduto (mais preciso)
-        let stock = -1;
-        if (prodId && individualStockMap.has(prodId)) {
-          stock = individualStockMap.get(prodId)!;
-        }
+        // Prioridade 1: Mapa de estoque do endpoint stockQuantity
+        let stock = stockMap.has(prodId) ? stockMap.get(prodId)! : -1;
         
-        // Prioridade 2: Mapa de estoque bulk (PosicaoEstoque / ListarEstoque)
+        // Prioridade 2: Campo interno do próprio produto
         if (stock === -1) {
-          if (prodId && stockMap.has(prodId)) {
-            stock = stockMap.get(prodId)!;
-          } else if (prodCode && stockMap.has(prodCode)) {
-            stock = stockMap.get(prodCode)!;
-          } else if (prodInt && stockMap.has(prodInt)) {
-            stock = stockMap.get(prodInt)!;
-          } else {
-            // Fallback final: campo de estoque que vem no próprio cadastro (se houver)
-            stock = Number(p.quantidade_estoque ?? p.estoque_atual ?? 0);
-          }
+          stock = Number(p.stockQuantity || p.quantity || p.stock || p.estoque || 0);
         }
 
         return {
-          codigo_produto: p.codigo_produto,
-          descricao: p.descricao,
-          unidade: p.unidade,
-          valor_unitario: p.valor_unitario,
+          id: p.id,
+          codigo_produto: p.id || p.codigo_produto,
+          descricao: p.name || p.descricao || p.description,
+          unidade: p.unit || p.unidade || 'UN',
+          valor_unitario: p.price || p.valor_unitario || 0,
           stock: stock,
           estoque_fisico: stock,
-          codigo: p.codigo,
-          codigo_familia: p.codigo_familia,
-          descricao_familia: p.descricao_familia
+          codigo: p.sku || p.codigo,
+          codigo_familia: p.familyId || p.codigo_familia,
+          descricao_familia: p.familyName || p.descricao_familia
         };
       });
 
-      console.log("Envio de dados mesclados concluído. Total:", mergedProducts.length);
+      console.log("Envio de dados concluído. Total mesclado:", mergedProducts.length);
       res.json({ data: mergedProducts });
     } catch (error: any) {
-      console.error("Erro CRÍTICO na chamada direta Omie:", error);
-      res.status(500).json({ error: error.message || "Erro interno ao processar chamada Omie" });
+      console.error("Erro CRÍTICO na chamada da API:", error);
+      res.status(500).json({ error: error.message || "Erro interno ao processar chamada da API" });
     }
   });
 
@@ -263,7 +142,7 @@ async function startServer() {
     try {
       const subPath = req.params[0];
       const method = req.method;
-      const baseUrl = 'https://production-manager-api.onrender.com/v1';
+      const baseUrl = EXTERNAL_API_CONFIG.base_url;
       const apiUrl = `${baseUrl}/${subPath}${req.url.includes('?') ? req.url.substring(req.url.indexOf('?')) : ''}`;
 
       console.log(`Proxying ${method} to: ${apiUrl}`);

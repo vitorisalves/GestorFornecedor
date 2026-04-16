@@ -1,0 +1,91 @@
+/**
+ * @license
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+import React from 'react';
+import * as XLSX from 'xlsx';
+import { Supplier, Product } from '../types';
+import { generateId } from '../utils';
+
+export const useExcel = (suppliers: Supplier[], saveSupplier: (s: Supplier) => Promise<void>, addNotification: any) => {
+  const handleExportExcel = () => {
+    const exportData = suppliers.flatMap(supplier => 
+      supplier.products.map(product => ({
+        'Empresa Razão Social': supplier.name,
+        'Telefone': supplier.phone,
+        'Produto': product.name,
+        'Preço': product.price,
+        'Categoria': product.category
+      }))
+    );
+
+    const worksheet = XLSX.utils.json_to_sheet(exportData);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Fornecedores");
+    XLSX.writeFile(workbook, "Labarr_Fornecedores.xlsx");
+    addNotification('Exportação concluída!', 0);
+  };
+
+  const handleImportExcel = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = async (evt) => {
+      try {
+        const data = evt.target?.result;
+        const workbook = XLSX.read(data, { type: 'array' });
+        const sheetName = workbook.SheetNames[0];
+        const worksheet = workbook.Sheets[sheetName];
+        const rawData = XLSX.utils.sheet_to_json(worksheet) as any[];
+
+        if (rawData.length === 0) {
+          addNotification('Arquivo vazio ou inválido', 0);
+          return;
+        }
+
+        const newSuppliersMap: Record<string, Supplier> = {};
+
+        rawData.forEach((row: any) => {
+          const sName = row['Empresa Razão Social'] || row['Fornecedor'] || row['Empresa'];
+          const sPhone = row['Telefone'] || row['WhatsApp'] || '';
+          const pName = row['Produto'] || row['Nome'];
+          const pPrice = parseFloat(row['Preço'] || row['Valor'] || '0');
+          const pCat = row['Categoria'] || 'Outros';
+
+          if (sName && pName) {
+            if (!newSuppliersMap[sName]) {
+              newSuppliersMap[sName] = {
+                id: generateId(),
+                name: sName,
+                phone: sPhone,
+                products: []
+              };
+            }
+            newSuppliersMap[sName].products.push({
+              name: pName,
+              price: pPrice,
+              category: pCat
+            });
+          }
+        });
+
+        for (const supplier of Object.values(newSuppliersMap)) {
+          await saveSupplier(supplier);
+        }
+
+        addNotification('Importação concluída com sucesso!', Object.keys(newSuppliersMap).length);
+      } catch (err) {
+        console.error('Erro na importação:', err);
+        addNotification('Erro ao processar arquivo Excel', 0);
+      }
+    };
+    reader.readAsArrayBuffer(file);
+  };
+
+  return {
+    handleExportExcel,
+    handleImportExcel
+  };
+};
