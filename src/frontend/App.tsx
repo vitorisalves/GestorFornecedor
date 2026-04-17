@@ -4,7 +4,7 @@
  */
 
 import React, { useState, useRef } from 'react';
-import { AnimatePresence } from 'motion/react';
+import { AnimatePresence, motion } from 'motion/react';
 
 // Hooks
 import { useAuth } from './hooks/useAuth';
@@ -148,6 +148,7 @@ export default function App() {
 
   // --- HANDLERS ---
   const onLogin = (e: React.FormEvent) => {
+    e.preventDefault();
     handleLogin(loginCpf, loginName);
   };
 
@@ -252,6 +253,18 @@ export default function App() {
   };
 
   // --- RENDER ---
+  if (!isAuthReady) {
+    return (
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
+        <motion.div
+          animate={{ rotate: 360 }}
+          transition={{ repeat: Infinity, duration: 1, ease: "linear" }}
+          className="w-12 h-12 border-4 border-indigo-600/30 border-t-indigo-600 rounded-full"
+        />
+      </div>
+    );
+  }
+
   if (!isLoggedIn) {
     const authorizedCpfs = Array.from(new Set(authorizedUsers.map(u => u.cpf)));
     return (
