@@ -4,7 +4,7 @@
  */
 
 import React from 'react';
-import { motion } from 'motion/react';
+import { motion } from 'framer-motion';
 import { 
   Calendar, 
   User, 
@@ -15,7 +15,7 @@ import {
   ChevronDown, 
   ChevronUp 
 } from 'lucide-react';
-import { AnimatePresence } from 'motion/react';
+import { AnimatePresence } from 'framer-motion';
 import { SavedList } from '../types';
 import { formatCurrency, formatDate } from '../utils';
 
@@ -35,7 +35,13 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
   const [expandedList, setExpandedList] = React.useState<string | null>(null);
 
   return (
-    <div className="space-y-8">
+    <motion.div 
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: -10 }}
+      transition={{ duration: 0.2, ease: "easeOut" }}
+      className="space-y-8"
+    >
       <div>
         <h1 className="text-4xl font-black text-slate-900 tracking-tight mb-2">Minhas Listas</h1>
         <p className="text-slate-500 font-medium">Histórico de compras e listas salvas</p>
@@ -93,7 +99,7 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
                         </span>
                         <span className="flex items-center gap-1.5 px-2 py-1 bg-slate-100 rounded-lg">
                           <User className="w-4 h-4 text-slate-900" />
-                          {list.buyerName}
+                          {list.createdBy || 'Sistema'}
                         </span>
                         <span className="px-3 py-1 bg-slate-900 text-white rounded-full text-[10px] font-black uppercase tracking-widest">
                           {list.items.length} itens
@@ -192,6 +198,6 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
         })
       )}
       </div>
-    </div>
+    </motion.div>
   );
 };

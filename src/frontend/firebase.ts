@@ -1,13 +1,19 @@
 import { initializeApp } from 'firebase/app';
 import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged, signInAnonymously } from 'firebase/auth';
-import { getFirestore, doc, getDocFromCache, getDocFromServer } from 'firebase/firestore';
+import { initializeFirestore, doc, getDocFromServer, persistentLocalCache, persistentMultipleTabManager } from 'firebase/firestore';
 import firebaseConfig from '../../firebase-applet-config.json';
 
 const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
-export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
 
-// Test connection
+// Initialize Firestore with local persistent cache for near-instant loading on repeat visits
+export const db = initializeFirestore(app, {
+  localCache: persistentLocalCache({
+    tabManager: persistentMultipleTabManager()
+  })
+}, firebaseConfig.firestoreDatabaseId);
+
+// Test connection silently in background
 async function testConnection() {
   try {
     // Attempting a read to verify config and connectivity
@@ -15,7 +21,7 @@ async function testConnection() {
     console.log("Firebase connection established successfully.");
   } catch (error) {
     if (error instanceof Error && error.message.includes('the client is offline')) {
-      console.error("Firebase connection error: The client is offline. Check your configuration.");
+      console.error("Firebase connection error: The client is offline.");
     }
   }
 }

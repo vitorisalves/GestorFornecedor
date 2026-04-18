@@ -11,7 +11,9 @@ import {
   Globe, 
   Bell, 
   LogOut,
-  Settings
+  Settings,
+  Store,
+  Hammer
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -33,6 +35,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
 }) => {
   const menuItems = [
     { id: 'suppliers', label: 'Fornecedores', icon: Building2 },
+    { id: 'mercado', label: 'Mercado', icon: Store },
+    { id: 'materiais', label: 'Materiais', icon: Hammer },
     { id: 'shopping', label: 'Fazer Compras', icon: ShoppingCart },
     { id: 'history', label: 'Minhas Listas', icon: ListChecks },
     { id: 'omie', label: 'Produtos Externos', icon: Globe },
@@ -40,7 +44,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   ];
 
   return (
-    <div className="w-72 bg-white border-r-2 border-slate-900 flex flex-col h-screen sticky top-0">
+    <aside className="fixed inset-y-0 left-0 w-72 bg-white border-r-2 border-slate-900 flex flex-col h-screen overflow-y-auto scrollbar-thin scrollbar-thumb-slate-200 scrollbar-track-transparent z-[100] shrink-0">
       <div className="p-8">
         <div className="flex items-center gap-3 mb-10">
           <div className="w-12 h-12 bg-slate-900 rounded-xl flex items-center justify-center shadow-xl shadow-slate-200">
@@ -54,7 +58,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             <button
               key={item.id}
               onClick={() => setCurrentPage(item.id)}
-              className={`w-full flex items-center gap-4 px-5 py-4 rounded-2xl font-black transition-all border-2 ${
+              className={`w-full flex items-center gap-4 px-5 py-4 rounded-2xl font-black transition-all border-2 cursor-pointer ${
                 currentPage === item.id
                   ? 'bg-slate-900 text-white border-slate-900 shadow-lg shadow-slate-200'
                   : 'text-slate-900 border-transparent hover:border-slate-300 hover:bg-slate-50'
@@ -91,6 +95,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
           <span className="uppercase tracking-tight text-xs">Encerrar Sessão</span>
         </button>
       </div>
-    </div>
+    </aside>
   );
 };

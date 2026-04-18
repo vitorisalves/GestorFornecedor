@@ -3,8 +3,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useRef } from 'react';
-import { AnimatePresence, motion } from 'motion/react';
+import React, { useState, useRef, useEffect } from 'react';
+import { AnimatePresence, motion } from 'framer-motion';
 
 // Hooks
 import { useAuth } from './hooks/useAuth';
@@ -61,9 +61,11 @@ export default function App() {
   const {
     suppliers,
     categories,
+    isLoading: isSuppliersLoading,
     saveSupplier,
     deleteSupplier,
-    addCategory
+    addCategory,
+    error: suppliersError
   } = useSuppliers(isAuthReady, isLoggedIn);
 
   const {
@@ -79,7 +81,7 @@ export default function App() {
     deleteSavedList
   } = useCart(isAuthReady, isLoggedIn, loggedName);
 
-  const [currentPage, setCurrentPage] = useState<'suppliers' | 'shopping' | 'history' | 'omie' | 'reminders'>('suppliers');
+  const [currentPage, setCurrentPage] = useState<'suppliers' | 'mercado' | 'materiais' | 'shopping' | 'history' | 'omie' | 'reminders'>('suppliers');
   
   const {
     externalProducts,
@@ -94,7 +96,8 @@ export default function App() {
 
   const {
     reminders,
-    addReminder
+    addReminder,
+    deleteReminder
   } = useReminders(isAuthReady, addAppNotification);
 
   const {
@@ -245,7 +248,12 @@ export default function App() {
 
   const onScheduleReminder = () => {
     if (reminderProductName && reminderDate) {
-      addReminder(reminderProductName, reminderDate);
+      // Se for apenas data (YYYY-MM-DD), normalizamos para permitir o processamento
+      let finalDate = reminderDate;
+      if (reminderDate.length === 10) {
+        finalDate = `${reminderDate}T09:00:00`;
+      }
+      addReminder(reminderProductName, finalDate);
       setReminderProductName('');
       setReminderDate('');
       addNotification('Lembrete agendado!', 1);
@@ -280,6 +288,12 @@ export default function App() {
     );
   }
 
+  // Filter suppliers to remove specific channels from main list
+  const mainSuppliers = suppliers.filter(s => 
+    s.name.toUpperCase() !== 'MERCADO' && 
+    s.name.toUpperCase() !== 'MATERIAIS'
+  );
+
   return (
     <div className="min-h-screen bg-slate-50 flex">
       <Sidebar 
@@ -291,31 +305,50 @@ export default function App() {
         loggedName={loggedName}
       />
 
-      <main className="flex-1 p-12 max-w-7xl mx-auto">
-        <Header 
-          notifications={notifications}
-          appNotifications={appNotifications}
-          isNotificationsOpen={isNotificationsOpen}
-          setIsNotificationsOpen={setIsNotificationsOpen}
-          markAllAsRead={markAllAsRead}
-          clearNotifications={clearNotifications}
-          cart={cart}
-          setIsCartOpen={setIsCartOpen}
-        />
+      <main className="flex-1 ml-72 p-4 md:p-12 w-full overflow-x-hidden">
+        <div className="max-w-7xl mx-auto">
+          <Header 
+            notifications={notifications}
+            appNotifications={appNotifications}
+            isNotificationsOpen={isNotificationsOpen}
+            setIsNotificationsOpen={setIsNotificationsOpen}
+            markAllAsRead={markAllAsRead}
+            clearNotifications={clearNotifications}
+            cart={cart}
+            setIsCartOpen={setIsCartOpen}
+          />
+
+        {suppliersError && (
+          <div className="mb-8 p-6 bg-red-50 border-2 border-red-200 rounded-[2rem] flex flex-col gap-2">
+            <h3 className="text-lg font-black text-red-900 uppercase tracking-tight">Erro de Sincronização</h3>
+            <p className="text-red-700 font-medium">
+              {suppliersError.includes('quota') || suppliersError.includes('exhausted') 
+                ? 'Limite diário de leitura do banco de dados atingido (Quota Exceeded). O sistema continuará funcionando com os dados em cache, mas novos dados podem não aparecer até que o limite seja resetado (meia-noite).' 
+                : `Ocorreu um erro ao carregar os dados: ${suppliersError}`}
+            </p>
+          </div>
+        )}
 
         <AnimatePresence mode="wait">
-          {currentPage === 'suppliers' && (
+          {(currentPage === 'suppliers' || currentPage === 'mercado' || currentPage === 'materiais') && (
             <SuppliersView 
-              key="suppliers"
-              suppliers={suppliers}
+              key={currentPage}
+              suppliers={mainSuppliers}
+              allSuppliers={suppliers}
+              isLoading={isSuppliersLoading}
               searchTerm={searchTerm}
               setSearchTerm={setSearchTerm}
               setIsAdding={setIsAdding}
               handleEditSupplier={onEditSupplier}
               setSupplierToDelete={setSupplierToDelete}
-              addToCart={(p, s) => { addToCart(p, s); addNotification(p.name, 1); }}
+              addToCart={(p: Product, s: string, q: number) => { 
+                addToCart(p, s, q); 
+                addNotification(p.name, q || 1, 'cart'); 
+              }}
               handleExportExcel={handleExportExcel}
               handleImportExcel={handleImportExcel}
+              activeTab={currentPage === 'suppliers' ? 'fornecedores' : currentPage as any}
+              onTabChange={(tab) => setCurrentPage(tab === 'fornecedores' ? 'suppliers' : tab)}
             />
           )}
           {currentPage === 'shopping' && (
@@ -326,7 +359,10 @@ export default function App() {
               setSearchTerm={setSearchTerm}
               shoppingQuantities={shoppingQuantities}
               setShoppingQuantities={setShoppingQuantities}
-              addToCart={(p, s, q) => { addToCart(p, s, q); addNotification(p.name, q); }}
+              addToCart={(p: Product, s: string, q: number) => { 
+                addToCart(p, s, q); 
+                addNotification(p.name, q, 'cart'); 
+              }}
             />
           )}
           {currentPage === 'history' && (
@@ -348,8 +384,7 @@ export default function App() {
               isTriggeringSync={isTriggeringSync}
               triggerOmieSync={() => triggerOmieSync(addNotification)}
               fetchExternalProducts={() => fetchExternalProducts(addNotification)}
-              addToManager={(c) => addToManager(c, addNotification)}
-              managedProducts={managedProducts}
+              addToCart={(p, s, q) => { addToCart(p, s, q); addNotification(p.name, q, 'cart'); }}
               externalCurrentPage={externalCurrentPage}
               setExternalCurrentPage={setExternalCurrentPage}
               externalItemsPerPage={50}
@@ -363,16 +398,13 @@ export default function App() {
               setReminderProductName={setReminderProductName}
               reminderDate={reminderDate}
               setReminderDate={setReminderDate}
-              handleScheduleReminder={onScheduleReminder}
-              deleteReminder={async (id) => {
-                const { deleteDoc, doc } = await import('firebase/firestore');
-                const { db } = await import('./firebase');
-                await deleteDoc(doc(db, 'reminders', id));
-              }}
+              addReminder={onScheduleReminder}
+              deleteReminder={deleteReminder}
             />
           )}
         </AnimatePresence>
-      </main>
+      </div>
+    </main>
 
       <Modals 
         isAdding={isAdding}

@@ -4,7 +4,7 @@
  */
 
 import React from 'react';
-import { motion } from 'motion/react';
+import { motion } from 'framer-motion';
 import { 
   Search, 
   ShoppingCart, 
@@ -14,8 +14,8 @@ import {
   ChevronDown,
   ChevronUp
 } from 'lucide-react';
-import { AnimatePresence } from 'motion/react';
-import { Supplier } from '../types';
+import { AnimatePresence } from 'framer-motion';
+import { Supplier, Product } from '../types';
 import { formatCurrency } from '../utils';
 
 interface ShoppingViewProps {
@@ -24,7 +24,7 @@ interface ShoppingViewProps {
   setSearchTerm: (term: string) => void;
   shoppingQuantities: Record<string, number | string>;
   setShoppingQuantities: React.Dispatch<React.SetStateAction<Record<string, number | string>>>;
-  addToCart: (product: any, supplierName: string, quantity: number) => void;
+  addToCart: (product: Product, supplierName: string, quantity: number) => void;
 }
 
 export const ShoppingView: React.FC<ShoppingViewProps> = ({
@@ -62,7 +62,13 @@ export const ShoppingView: React.FC<ShoppingViewProps> = ({
   };
 
   return (
-    <div className="space-y-8">
+    <motion.div 
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: -10 }}
+      transition={{ duration: 0.2, ease: "easeOut" }}
+      className="space-y-8"
+    >
       <div>
         <h1 className="text-4xl font-black text-slate-900 tracking-tight mb-2">Fazer Compras</h1>
         <p className="text-slate-500 font-medium">Selecione os produtos para sua nova lista</p>
@@ -107,7 +113,7 @@ export const ShoppingView: React.FC<ShoppingViewProps> = ({
                   className="overflow-hidden"
                 >
                   <div className="p-6 pt-0 border-t border-slate-50">
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mt-6">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 mt-6">
                       {products.map((product, idx) => {
                         const id = `${product.supplierName}-${product.name}`;
                         const qty = shoppingQuantities[id] || 1;
@@ -166,6 +172,6 @@ export const ShoppingView: React.FC<ShoppingViewProps> = ({
           </div>
         ))}
       </div>
-    </div>
+    </motion.div>
   );
 };

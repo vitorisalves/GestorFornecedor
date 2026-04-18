@@ -11,9 +11,9 @@ export const useNotifications = () => {
   const [appNotifications, setAppNotifications] = useState<AppNotification[]>([]);
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
 
-  const addNotification = (name: string, quantity: number) => {
+  const addNotification = (name: string, quantity: number, type: 'cart' | 'info' = 'info') => {
     const id = Math.random().toString(36).substr(2, 9);
-    setNotifications(prev => [...prev, { id, name, quantity }]);
+    setNotifications(prev => [...prev, { id, name, quantity, type }]);
     setTimeout(() => {
       setNotifications(prev => prev.filter(n => n.id !== id));
     }, 3000);

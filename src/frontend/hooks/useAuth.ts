@@ -9,11 +9,14 @@ import { collection, onSnapshot, doc, setDoc, updateDoc, deleteDoc } from 'fireb
 import { AuthorizedUser } from '../types';
 
 export const useAuth = () => {
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [loggedCpf, setLoggedCpf] = useState('');
-  const [loggedName, setLoggedName] = useState('');
+  const [isLoggedIn, setIsLoggedIn] = useState(() => localStorage.getItem('cache_isLoggedIn') === 'true');
+  const [loggedCpf, setLoggedCpf] = useState(() => localStorage.getItem('cache_loggedCpf') || '');
+  const [loggedName, setLoggedName] = useState(() => localStorage.getItem('cache_loggedName') || '');
   const [isAuthReady, setIsAuthReady] = useState(false);
-  const [authorizedUsers, setAuthorizedUsers] = useState<AuthorizedUser[]>([]);
+  const [authorizedUsers, setAuthorizedUsers] = useState<AuthorizedUser[]>(() => {
+    const cached = localStorage.getItem('cache_authorizedUsers');
+    return cached ? JSON.parse(cached) : [];
+  });
   const [loginError, setLoginError] = useState('');
 
   useEffect(() => {
@@ -32,8 +35,11 @@ export const useAuth = () => {
     const unsubAuthorized = onSnapshot(collection(db, 'authorized_users'), (snapshot) => {
       const data = snapshot.docs.map(doc => doc.data() as AuthorizedUser);
       setAuthorizedUsers(data);
+      localStorage.setItem('cache_authorizedUsers', JSON.stringify(data));
     }, (error) => {
       console.error("Authorized users listener error:", error);
+      const cached = localStorage.getItem('cache_authorizedUsers');
+      if (cached) setAuthorizedUsers(JSON.parse(cached));
     });
     return () => unsubAuthorized();
   }, [isAuthReady]);
@@ -60,6 +66,9 @@ export const useAuth = () => {
         setIsLoggedIn(true);
         setLoggedCpf(cleanCpf);
         setLoggedName(currentUserDoc.name || '');
+        localStorage.setItem('cache_isLoggedIn', 'true');
+        localStorage.setItem('cache_loggedCpf', cleanCpf);
+        localStorage.setItem('cache_loggedName', currentUserDoc.name || '');
         setLoginError('');
         return true;
       } else if (currentUserDoc.status === 'pending') {
@@ -95,6 +104,9 @@ export const useAuth = () => {
         setIsLoggedIn(true);
         setLoggedCpf(cleanCpf);
         setLoggedName(updatedUser.name || '');
+        localStorage.setItem('cache_isLoggedIn', 'true');
+        localStorage.setItem('cache_loggedCpf', cleanCpf);
+        localStorage.setItem('cache_loggedName', updatedUser.name || '');
         setLoginError('');
         return true;
       } else {
@@ -116,6 +128,9 @@ export const useAuth = () => {
         setIsLoggedIn(true);
         setLoggedCpf(cleanCpf);
         setLoggedName(newUser.name || '');
+        localStorage.setItem('cache_isLoggedIn', 'true');
+        localStorage.setItem('cache_loggedCpf', cleanCpf);
+        localStorage.setItem('cache_loggedName', newUser.name || '');
         setLoginError('');
         return true;
       } else {
@@ -129,6 +144,9 @@ export const useAuth = () => {
     setIsLoggedIn(false);
     setLoggedCpf('');
     setLoggedName('');
+    localStorage.removeItem('cache_isLoggedIn');
+    localStorage.removeItem('cache_loggedCpf');
+    localStorage.removeItem('cache_loggedName');
   };
 
   const updateUserStatus = async (uid: string, status: 'approved' | 'denied') => {
@@ -139,7 +157,7 @@ export const useAuth = () => {
     await deleteDoc(doc(db, 'authorized_users', uid));
   };
 
-  const isAdmin = authorizedUsers.find(u => u.cpf === loggedCpf)?.role === 'admin';
+  const isAdmin = authorizedUsers.find(u => u.uid === auth.currentUser?.uid)?.role === 'admin';
 
   return {
     isLoggedIn,

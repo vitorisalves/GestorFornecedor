@@ -9,8 +9,18 @@ import { collection, onSnapshot, addDoc, query, orderBy, deleteDoc, doc, updateD
 import { Product, SavedList } from '../types';
 
 export const useCart = (isAuthReady: boolean, isLoggedIn: boolean, loggedName: string) => {
-  const [cart, setCart] = useState<(Product & { supplierName: string; quantity: number })[]>([]);
-  const [savedLists, setSavedLists] = useState<SavedList[]>([]);
+  const [cart, setCart] = useState<(Product & { supplierName: string; quantity: number })[]>(() => {
+    const cached = localStorage.getItem('cache_cart');
+    return cached ? JSON.parse(cached) : [];
+  });
+  const [savedLists, setSavedLists] = useState<SavedList[]>(() => {
+    const cached = localStorage.getItem('cache_savedLists');
+    return cached ? JSON.parse(cached) : [];
+  });
+
+  useEffect(() => {
+    localStorage.setItem('cache_cart', JSON.stringify(cart));
+  }, [cart]);
 
   useEffect(() => {
     if (!isAuthReady || !isLoggedIn) return;
@@ -22,6 +32,11 @@ export const useCart = (isAuthReady: boolean, isLoggedIn: boolean, loggedName: s
         ...doc.data()
       })) as SavedList[];
       setSavedLists(lists);
+      localStorage.setItem('cache_savedLists', JSON.stringify(lists));
+    }, (error) => {
+      console.error("Shopping lists listener error:", error);
+      const cached = localStorage.getItem('cache_savedLists');
+      if (cached) setSavedLists(JSON.parse(cached));
     });
 
     return () => unsub();

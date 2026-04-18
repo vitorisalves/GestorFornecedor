@@ -4,7 +4,7 @@
  */
 
 import React from 'react';
-import { motion, AnimatePresence } from 'motion/react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { Bell, BellRing, X, Trash2, Check } from 'lucide-react';
 import { Notification, AppNotification } from '../types';
 import { formatDate } from '../utils';
@@ -52,7 +52,7 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({
                   <p className="text-xs text-slate-400">Quantidade: {notif.quantity}</p>
                 )}
               </div>
-              {setIsCartOpen && (
+              {setIsCartOpen && notif.type === 'cart' && (
                 <button
                   onClick={() => setIsCartOpen(true)}
                   className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white text-[10px] font-black rounded-lg transition-colors pointer-events-auto"

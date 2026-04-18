@@ -4,7 +4,7 @@
  */
 
 import React from 'react';
-import { motion } from 'motion/react';
+import { motion } from 'framer-motion';
 import { Building2, User, ListChecks } from 'lucide-react';
 
 interface LoginProps {
@@ -29,8 +29,10 @@ export const Login: React.FC<LoginProps> = ({
   return (
     <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
       <motion.div 
-        initial={{ opacity: 0, y: 20 }}
+        initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
+        exit={{ opacity: 0, y: -10 }}
+        transition={{ duration: 0.2, ease: "easeOut" }}
         className="max-w-md w-full"
       >
         <div className="text-center mb-8">

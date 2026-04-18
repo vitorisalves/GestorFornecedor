@@ -4,8 +4,8 @@
  */
 
 import React from 'react';
-import { motion } from 'motion/react';
-import { BellRing, Calendar, Plus, Clock } from 'lucide-react';
+import { motion } from 'framer-motion';
+import { BellRing, Calendar, Plus, Clock, Trash2 } from 'lucide-react';
 import { Reminder } from '../types';
 import { formatDate } from '../utils';
 
@@ -16,6 +16,7 @@ interface RemindersViewProps {
   reminderDate: string;
   setReminderDate: (date: string) => void;
   addReminder: (name: string, date: string) => void;
+  deleteReminder: (id: string) => void;
 }
 
 export const RemindersView: React.FC<RemindersViewProps> = ({
@@ -24,7 +25,8 @@ export const RemindersView: React.FC<RemindersViewProps> = ({
   setReminderProductName,
   reminderDate,
   setReminderDate,
-  addReminder
+  addReminder,
+  deleteReminder
 }) => {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -36,7 +38,13 @@ export const RemindersView: React.FC<RemindersViewProps> = ({
   };
 
   return (
-    <div className="max-w-4xl mx-auto space-y-8">
+    <motion.div 
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: -10 }}
+      transition={{ duration: 0.2, ease: "easeOut" }}
+      className="max-w-4xl mx-auto space-y-8"
+    >
       <div className="bg-white p-8 rounded-[2rem] border-2 border-slate-900 shadow-2xl shadow-slate-200/60">
         <div className="flex items-center gap-4 mb-8">
           <div className="w-12 h-12 bg-indigo-50 rounded-2xl flex items-center justify-center">
@@ -60,9 +68,9 @@ export const RemindersView: React.FC<RemindersViewProps> = ({
             />
           </div>
           <div className="space-y-2">
-            <label className="text-[10px] font-black text-slate-900 ml-1 uppercase tracking-widest">Data e Hora do Aviso</label>
+            <label className="text-[10px] font-black text-slate-900 ml-1 uppercase tracking-widest">Data do Aviso</label>
             <input
-              type="datetime-local"
+              type="date"
               className="w-full px-6 py-4 bg-slate-50 border-2 border-transparent focus:border-indigo-500 focus:bg-white rounded-2xl outline-none transition-all font-medium"
               value={reminderDate}
               onChange={(e) => setReminderDate(e.target.value)}
@@ -112,17 +120,25 @@ export const RemindersView: React.FC<RemindersViewProps> = ({
                       Aviso em: {formatDate(reminder.date)}
                     </p>
                   </div>
-                  {reminder.notified && (
-                    <span className="px-3 py-1 bg-slate-200 text-slate-500 text-[9px] font-black rounded-full uppercase tracking-widest">
-                      Notificado
-                    </span>
-                  )}
+                  <div className="flex flex-col items-end gap-2">
+                    <button
+                      onClick={() => deleteReminder(reminder.id)}
+                      className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all"
+                    >
+                      <Trash2 className="w-5 h-5" />
+                    </button>
+                    {reminder.notified && (
+                      <span className="px-3 py-1 bg-slate-200 text-slate-500 text-[9px] font-black rounded-full uppercase tracking-widest">
+                        Notificado
+                      </span>
+                    )}
+                  </div>
                 </div>
               </motion.div>
             ))}
           </div>
         )}
       </div>
-    </div>
+    </motion.div>
   );
 };

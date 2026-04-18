@@ -5,11 +5,14 @@
 
 import { useState, useEffect } from 'react';
 import { db } from '../firebase';
-import { collection, onSnapshot, addDoc, doc, updateDoc, query, orderBy } from 'firebase/firestore';
+import { collection, onSnapshot, addDoc, doc, updateDoc, query, orderBy, deleteDoc } from 'firebase/firestore';
 import { Reminder } from '../types';
 
 export const useReminders = (isAuthReady: boolean, addAppNotification: (title: string, message: string) => void) => {
-  const [reminders, setReminders] = useState<Reminder[]>([]);
+  const [reminders, setReminders] = useState<Reminder[]>(() => {
+    const cached = localStorage.getItem('cache_reminders');
+    return cached ? JSON.parse(cached) : [];
+  });
 
   useEffect(() => {
     if (!isAuthReady) return;
@@ -21,6 +24,7 @@ export const useReminders = (isAuthReady: boolean, addAppNotification: (title: s
         ...doc.data()
       })) as Reminder[];
       setReminders(data);
+      localStorage.setItem('cache_reminders', JSON.stringify(data));
 
       // Check for dues
       const now = new Date();
@@ -36,6 +40,10 @@ export const useReminders = (isAuthReady: boolean, addAppNotification: (title: s
           }
         }
       });
+    }, (error) => {
+      console.error("Reminders listener error:", error);
+      const cached = localStorage.getItem('cache_reminders');
+      if (cached) setReminders(JSON.parse(cached));
     });
 
     return () => unsub();
@@ -49,8 +57,13 @@ export const useReminders = (isAuthReady: boolean, addAppNotification: (title: s
     });
   };
 
+  const deleteReminder = async (id: string) => {
+    await deleteDoc(doc(db, 'reminders', id));
+  };
+
   return {
     reminders,
-    addReminder
+    addReminder,
+    deleteReminder
   };
 };

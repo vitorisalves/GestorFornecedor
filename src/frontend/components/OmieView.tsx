@@ -4,7 +4,7 @@
  */
 
 import React from 'react';
-import { motion } from 'motion/react';
+import { motion } from 'framer-motion';
 import { 
   Search, 
   RefreshCw, 
@@ -14,7 +14,8 @@ import {
   ChevronRight, 
   ChevronsLeft, 
   ChevronsRight,
-  Package
+  Package,
+  ShoppingCart
 } from 'lucide-react';
 import { ExternalProduct } from '../types';
 import { formatCurrency } from '../utils';
@@ -27,10 +28,9 @@ interface OmieViewProps {
   isTriggeringSync: boolean;
   triggerOmieSync: () => void;
   fetchExternalProducts: () => void;
-  addToManager: (codigo: any) => void;
-  managedProducts: any[];
+  addToCart: (product: any, supplierName: string, quantity: number) => void;
   externalCurrentPage: number;
-  setExternalCurrentPage: (page: number) => void;
+  setExternalCurrentPage: (page: number | ((prev: number) => number)) => void;
   externalItemsPerPage: number;
 }
 
@@ -42,24 +42,45 @@ export const OmieView: React.FC<OmieViewProps> = ({
   isTriggeringSync,
   triggerOmieSync,
   fetchExternalProducts,
-  addToManager,
-  managedProducts,
+  addToCart,
   externalCurrentPage,
   setExternalCurrentPage,
   externalItemsPerPage
 }) => {
+  const [quantities, setQuantities] = React.useState<Record<string, string>>({});
+
+  const handleQuantityChange = (key: string, value: string) => {
+    if (value === '' || /^\d+$/.test(value)) {
+      setQuantities(prev => ({ ...prev, [key]: value }));
+    }
+  };
+
+  const handleQuantityBlur = (key: string) => {
+    if (!quantities[key] || parseInt(quantities[key]) === 0) {
+      setQuantities(prev => ({ ...prev, [key]: '1' }));
+    }
+  };
+
+  const onAddToCart = (p: ExternalProduct) => {
+    const key = p.codigo_produto || p.id;
+    const qty = parseInt(quantities[key] || '1');
+    const product = {
+      name: p.descricao || p.name || 'Sem nome',
+      price: p.valor_unitario || p.price || 0,
+      category: 'Externo'
+    };
+    addToCart(product, 'OMIE', qty);
+    setQuantities(prev => ({ ...prev, [key]: '1' }));
+  };
+
   const filteredExternal = externalProducts.filter(p => 
     (p.descricao || p.name || '').toLowerCase().includes(externalSearchTerm.toLowerCase()) ||
-    (p.codigo || p.sku || '').toString().toLowerCase().includes(externalSearchTerm.toLowerCase())
+    (p.codigo_produto || p.id || '').toString().toLowerCase().includes(externalSearchTerm.toLowerCase())
   );
 
   const totalPages = Math.ceil(filteredExternal.length / externalItemsPerPage);
   const startIndex = (externalCurrentPage - 1) * externalItemsPerPage;
   const paginatedProducts = filteredExternal.slice(startIndex, startIndex + externalItemsPerPage);
-
-  const isManaged = (codigo: string) => {
-    return managedProducts.some(mp => String(mp.codigo_produto) === String(codigo));
-  };
 
   const PaginationControls = () => (
     <div className="flex items-center justify-between px-6 py-4 bg-slate-50 border-y border-slate-200">
@@ -108,7 +129,13 @@ export const OmieView: React.FC<OmieViewProps> = ({
   );
 
   return (
-    <div className="space-y-8">
+    <motion.div 
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: -10 }}
+      transition={{ duration: 0.2, ease: "easeOut" }}
+      className="space-y-8"
+    >
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
         <div>
           <h1 className="text-4xl font-black text-slate-900 tracking-tight mb-2">Produtos Externos</h1>
@@ -180,7 +207,6 @@ export const OmieView: React.FC<OmieViewProps> = ({
               ) : (
                 paginatedProducts.map((p, idx) => {
                   const codigo = p.codigo_produto || p.id || '';
-                  const managed = isManaged(String(codigo));
                   
                   return (
                     <tr key={idx} className="group hover:bg-slate-50/50 transition-colors">
@@ -190,22 +216,22 @@ export const OmieView: React.FC<OmieViewProps> = ({
                             <Package className="w-6 h-6 text-slate-400" />
                           </div>
                           <div>
-                            <p className="font-bold text-slate-900">{p.descricao || p.name || p.description}</p>
+                            <p className="font-bold text-slate-900">{p.descricao || p.name || 'Sem nome'}</p>
                             <p className="text-xs text-slate-400 font-medium">{p.unidade || 'UN'}</p>
                           </div>
                         </div>
                       </td>
                       <td className="px-8 py-6">
                         <span className="font-mono text-sm text-slate-500 bg-slate-100 px-3 py-1 rounded-lg">
-                          {p.codigo || p.sku || 'N/A'}
+                          {p.codigo_produto || 'N/A'}
                         </span>
                       </td>
                       <td className="px-8 py-6">
                         <div className="flex flex-col">
-                          <span className={`font-black text-lg ${Number(p.stock || p.stockQuantity || 0) > 0 ? 'text-green-600' : 'text-red-500'}`}>
-                            {p.stock || p.stockQuantity || p.estoque_fisico || 0}
+                          <span className={`font-black text-lg ${Number(p.stock || p.estoque_fisico || 0) > 0 ? 'text-green-600' : 'text-red-500'}`}>
+                            {p.stock || p.estoque_fisico || 0}
                           </span>
-                          <span className="text-[10px] font-black text-slate-400 uppercase tracking-tighter">Disponível</span>
+                          <span className="text-[10px] font-black text-slate-400 uppercase tracking-tighter">Estoque</span>
                         </div>
                       </td>
                       <td className="px-8 py-6">
@@ -214,17 +240,30 @@ export const OmieView: React.FC<OmieViewProps> = ({
                         </span>
                       </td>
                       <td className="px-8 py-6 text-right">
-                        <button
-                          onClick={() => addToManager(codigo)}
-                          disabled={managed}
-                          className={`px-6 py-3 rounded-xl font-bold text-sm transition-all ${
-                            managed 
-                              ? 'bg-slate-100 text-slate-400 cursor-not-allowed' 
-                              : 'bg-indigo-600 text-white hover:bg-indigo-700 shadow-lg shadow-indigo-100 active:scale-95'
-                          }`}
-                        >
-                          {managed ? 'Já Adicionado' : 'Adicionar ao Labarr'}
-                        </button>
+                        <div className="flex items-center justify-end gap-3">
+                          <div className="flex items-center gap-2">
+                            <input
+                              type="text"
+                              value={quantities[String(codigo)] ?? '1'}
+                              onChange={(e) => handleQuantityChange(String(codigo), e.target.value)}
+                              onBlur={() => handleQuantityBlur(String(codigo))}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') {
+                                  onAddToCart(p);
+                                }
+                              }}
+                              className="w-14 px-2 py-2 bg-slate-100 border-2 border-transparent focus:border-indigo-600 rounded-lg text-center font-bold text-slate-900 outline-none text-sm"
+                              placeholder="Qtd"
+                            />
+                            <button
+                              onClick={() => onAddToCart(p)}
+                              className="p-3 bg-slate-900 text-white rounded-xl hover:bg-green-600 transition-all active:scale-95 shadow-lg shadow-slate-100"
+                              title="Adicionar ao Carrinho"
+                            >
+                              <ShoppingCart className="w-5 h-5" />
+                            </button>
+                          </div>
+                        </div>
                       </td>
                     </tr>
                   );
@@ -236,6 +275,6 @@ export const OmieView: React.FC<OmieViewProps> = ({
 
         <PaginationControls />
       </div>
-    </div>
+    </motion.div>
   );
 };

@@ -1,5 +1,6 @@
 {
   "name": "Gestor de Fornecedores",
   "description": "Sistema para controle e gerenciamento de fornecedores e produtos.",
-  "requestFramePermissions": []
+  "requestFramePermissions": [],
+  "majorCapabilities": []
 }

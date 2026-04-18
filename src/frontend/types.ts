@@ -20,6 +20,7 @@ export interface Notification {
   id: string;
   name: string;
   quantity: number;
+  type?: 'cart' | 'info';
 }
 
 export interface AppNotification {
@@ -46,10 +47,15 @@ export interface SavedList {
 
 export interface ExternalProduct {
   id: string;
-  name: string;
-  price: number;
+  name?: string;
+  descricao?: string; // Omie field
+  price?: number;
+  valor_unitario?: number; // Omie field
   unidade?: string;
-  codigo_produto?: string;
+  codigo_produto?: string | number;
+  stock?: number;
+  estoque_fisico?: number;
+  codigo?: string;
 }
 
 export interface Reminder {
