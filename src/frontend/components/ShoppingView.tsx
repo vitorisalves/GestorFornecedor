@@ -70,16 +70,16 @@ export const ShoppingView: React.FC<ShoppingViewProps> = ({
       className="space-y-8"
     >
       <div>
-        <h1 className="text-4xl font-black text-slate-900 tracking-tight mb-2">Fazer Compras</h1>
-        <p className="text-slate-500 font-medium">Selecione os produtos para sua nova lista</p>
+        <h1 className="text-2xl md:text-4xl font-black text-slate-900 tracking-tight mb-1 md:mb-2 text-balance">Fazer Compras</h1>
+        <p className="text-sm md:text-base text-slate-500 font-medium">Selecione os produtos para sua nova lista</p>
       </div>
 
       <div className="relative group">
-        <Search className="absolute left-6 top-1/2 -translate-y-1/2 w-6 h-6 text-slate-400 group-focus-within:text-indigo-500 transition-colors" />
+        <Search className="absolute left-4 md:left-6 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 group-focus-within:text-indigo-500 transition-colors" />
         <input
           type="text"
-          placeholder="Buscar produto ou fornecedor..."
-          className="w-full pl-16 pr-6 py-5 bg-white border-2 border-slate-100 focus:border-indigo-500 rounded-[2rem] outline-none transition-all shadow-sm text-lg font-medium"
+          placeholder="Buscar..."
+          className="w-full pl-12 md:pl-16 pr-4 py-4 md:py-5 bg-white border-2 border-slate-100 focus:border-indigo-500 rounded-2xl md:rounded-[2rem] outline-none transition-all shadow-sm text-base md:text-lg font-medium"
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
         />
@@ -90,18 +90,18 @@ export const ShoppingView: React.FC<ShoppingViewProps> = ({
           <div key={category} className="bg-white rounded-[2rem] border-2 border-slate-50 shadow-sm overflow-hidden">
             <button
               onClick={() => setExpandedCategory(expandedCategory === category ? null : category)}
-              className="w-full p-6 flex items-center justify-between hover:bg-slate-50 transition-all"
+              className="w-full p-4 md:p-6 flex items-center justify-between hover:bg-slate-50 transition-all"
             >
-              <div className="flex items-center gap-4">
-                <div className="w-12 h-12 bg-indigo-50 rounded-2xl flex items-center justify-center">
-                  <Package className="w-6 h-6 text-indigo-600" />
+              <div className="flex items-center gap-3 md:gap-4">
+                <div className="w-10 h-10 md:w-12 md:h-12 bg-indigo-50 rounded-xl md:rounded-2xl flex items-center justify-center">
+                  <Package className="w-5 h-5 md:w-6 h-6 text-indigo-600" />
                 </div>
                 <div className="text-left">
-                  <h3 className="text-xl font-black text-slate-900">{category}</h3>
-                  <p className="text-sm text-slate-500 font-bold">{products.length} itens disponíveis</p>
+                  <h3 className="text-lg md:text-xl font-black text-slate-900">{category}</h3>
+                  <p className="text-[10px] md:text-sm text-slate-500 font-bold uppercase tracking-tight">{products.length} itens</p>
                 </div>
               </div>
-              {expandedCategory === category ? <ChevronUp className="w-6 h-6 text-slate-400" /> : <ChevronDown className="w-6 h-6 text-slate-400" />}
+              {expandedCategory === category ? <ChevronUp className="w-5 h-5 md:w-6 h-6 text-slate-400" /> : <ChevronDown className="w-5 h-5 md:w-6 h-6 text-slate-400" />}
             </button>
 
             <AnimatePresence>
@@ -145,6 +145,12 @@ export const ShoppingView: React.FC<ShoppingViewProps> = ({
                                   className="w-12 text-center font-black text-slate-900 bg-transparent outline-none text-xl tabular-nums"
                                   value={qty}
                                   onChange={(e) => setShoppingQuantities(prev => ({ ...prev, [id]: e.target.value }))}
+                                  onKeyDown={(e) => {
+                                    if (e.key === 'Enter') {
+                                      addToCart(product, product.supplierName, Number(qty));
+                                      setShoppingQuantities(prev => ({ ...prev, [id]: 1 }));
+                                    }
+                                  }}
                                 />
                                 <button
                                   onClick={() => handleQtyChange(id, 1)}
@@ -154,7 +160,10 @@ export const ShoppingView: React.FC<ShoppingViewProps> = ({
                                 </button>
                               </div>
                               <button
-                                onClick={() => addToCart(product, product.supplierName, Number(qty))}
+                                onClick={() => {
+                                  addToCart(product, product.supplierName, Number(qty));
+                                  setShoppingQuantities(prev => ({ ...prev, [id]: 1 }));
+                                }}
                                 className="w-full py-4 bg-slate-900 text-white rounded-2xl font-black uppercase tracking-widest text-xs flex items-center justify-center gap-3 hover:bg-indigo-600 transition-all border-b-4 border-slate-700 active:border-b-0 shadow-lg shadow-slate-200"
                               >
                                 <ShoppingCart className="w-5 h-5" />

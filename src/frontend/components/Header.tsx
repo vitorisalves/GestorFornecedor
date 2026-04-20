@@ -4,7 +4,7 @@
  */
 
 import React from 'react';
-import { ShoppingCart } from 'lucide-react';
+import { ShoppingCart, Menu } from 'lucide-react';
 import { NotificationCenter } from './NotificationCenter';
 import { Notification, AppNotification, CartItem } from '../types';
 
@@ -17,6 +17,7 @@ interface HeaderProps {
   clearNotifications: () => void;
   cart: CartItem[];
   setIsCartOpen: (open: boolean) => void;
+  onMenuToggle?: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -27,13 +28,22 @@ export const Header: React.FC<HeaderProps> = ({
   markAllAsRead,
   clearNotifications,
   cart,
-  setIsCartOpen
+  setIsCartOpen,
+  onMenuToggle
 }) => {
   const cartItemsCount = cart.reduce((acc, item) => acc + item.quantity, 0);
 
   return (
-    <header className="flex justify-end items-center gap-4 mb-12">
-      {/* Botão do Carrinho */}
+    <header className="flex justify-between items-center gap-4 mb-8 md:mb-12">
+      <button
+        onClick={onMenuToggle}
+        className="lg:hidden p-3 bg-white border-2 border-slate-100 text-slate-900 rounded-2xl hover:bg-slate-50 transition-all shadow-sm"
+      >
+        <Menu className="w-6 h-6" />
+      </button>
+
+      <div className="flex items-center gap-3 md:gap-4 ml-auto">
+        {/* Botão do Carrinho */}
       <button
         onClick={() => setIsCartOpen(true)}
         className="relative p-3 bg-white border-2 border-slate-100 text-slate-600 rounded-2xl hover:bg-slate-50 hover:text-indigo-600 transition-all shadow-sm group"
@@ -58,6 +68,7 @@ export const Header: React.FC<HeaderProps> = ({
           setIsCartOpen={setIsCartOpen}
         />
       </div>
-    </header>
-  );
+    </div>
+  </header>
+);
 };

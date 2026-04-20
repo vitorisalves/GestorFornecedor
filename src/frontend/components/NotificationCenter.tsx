@@ -33,7 +33,7 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({
   return (
     <>
       {/* Floating Notifications */}
-      <div className="fixed bottom-6 right-6 z-50 flex flex-col gap-3 pointer-events-none">
+      <div className="fixed bottom-6 right-6 left-6 md:left-auto z-50 flex flex-col gap-3 pointer-events-none">
         <AnimatePresence>
           {notifications.map((notif) => (
             <motion.div
@@ -41,10 +41,10 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({
               initial={{ opacity: 0, x: 50, scale: 0.9 }}
               animate={{ opacity: 1, x: 0, scale: 1 }}
               exit={{ opacity: 0, x: 20, scale: 0.9 }}
-              className="bg-slate-900 text-white px-6 py-4 rounded-2xl shadow-2xl flex items-center gap-4 border border-white/10 backdrop-blur-xl pointer-events-auto min-w-[300px]"
+              className="bg-slate-900 text-white px-5 py-3 md:px-6 md:py-4 rounded-xl md:rounded-2xl shadow-2xl flex items-center gap-3 md:gap-4 border border-white/10 backdrop-blur-xl pointer-events-auto min-w-[260px] md:min-w-[300px]"
             >
-              <div className="w-10 h-10 bg-indigo-500/20 rounded-full flex items-center justify-center">
-                <Bell className="w-5 h-5 text-indigo-400" />
+              <div className="w-8 h-8 md:w-10 md:h-10 bg-indigo-500/20 rounded-full flex items-center justify-center">
+                <Bell className="w-4 h-4 md:w-5 md:h-5 text-indigo-400" />
               </div>
               <div className="flex-1">
                 <p className="font-medium text-sm text-slate-200">{notif.name}</p>

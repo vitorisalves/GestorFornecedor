@@ -5,7 +5,7 @@
 
 import { useState, useEffect } from 'react';
 import { db } from '../firebase';
-import { collection, onSnapshot, doc, setDoc, deleteDoc } from 'firebase/firestore';
+import { collection, onSnapshot, doc, setDoc, deleteDoc, getDocs, query, where } from 'firebase/firestore';
 import { Supplier, Product } from '../types';
 import { generateId } from '../utils';
 
@@ -82,6 +82,13 @@ export const useSuppliers = (isAuthReady: boolean, isLoggedIn: boolean) => {
     await setDoc(doc(db, 'categories', id), { name });
   };
 
+  const deleteCategory = async (name: string) => {
+    const q = query(collection(db, 'categories'), where('name', '==', name));
+    const snapshot = await getDocs(q);
+    const deletePromises = snapshot.docs.map(d => deleteDoc(d.ref));
+    await Promise.all(deletePromises);
+  };
+
   return {
     suppliers,
     categories,
@@ -89,6 +96,7 @@ export const useSuppliers = (isAuthReady: boolean, isLoggedIn: boolean) => {
     saveSupplier,
     deleteSupplier,
     addCategory,
+    deleteCategory,
     error
   };
 };

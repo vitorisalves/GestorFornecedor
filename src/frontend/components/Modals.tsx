@@ -72,6 +72,14 @@ interface ModalsProps {
   listToDelete: string | null;
   setListToDelete: (id: string | null) => void;
   confirmDeleteList: () => void;
+
+  reminderToDelete: string | null;
+  setReminderToDelete: (id: string | null) => void;
+  confirmDeleteReminder: () => void;
+
+  categoryToDelete: string | null;
+  setCategoryToDelete: (id: string | null) => void;
+  confirmDeleteCategory: () => void;
 }
 
 export const Modals: React.FC<ModalsProps> = (props) => {
@@ -80,7 +88,7 @@ export const Modals: React.FC<ModalsProps> = (props) => {
       {/* Modal: Adicionar/Editar Fornecedor */}
       <AnimatePresence>
         {props.isAdding && (
-          <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-[200] flex items-center justify-center p-4">
             <motion.div 
               initial={{ opacity: 0, scale: 0.95, y: 10 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
@@ -88,40 +96,40 @@ export const Modals: React.FC<ModalsProps> = (props) => {
               transition={{ duration: 0.2, ease: "easeOut" }}
               className="bg-white w-full max-w-4xl max-h-[90vh] rounded-[2.5rem] shadow-2xl overflow-hidden flex flex-col"
             >
-              <div className="p-8 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+              <div className="p-5 md:p-8 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
                 <div>
-                  <h2 className="text-2xl font-black text-slate-900">
+                  <h2 className="text-xl md:text-2xl font-black text-slate-900 leading-tight">
                     {props.editingSupplierId ? 'Editar Fornecedor' : 'Novo Fornecedor'}
                   </h2>
-                  <p className="text-slate-500 font-medium">Preencha as informações do parceiro e seus produtos</p>
+                  <p className="text-xs md:text-sm text-slate-500 font-medium">Informações do parceiro e catálogo</p>
                 </div>
                 <button 
                   onClick={() => { props.setIsAdding(false); props.resetForm(); }}
-                  className="p-3 hover:bg-slate-200 rounded-2xl transition-all"
+                  className="p-2 md:p-3 hover:bg-slate-200 rounded-xl md:rounded-2xl transition-all"
                 >
-                  <X className="w-6 h-6 text-slate-400" />
+                  <X className="w-5 h-5 md:w-6 h-6 text-slate-400" />
                 </button>
               </div>
 
-              <div className="flex-1 overflow-y-auto p-8 space-y-10">
+              <div className="flex-1 overflow-y-auto p-5 md:p-8 space-y-6 md:space-y-10">
                 {/* Info Básica */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div className="space-y-2">
-                    <label className="text-sm font-bold text-slate-700 ml-1">Nome da Empresa</label>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
+                  <div className="space-y-1.5 md:space-y-2">
+                    <label className="text-xs md:text-sm font-bold text-slate-700 ml-1">Empresa</label>
                     <input
                       type="text"
-                      placeholder="Ex: Distribuidora Labarr"
-                      className="w-full px-6 py-4 bg-slate-50 border-2 border-transparent focus:border-indigo-500 focus:bg-white rounded-2xl outline-none transition-all font-medium"
+                      placeholder="Ex: Distribuidora"
+                      className="w-full px-5 md:px-6 py-3.5 md:py-4 bg-slate-50 border-2 border-transparent focus:border-indigo-500 focus:bg-white rounded-xl md:rounded-2xl outline-none transition-all font-medium text-sm md:text-base"
                       value={props.newName}
                       onChange={(e) => props.setNewName(e.target.value)}
                     />
                   </div>
-                  <div className="space-y-2">
-                    <label className="text-sm font-bold text-slate-700 ml-1">Telefone / WhatsApp</label>
+                  <div className="space-y-1.5 md:space-y-2">
+                    <label className="text-xs md:text-sm font-bold text-slate-700 ml-1">Telefone</label>
                     <input
                       type="text"
                       placeholder="(00) 00000-0000"
-                      className="w-full px-6 py-4 bg-slate-50 border-2 border-transparent focus:border-indigo-500 focus:bg-white rounded-2xl outline-none transition-all font-medium"
+                      className="w-full px-5 md:px-6 py-3.5 md:py-4 bg-slate-50 border-2 border-transparent focus:border-indigo-500 focus:bg-white rounded-xl md:rounded-2xl outline-none transition-all font-medium text-sm md:text-base"
                       value={props.newPhone}
                       onChange={(e) => props.setNewPhone(e.target.value)}
                     />
@@ -224,7 +232,7 @@ export const Modals: React.FC<ModalsProps> = (props) => {
       {/* Modal: Carrinho / Finalizar Lista */}
       <AnimatePresence>
         {props.isCartOpen && (
-          <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-[200] flex items-center justify-center p-4">
             <motion.div 
               initial={{ opacity: 0, scale: 0.95, y: 10 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
@@ -232,21 +240,21 @@ export const Modals: React.FC<ModalsProps> = (props) => {
               transition={{ duration: 0.2, ease: "easeOut" }}
               className="bg-white w-full max-w-2xl rounded-[2.5rem] shadow-2xl overflow-hidden flex flex-col max-h-[90vh]"
             >
-              <div className="p-8 border-b-2 border-slate-900 flex items-center justify-between bg-slate-50/50">
-                <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 bg-slate-900 rounded-2xl flex items-center justify-center shadow-xl shadow-slate-200">
-                    <ShoppingCart className="w-6 h-6 text-white" />
+              <div className="p-5 md:p-8 border-b-2 border-slate-900 flex items-center justify-between bg-slate-50/50">
+                <div className="flex items-center gap-3 md:gap-4">
+                  <div className="w-10 h-10 md:w-12 md:h-12 bg-slate-900 rounded-xl md:rounded-2xl flex items-center justify-center shadow-xl shadow-slate-200">
+                    <ShoppingCart className="w-5 h-5 md:w-6 h-6 text-white" />
                   </div>
                   <div>
-                    <h2 className="text-2xl font-black text-slate-900 uppercase tracking-tighter">Seu Carrinho</h2>
-                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{props.cart.length} itens selecionados</p>
+                    <h2 className="text-xl md:text-2xl font-black text-slate-900 uppercase tracking-tighter leading-tight">Carrinho</h2>
+                    <p className="text-[9px] md:text-[10px] font-black text-slate-400 uppercase tracking-widest">{props.cart.length} itens</p>
                   </div>
                 </div>
                 <button 
                   onClick={() => props.setIsCartOpen(false)}
-                  className="p-3 hover:bg-slate-200 rounded-2xl transition-all border-2 border-transparent hover:border-slate-900 text-slate-900"
+                  className="p-2 md:p-3 hover:bg-slate-200 rounded-xl md:rounded-2xl transition-all border-2 border-transparent hover:border-slate-900 text-slate-900"
                 >
-                  <X className="w-6 h-6" />
+                  <X className="w-5 h-5 md:w-6 h-6" />
                 </button>
               </div>
 
@@ -359,7 +367,7 @@ export const Modals: React.FC<ModalsProps> = (props) => {
       {/* Modal: Configurações (Admin) */}
       <AnimatePresence>
         {props.isSettingsOpen && (
-          <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-[200] flex items-center justify-center p-4">
             <motion.div 
               initial={{ opacity: 0, scale: 0.95, y: 10 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
@@ -409,9 +417,16 @@ export const Modals: React.FC<ModalsProps> = (props) => {
                   </div>
                   <div className="flex flex-wrap gap-2">
                     {props.categories.map(cat => (
-                      <span key={cat} className="px-4 py-2 bg-slate-100 text-slate-600 rounded-xl text-sm font-bold border border-slate-200">
+                      <div key={cat} className="flex items-center gap-2 px-4 py-2 bg-slate-100 text-slate-600 rounded-xl text-sm font-bold border border-slate-200 group">
                         {cat}
-                      </span>
+                        <button
+                          onClick={() => props.setCategoryToDelete(cat)}
+                          className="p-1 hover:text-red-500 transition-colors opacity-0 group-hover:opacity-100"
+                          title="Excluir Categoria"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
                     ))}
                   </div>
                 </section>
@@ -467,7 +482,7 @@ export const Modals: React.FC<ModalsProps> = (props) => {
       {/* Modal: Confirmação de Exclusão (Fornecedor) */}
       <AnimatePresence>
         {props.supplierToDelete && (
-          <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
+          <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-[210] flex items-center justify-center p-4">
             <motion.div 
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
@@ -502,7 +517,7 @@ export const Modals: React.FC<ModalsProps> = (props) => {
       {/* Modal: Confirmação de Exclusão (Lista) */}
       <AnimatePresence>
         {props.listToDelete && (
-          <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
+          <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-[210] flex items-center justify-center p-4">
             <motion.div 
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
@@ -524,6 +539,79 @@ export const Modals: React.FC<ModalsProps> = (props) => {
                 </button>
                 <button
                   onClick={props.confirmDeleteList}
+                  className="py-4 bg-red-500 text-white rounded-2xl font-bold shadow-lg shadow-red-100 hover:bg-red-600 transition-all"
+                >
+                  Sim, Excluir
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Modal: Confirmação de Exclusão (Lembrete) */}
+      <AnimatePresence>
+        {props.reminderToDelete && (
+          <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-[210] flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              transition={{ duration: 0.2 }}
+              className="bg-white w-full max-w-md p-8 rounded-[2.5rem] shadow-2xl text-center"
+            >
+              <div className="w-20 h-20 bg-red-50 text-red-500 rounded-3xl flex items-center justify-center mx-auto mb-6">
+                <Trash2 className="w-10 h-10" />
+              </div>
+              <h3 className="text-2xl font-black text-slate-900 mb-2">Excluir Lembrete?</h3>
+              <p className="text-slate-500 font-medium mb-8">O lembrete será removido e você não receberá mais a notificação.</p>
+              <div className="grid grid-cols-2 gap-4">
+                <button
+                  onClick={() => props.setReminderToDelete(null)}
+                  className="py-4 text-slate-500 font-bold hover:bg-slate-50 rounded-2xl transition-all"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={props.confirmDeleteReminder}
+                  className="py-4 bg-red-500 text-white rounded-2xl font-bold shadow-lg shadow-red-100 hover:bg-red-600 transition-all"
+                >
+                  Sim, Excluir
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Modal: Confirmação de Exclusão (Categoria) */}
+      <AnimatePresence>
+        {props.categoryToDelete && (
+          <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-[220] flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              transition={{ duration: 0.2 }}
+              className="bg-white w-full max-w-md p-8 rounded-[2.5rem] shadow-2xl text-center"
+            >
+              <div className="w-20 h-20 bg-red-50 text-red-500 rounded-3xl flex items-center justify-center mx-auto mb-6">
+                <Trash2 className="w-10 h-10" />
+              </div>
+              <h3 className="text-2xl font-black text-slate-900 mb-2">Excluir Categoria?</h3>
+              <p className="text-slate-500 font-medium mb-8">
+                Deseja remover a categoria <strong>"{props.categoryToDelete}"</strong>? 
+                Isso não afetará os produtos já cadastrados, mas eles ficarão com a categoria antiga até serem editados.
+              </p>
+              <div className="grid grid-cols-2 gap-4">
+                <button
+                  onClick={() => props.setCategoryToDelete(null)}
+                  className="py-4 text-slate-500 font-bold hover:bg-slate-50 rounded-2xl transition-all"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={props.confirmDeleteCategory}
                   className="py-4 bg-red-500 text-white rounded-2xl font-bold shadow-lg shadow-red-100 hover:bg-red-600 transition-all"
                 >
                   Sim, Excluir

@@ -106,7 +106,7 @@ export const SuppliersView: React.FC<SuppliersViewProps> = ({
   const TabButton = ({ id, label }: { id: typeof activeSubTab, label: string }) => (
     <button
       onClick={() => setActiveSubTab(id)}
-      className={`px-8 py-3 rounded-2xl font-black uppercase text-xs tracking-widest transition-all ${
+      className={`px-8 py-3 rounded-2xl font-black uppercase text-xs tracking-widest transition-all whitespace-nowrap ${
         activeSubTab === id 
           ? 'bg-slate-900 text-white shadow-lg shadow-slate-200 border-b-4 border-slate-700' 
           : 'bg-white text-slate-400 hover:text-slate-600 border-2 border-slate-100'
@@ -127,8 +127,8 @@ export const SuppliersView: React.FC<SuppliersViewProps> = ({
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
         <div className="flex items-center gap-4">
           <div>
-            <h1 className="text-4xl font-black text-slate-900 tracking-tight mb-2">Gestão de Compras</h1>
-            <p className="text-slate-500 font-medium">Controle de fornecedores e itens por canal</p>
+            <h1 className="text-2xl md:text-4xl font-black text-slate-900 tracking-tight mb-1 md:mb-2 text-balance">Gestão de Compras</h1>
+            <p className="text-sm md:text-base text-slate-500 font-medium">Controle de fornecedores e itens por canal</p>
           </div>
           {isLoading && (
             <motion.div
@@ -143,45 +143,45 @@ export const SuppliersView: React.FC<SuppliersViewProps> = ({
         </div>
       </div>
 
-      <div className="flex items-center gap-3 overflow-x-auto pb-2 scrollbar-hide">
-        {activeSubTab === 'fornecedores' && <TabButton id="fornecedores" label="Fornecedores" />}
-        {activeSubTab === 'mercado' && <TabButton id="mercado" label="Mercado" />}
-        {activeSubTab === 'materiais' && <TabButton id="materiais" label="Materiais" />}
+      <div className="flex items-center gap-2 overflow-x-auto pb-3 scrollbar-hide -mx-4 px-4 md:mx-0 md:px-0">
+        <TabButton id="fornecedores" label="Geral" />
+        <TabButton id="mercado" label="Cesta" />
+        <TabButton id="materiais" label="Lojas" />
       </div>
 
       {activeSubTab === 'fornecedores' && (
         <div className="space-y-8">
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-            <h2 className="text-2xl font-black text-slate-900 uppercase tracking-tight">Lista de Fornecedores</h2>
-            <div className="flex items-center gap-3">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+            <h2 className="text-xl md:text-2xl font-black text-slate-900 uppercase tracking-tight">Lista de Fornecedores</h2>
+            <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
               <button
                 onClick={handleExportExcel}
-                className="flex items-center gap-2 px-6 py-4 bg-white border-2 border-slate-100 text-slate-600 rounded-2xl font-bold hover:bg-slate-50 transition-all shadow-sm text-sm"
+                className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-3 bg-white border-2 border-slate-100 text-slate-600 rounded-xl font-bold hover:bg-slate-50 transition-all shadow-sm text-xs"
               >
                 <Download className="w-4 h-4" />
                 Exportar
               </button>
-              <label className="flex items-center gap-2 px-6 py-4 bg-white border-2 border-slate-100 text-slate-600 rounded-2xl font-bold hover:bg-slate-50 transition-all shadow-sm cursor-pointer text-sm">
+              <label className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-3 bg-white border-2 border-slate-100 text-slate-600 rounded-xl font-bold hover:bg-slate-50 transition-all shadow-sm cursor-pointer text-xs">
                 <Upload className="w-4 h-4" />
                 Importar
                 <input type="file" accept=".xlsx, .xls" className="hidden" onChange={handleImportExcel} />
               </label>
               <button
                 onClick={() => setIsAdding(true)}
-                className="flex items-center gap-2 px-8 py-4 bg-indigo-600 text-white rounded-2xl font-bold hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-200 active:scale-95 text-sm"
+                className="w-full sm:w-auto flex items-center justify-center gap-2 px-6 py-3 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-200 active:scale-95 text-xs"
               >
-                <Plus className="w-5 h-5" />
-                Novo Fornecedor
+                <Plus className="w-4 h-4" />
+                Novo
               </button>
             </div>
           </div>
 
           <div className="relative group">
-            <Search className="absolute left-6 top-1/2 -translate-y-1/2 w-6 h-6 text-slate-400 group-focus-within:text-indigo-500 transition-colors" />
+            <Search className="absolute left-4 md:left-6 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 group-focus-within:text-indigo-500 transition-colors" />
             <input
               type="text"
-              placeholder="Buscar por fornecedor ou produto..."
-              className="w-full pl-16 pr-6 py-5 bg-white border-2 border-slate-100 focus:border-indigo-500 rounded-[2rem] outline-none transition-all shadow-sm text-lg font-medium"
+              placeholder="Buscar..."
+              className="w-full pl-12 md:pl-16 pr-4 py-4 md:py-5 bg-white border-2 border-slate-100 focus:border-indigo-500 rounded-2xl md:rounded-[2rem] outline-none transition-all shadow-sm text-base md:text-lg font-medium"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
             />
@@ -196,46 +196,48 @@ export const SuppliersView: React.FC<SuppliersViewProps> = ({
               >
                 <div 
                   onClick={() => setExpandedSupplier(expandedSupplier === supplier.id ? null : supplier.id)}
-                  className="p-8 flex flex-col md:flex-row md:items-center justify-between gap-6 cursor-pointer hover:bg-slate-50 transition-colors"
+                  className="p-5 md:p-8 flex flex-col md:flex-row md:items-center justify-between gap-4 md:gap-6 cursor-pointer hover:bg-slate-50 transition-colors"
                 >
-                  <div className="flex items-center gap-6">
-                    <div className="w-16 h-16 bg-slate-900 rounded-3xl flex items-center justify-center border-2 border-slate-900 shadow-lg shadow-slate-200">
-                      <Building2 className="w-8 h-8 text-white" />
+                  <div className="flex items-center gap-4 md:gap-6">
+                    <div className="w-12 h-12 md:w-16 md:h-16 bg-slate-900 rounded-2xl md:rounded-3xl flex items-center justify-center border-2 border-slate-900 shadow-lg shadow-slate-200">
+                      <Building2 className="w-6 h-6 md:w-8 md:h-8 text-white" />
                     </div>
                     <div>
-                      <h3 className="text-2xl font-black text-slate-900 mb-1 tracking-tighter uppercase">{supplier.name}</h3>
-                      <div className="flex items-center gap-4 text-slate-900 font-black text-xs uppercase tracking-tight">
-                        <span className="flex items-center gap-1.5 px-2 py-1 bg-slate-100 rounded-lg">
-                          <Phone className="w-4 h-4 text-slate-900" />
+                      <h3 className="text-xl md:text-2xl font-black text-slate-900 mb-0.5 md:mb-1 tracking-tighter uppercase">{supplier.name}</h3>
+                      <div className="flex items-center gap-3 text-slate-900 font-black text-[10px] md:text-xs uppercase tracking-tight">
+                        <span className="flex items-center gap-1 px-1.5 py-0.5 bg-slate-100 rounded-lg">
+                          <Phone className="w-3.5 h-3.5 text-slate-900" />
                           {supplier.phone}
                         </span>
-                        <span className="flex items-center gap-1.5 px-2 py-1 bg-slate-100 rounded-lg">
-                          <Package className="w-4 h-4 text-slate-900" />
-                          {supplier.products.length} produtos
+                        <span className="flex items-center gap-1 px-1.5 py-0.5 bg-slate-100 rounded-lg">
+                          <Package className="w-3.5 h-3.5 text-slate-900" />
+                          {supplier.products.length} itens
                         </span>
                       </div>
                     </div>
                   </div>
                   
-                  <div className="flex items-center gap-3" onClick={(e) => e.stopPropagation()}>
-                    <button
-                      onClick={() => handleEditSupplier(supplier)}
-                      className="p-4 text-slate-900 hover:text-white hover:bg-slate-900 rounded-2xl transition-all border-2 border-transparent hover:border-slate-900"
-                    >
-                      <Pencil className="w-6 h-6" />
-                    </button>
-                    <button
-                      onClick={() => setSupplierToDelete(supplier.id)}
-                      className="p-4 text-slate-900 hover:text-white hover:bg-red-600 rounded-2xl transition-all border-2 border-transparent hover:border-red-600"
-                    >
-                      <Trash2 className="w-6 h-6" />
-                    </button>
+                  <div className="flex items-center justify-between md:justify-end gap-2" onClick={(e) => e.stopPropagation()}>
+                    <div className="flex items-center gap-1">
+                      <button
+                        onClick={() => handleEditSupplier(supplier)}
+                        className="p-3 md:p-4 text-slate-900 hover:text-white hover:bg-slate-900 rounded-xl md:rounded-2xl transition-all border-2 border-transparent hover:border-slate-900"
+                      >
+                        <Pencil className="w-5 h-5 md:w-6 h-6" />
+                      </button>
+                      <button
+                        onClick={() => setSupplierToDelete(supplier.id)}
+                        className="p-3 md:p-4 text-slate-900 hover:text-white hover:bg-red-600 rounded-xl md:rounded-2xl transition-all border-2 border-transparent hover:border-red-600"
+                      >
+                        <Trash2 className="w-5 h-5 md:w-6 h-6" />
+                      </button>
+                    </div>
                     <button
                       onClick={() => setExpandedSupplier(expandedSupplier === supplier.id ? null : supplier.id)}
-                      className="flex items-center gap-2 px-6 py-4 bg-slate-900 text-white rounded-2xl font-black uppercase text-xs hover:bg-indigo-600 transition-all shadow-lg shadow-slate-200 border-b-4 border-slate-700 active:border-b-0"
+                      className="flex items-center gap-2 px-5 md:px-6 py-3 md:py-4 bg-slate-900 text-white rounded-xl md:rounded-2xl font-black uppercase text-[10px] md:text-xs hover:bg-indigo-600 transition-all shadow-lg shadow-slate-200 border-b-4 border-slate-700 active:border-b-0"
                     >
-                      {expandedSupplier === supplier.id ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
-                      {expandedSupplier === supplier.id ? 'Ocultar' : 'Ver Produtos'}
+                      {expandedSupplier === supplier.id ? <ChevronUp className="w-4 h-4 md:w-5 h-5" /> : <ChevronDown className="w-4 h-4 md:w-5 h-5" />}
+                      {expandedSupplier === supplier.id ? 'Ocultar' : 'Produtos'}
                     </button>
                   </div>
                 </div>
@@ -337,12 +339,21 @@ export const SuppliersView: React.FC<SuppliersViewProps> = ({
                         value={quantities[`MERCADO-${idx}`] ?? '1'}
                         onChange={(e) => handleQuantityChange(`MERCADO-${idx}`, e.target.value)}
                         onBlur={() => handleQuantityBlur(`MERCADO-${idx}`)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            addToCart(product, 'MERCADO', Number(quantities[`MERCADO-${idx}`] ?? '1'));
+                            setQuantities(prev => ({ ...prev, [`MERCADO-${idx}`]: '1' }));
+                          }
+                        }}
                         className="w-16 px-2 py-4 bg-slate-100 border-2 border-transparent focus:border-indigo-600 rounded-2xl text-center font-black text-slate-900 outline-none transition-all"
                         placeholder="Qtd"
                       />
                     </div>
                     <button
-                      onClick={() => addToCart(product, 'MERCADO', Number(quantities[`MERCADO-${idx}`] ?? '1'))}
+                      onClick={() => {
+                        addToCart(product, 'MERCADO', Number(quantities[`MERCADO-${idx}`] ?? '1'));
+                        setQuantities(prev => ({ ...prev, [`MERCADO-${idx}`]: '1' }));
+                      }}
                       className="flex-1 py-4 bg-slate-900 text-white rounded-2xl font-black uppercase text-xs tracking-widest hover:bg-indigo-600 transition-all active:scale-95 border-b-4 border-slate-700 active:border-b-0"
                     >
                       Adicionar
@@ -398,12 +409,21 @@ export const SuppliersView: React.FC<SuppliersViewProps> = ({
                         value={quantities[`MATERIAIS-${idx}`] ?? '1'}
                         onChange={(e) => handleQuantityChange(`MATERIAIS-${idx}`, e.target.value)}
                         onBlur={() => handleQuantityBlur(`MATERIAIS-${idx}`)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            addToCart(product, 'MATERIAIS', Number(quantities[`MATERIAIS-${idx}`] ?? '1'));
+                            setQuantities(prev => ({ ...prev, [`MATERIAIS-${idx}`]: '1' }));
+                          }
+                        }}
                         className="w-16 px-2 py-4 bg-slate-100 border-2 border-transparent focus:border-indigo-600 rounded-2xl text-center font-black text-slate-900 outline-none transition-all"
                         placeholder="Qtd"
                       />
                     </div>
                     <button
-                      onClick={() => addToCart(product, 'MATERIAIS', Number(quantities[`MATERIAIS-${idx}`] ?? '1'))}
+                      onClick={() => {
+                        addToCart(product, 'MATERIAIS', Number(quantities[`MATERIAIS-${idx}`] ?? '1'));
+                        setQuantities(prev => ({ ...prev, [`MATERIAIS-${idx}`]: '1' }));
+                      }}
                       className="flex-1 py-4 bg-slate-900 text-white rounded-2xl font-black uppercase text-xs tracking-widest hover:bg-indigo-600 transition-all active:scale-95 border-b-4 border-slate-700 active:border-b-0"
                     >
                       Adicionar

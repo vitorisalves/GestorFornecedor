@@ -65,6 +65,7 @@ export default function App() {
     saveSupplier,
     deleteSupplier,
     addCategory,
+    deleteCategory,
     error: suppliersError
   } = useSuppliers(isAuthReady, isLoggedIn);
 
@@ -122,6 +123,7 @@ export default function App() {
     }
   }, [loginCpf, authorizedUsers]);
 
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isFinalizing, setIsFinalizing] = useState(false);
   const [isAdding, setIsAdding] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
@@ -131,6 +133,8 @@ export default function App() {
   const [editingSupplierId, setEditingSupplierId] = useState<string | null>(null);
   const [supplierToDelete, setSupplierToDelete] = useState<string | null>(null);
   const [listToDelete, setListToDelete] = useState<string | null>(null);
+  const [reminderToDelete, setReminderToDelete] = useState<string | null>(null);
+  const [categoryToDelete, setCategoryToDelete] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [shoppingQuantities, setShoppingQuantities] = useState<Record<string, number | string>>({});
   const [newCategoryName, setNewCategoryName] = useState('');
@@ -297,15 +301,17 @@ export default function App() {
   return (
     <div className="min-h-screen bg-slate-50 flex">
       <Sidebar 
-        currentPage={currentPage}
-        setCurrentPage={setCurrentPage}
+        currentPage={currentPage} 
+        setCurrentPage={setCurrentPage} 
         isAdmin={isAdmin}
         setIsSettingsOpen={setIsSettingsOpen}
         handleLogout={handleLogout}
         loggedName={loggedName}
+        isOpen={isSidebarOpen}
+        onClose={() => setIsSidebarOpen(false)}
       />
 
-      <main className="flex-1 ml-72 p-4 md:p-12 w-full overflow-x-hidden">
+      <main className="flex-1 lg:ml-72 p-4 md:p-8 lg:p-12 w-full overflow-x-hidden min-h-screen transition-all">
         <div className="max-w-7xl mx-auto">
           <Header 
             notifications={notifications}
@@ -316,6 +322,7 @@ export default function App() {
             clearNotifications={clearNotifications}
             cart={cart}
             setIsCartOpen={setIsCartOpen}
+            onMenuToggle={() => setIsSidebarOpen(true)}
           />
 
         {suppliersError && (
@@ -399,7 +406,7 @@ export default function App() {
               reminderDate={reminderDate}
               setReminderDate={setReminderDate}
               addReminder={onScheduleReminder}
-              deleteReminder={deleteReminder}
+              deleteReminder={setReminderToDelete}
             />
           )}
         </AnimatePresence>
@@ -459,6 +466,12 @@ export default function App() {
         listToDelete={listToDelete}
         setListToDelete={setListToDelete}
         confirmDeleteList={() => { if (listToDelete) { deleteSavedList(listToDelete); setListToDelete(null); } }}
+        reminderToDelete={reminderToDelete}
+        setReminderToDelete={setReminderToDelete}
+        confirmDeleteReminder={() => { if (reminderToDelete) { deleteReminder(reminderToDelete); setReminderToDelete(null); } }}
+        categoryToDelete={categoryToDelete}
+        setCategoryToDelete={setCategoryToDelete}
+        confirmDeleteCategory={() => { if (categoryToDelete) { deleteCategory(categoryToDelete); setCategoryToDelete(null); } }}
       />
     </div>
   );

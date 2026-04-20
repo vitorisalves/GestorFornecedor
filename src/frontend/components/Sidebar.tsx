@@ -13,7 +13,8 @@ import {
   LogOut,
   Settings,
   Store,
-  Hammer
+  Hammer,
+  X
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -23,6 +24,8 @@ interface SidebarProps {
   setIsSettingsOpen: (open: boolean) => void;
   handleLogout: () => void;
   loggedName: string;
+  isOpen: boolean;
+  onClose: () => void;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -31,7 +34,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
   isAdmin,
   setIsSettingsOpen,
   handleLogout,
-  loggedName
+  loggedName,
+  isOpen,
+  onClose
 }) => {
   const menuItems = [
     { id: 'suppliers', label: 'Fornecedores', icon: Building2 },
@@ -44,32 +49,42 @@ export const Sidebar: React.FC<SidebarProps> = ({
   ];
 
   return (
-    <aside className="fixed inset-y-0 left-0 w-72 bg-white border-r-2 border-slate-900 flex flex-col h-screen overflow-y-auto scrollbar-thin scrollbar-thumb-slate-200 scrollbar-track-transparent z-[100] shrink-0">
-      <div className="p-8">
-        <div className="flex items-center gap-3 mb-10">
-          <div className="w-12 h-12 bg-slate-900 rounded-xl flex items-center justify-center shadow-xl shadow-slate-200">
-            <Building2 className="w-7 h-7 text-white" />
-          </div>
-          <span className="text-3xl font-black text-slate-900 tracking-tighter">LABARR</span>
-        </div>
-
-        <nav className="space-y-3">
-          {menuItems.map((item) => (
-            <button
-              key={item.id}
-              onClick={() => setCurrentPage(item.id)}
-              className={`w-full flex items-center gap-4 px-5 py-4 rounded-2xl font-black transition-all border-2 cursor-pointer ${
-                currentPage === item.id
-                  ? 'bg-slate-900 text-white border-slate-900 shadow-lg shadow-slate-200'
-                  : 'text-slate-900 border-transparent hover:border-slate-300 hover:bg-slate-50'
-              }`}
-            >
-              <item.icon className={`w-6 h-6 ${currentPage === item.id ? 'text-white' : 'text-slate-900'}`} />
-              <span className="uppercase tracking-tight text-sm">{item.label}</span>
+    <>
+      <div 
+        className={`fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-[90] transition-opacity lg:hidden ${isOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
+        onClick={onClose}
+      />
+      <aside className={`fixed inset-y-0 left-0 w-72 bg-white border-r-2 border-slate-900 flex flex-col h-screen overflow-y-auto scrollbar-thin scrollbar-thumb-slate-200 scrollbar-track-transparent z-[100] shrink-0 transition-transform duration-300 lg:translate-x-0 ${isOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+        <div className="p-8">
+          <div className="flex items-center justify-between mb-10">
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 bg-slate-900 rounded-xl flex items-center justify-center shadow-xl shadow-slate-200">
+                <Building2 className="w-7 h-7 text-white" />
+              </div>
+              <span className="text-3xl font-black text-slate-900 tracking-tighter">LABARR</span>
+            </div>
+            <button onClick={onClose} className="lg:hidden p-2 text-slate-400 hover:text-slate-900">
+              <X className="w-6 h-6" />
             </button>
-          ))}
-        </nav>
-      </div>
+          </div>
+
+          <nav className="space-y-3">
+            {menuItems.map((item) => (
+              <button
+                key={item.id}
+                onClick={() => { setCurrentPage(item.id); onClose(); }}
+                className={`w-full flex items-center gap-4 px-5 py-4 rounded-2xl font-black transition-all border-2 cursor-pointer ${
+                  currentPage === item.id
+                    ? 'bg-slate-900 text-white border-slate-900 shadow-lg shadow-slate-200'
+                    : 'text-slate-900 border-transparent hover:border-slate-300 hover:bg-slate-50'
+                }`}
+              >
+                <item.icon className={`w-6 h-6 ${currentPage === item.id ? 'text-white' : 'text-slate-900'}`} />
+                <span className="uppercase tracking-tight text-sm">{item.label}</span>
+              </button>
+            ))}
+          </nav>
+        </div>
 
       <div className="mt-auto p-6 border-t-2 border-slate-900 space-y-2 bg-slate-50/50">
         {isAdmin && (
@@ -96,5 +111,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
         </button>
       </div>
     </aside>
+    </>
   );
 };
