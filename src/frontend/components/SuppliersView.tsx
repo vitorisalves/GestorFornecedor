@@ -145,8 +145,8 @@ export const SuppliersView: React.FC<SuppliersViewProps> = ({
 
       <div className="flex items-center gap-2 overflow-x-auto pb-3 scrollbar-hide -mx-4 px-4 md:mx-0 md:px-0">
         <TabButton id="fornecedores" label="Geral" />
-        <TabButton id="mercado" label="Cesta" />
-        <TabButton id="materiais" label="Lojas" />
+        <TabButton id="mercado" label="Mercado" />
+        <TabButton id="materiais" label="Materiais" />
       </div>
 
       {activeSubTab === 'fornecedores' && (
