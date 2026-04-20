@@ -103,19 +103,6 @@ export const SuppliersView: React.FC<SuppliersViewProps> = ({
     s.products.some(p => p.name.toLowerCase().includes(searchTerm.toLowerCase()))
   );
 
-  const TabButton = ({ id, label }: { id: typeof activeSubTab, label: string }) => (
-    <button
-      onClick={() => setActiveSubTab(id)}
-      className={`px-8 py-3 rounded-2xl font-black uppercase text-xs tracking-widest transition-all whitespace-nowrap ${
-        activeSubTab === id 
-          ? 'bg-slate-900 text-white shadow-lg shadow-slate-200 border-b-4 border-slate-700' 
-          : 'bg-white text-slate-400 hover:text-slate-600 border-2 border-slate-100'
-      }`}
-    >
-      {label}
-    </button>
-  );
-
   return (
     <motion.div 
       initial={{ opacity: 0, y: 10 }}
@@ -144,9 +131,23 @@ export const SuppliersView: React.FC<SuppliersViewProps> = ({
       </div>
 
       <div className="flex items-center gap-2 overflow-x-auto pb-3 scrollbar-hide -mx-4 px-4 md:mx-0 md:px-0">
-        <TabButton id="fornecedores" label="Geral" />
-        <TabButton id="mercado" label="Mercado" />
-        <TabButton id="materiais" label="Materiais" />
+        {[
+          { id: 'fornecedores', label: 'Geral' },
+          { id: 'mercado', label: 'Mercado' },
+          { id: 'materiais', label: 'Materiais' }
+        ].map((tab) => (
+          <button
+            key={tab.id}
+            onClick={() => setActiveSubTab(tab.id as any)}
+            className={`px-8 py-3 rounded-2xl font-black uppercase text-xs tracking-widest transition-all whitespace-nowrap ${
+              activeSubTab === tab.id 
+                ? 'bg-slate-900 text-white shadow-lg shadow-slate-200 border-b-4 border-slate-700' 
+                : 'bg-white text-slate-400 hover:text-slate-600 border-2 border-slate-100'
+            }`}
+          >
+            {tab.label}
+          </button>
+        ))}
       </div>
 
       {activeSubTab === 'fornecedores' && (
@@ -309,6 +310,17 @@ export const SuppliersView: React.FC<SuppliersViewProps> = ({
             </button>
           </div>
 
+          <div className="relative group">
+            <Search className="absolute left-4 md:left-6 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 group-focus-within:text-indigo-500 transition-colors" />
+            <input
+              type="text"
+              placeholder="Buscar produtos no mercado..."
+              className="w-full pl-12 md:pl-16 pr-4 py-4 md:py-5 bg-white border-2 border-slate-100 focus:border-indigo-500 rounded-2xl md:rounded-[2rem] outline-none transition-all shadow-sm text-base md:text-lg font-medium"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
+          </div>
+
           {!marketSupplier || marketSupplier.products.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-20 bg-white border-2 border-dashed border-slate-200 rounded-[2.5rem]">
               <div className="w-20 h-20 bg-slate-50 rounded-full flex items-center justify-center mb-6">
@@ -319,7 +331,9 @@ export const SuppliersView: React.FC<SuppliersViewProps> = ({
             </div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-              {marketSupplier.products.map((product, idx) => (
+              {marketSupplier.products
+                .filter(p => p.name.toLowerCase().includes(searchTerm.toLowerCase()) || p.category.toLowerCase().includes(searchTerm.toLowerCase()))
+                .map((product, idx) => (
                 <div key={idx} className="bg-white p-8 rounded-[2.5rem] border-2 border-slate-900 shadow-xl shadow-slate-100 flex flex-col justify-between group hover:border-indigo-200 transition-all">
                   <div>
                     <div className="flex justify-between items-start mb-4">
@@ -379,6 +393,17 @@ export const SuppliersView: React.FC<SuppliersViewProps> = ({
             </button>
           </div>
 
+          <div className="relative group">
+            <Search className="absolute left-4 md:left-6 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 group-focus-within:text-indigo-500 transition-colors" />
+            <input
+              type="text"
+              placeholder="Buscar materiais..."
+              className="w-full pl-12 md:pl-16 pr-4 py-4 md:py-5 bg-white border-2 border-slate-100 focus:border-indigo-500 rounded-2xl md:rounded-[2rem] outline-none transition-all shadow-sm text-base md:text-lg font-medium"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
+          </div>
+
           {!materialsSupplier || materialsSupplier.products.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-20 bg-white border-2 border-dashed border-slate-200 rounded-[2.5rem]">
               <div className="w-20 h-20 bg-slate-50 rounded-full flex items-center justify-center mb-6">
@@ -389,7 +414,9 @@ export const SuppliersView: React.FC<SuppliersViewProps> = ({
             </div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-              {materialsSupplier.products.map((product, idx) => (
+              {materialsSupplier.products
+                .filter(p => p.name.toLowerCase().includes(searchTerm.toLowerCase()) || p.category.toLowerCase().includes(searchTerm.toLowerCase()))
+                .map((product, idx) => (
                 <div key={idx} className="bg-white p-8 rounded-[2.5rem] border-2 border-slate-900 shadow-xl shadow-slate-100 flex flex-col justify-between group hover:border-indigo-200 transition-all">
                   <div>
                     <div className="flex justify-between items-start mb-4">
