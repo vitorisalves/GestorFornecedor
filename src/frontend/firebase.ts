@@ -29,8 +29,12 @@ async function testConnection() {
     await getDocFromServer(doc(db, 'connection_test', 'status'));
     console.log("Firebase connection established successfully.");
   } catch (error) {
-    if (error instanceof Error && error.message.includes('the client is offline')) {
-      console.error("Firebase connection error: The client is offline.");
+    if (error instanceof Error) {
+      if (error.message.includes('the client is offline')) {
+        console.error("Firebase connection error: The client is offline.");
+      } else if (error.message.toLowerCase().includes('quota')) {
+        console.warn("Firebase warning: Firestore free tier quota reached for today.");
+      }
     }
   }
 }

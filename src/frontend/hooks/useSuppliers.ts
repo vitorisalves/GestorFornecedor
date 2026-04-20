@@ -77,6 +77,18 @@ export const useSuppliers = (isAuthReady: boolean, isLoggedIn: boolean) => {
     await deleteDoc(doc(db, 'suppliers', id));
   };
 
+  const deleteAllSuppliers = async () => {
+    const q = collection(db, 'suppliers');
+    const snapshot = await getDocs(q);
+    const deletePromises = snapshot.docs
+      .filter(d => {
+        const name = (d.data().name as string || '').toUpperCase();
+        return name !== 'MERCADO' && name !== 'MATERIAIS';
+      })
+      .map(d => deleteDoc(d.ref));
+    await Promise.all(deletePromises);
+  };
+
   const addCategory = async (name: string) => {
     const id = generateId();
     await setDoc(doc(db, 'categories', id), { name });
@@ -95,6 +107,7 @@ export const useSuppliers = (isAuthReady: boolean, isLoggedIn: boolean) => {
     isLoading,
     saveSupplier,
     deleteSupplier,
+    deleteAllSuppliers,
     addCategory,
     deleteCategory,
     error

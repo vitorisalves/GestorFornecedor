@@ -80,6 +80,11 @@ interface ModalsProps {
   categoryToDelete: string | null;
   setCategoryToDelete: (id: string | null) => void;
   confirmDeleteCategory: () => void;
+
+  pendingImportData: Record<string, Supplier> | null;
+  setPendingImportData: (data: Record<string, Supplier> | null) => void;
+  handlePerformImport: (replace: boolean) => void;
+  isImporting: boolean;
 }
 
 export const Modals: React.FC<ModalsProps> = (props) => {
@@ -615,6 +620,72 @@ export const Modals: React.FC<ModalsProps> = (props) => {
                   className="py-4 bg-red-500 text-white rounded-2xl font-bold shadow-lg shadow-red-100 hover:bg-red-600 transition-all"
                 >
                   Sim, Excluir
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Modal: Escolha de Importação */}
+      <AnimatePresence>
+        {props.pendingImportData && (
+          <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-[230] flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              transition={{ duration: 0.2 }}
+              className="bg-white w-full max-w-lg p-8 md:p-10 rounded-[3rem] shadow-2xl text-center"
+            >
+              <div className="w-24 h-24 bg-indigo-50 text-indigo-600 rounded-[2rem] flex items-center justify-center mx-auto mb-8 border-4 border-indigo-100 shadow-xl shadow-indigo-100/30">
+                <motion.div
+                  animate={props.isImporting ? { rotate: 360 } : {}}
+                  transition={{ repeat: Infinity, duration: 1, ease: "linear" }}
+                >
+                  <Package className="w-12 h-12" />
+                </motion.div>
+              </div>
+              
+              <h3 className="text-3xl font-black text-slate-900 mb-2 uppercase tracking-tighter">Importar Lista</h3>
+              <p className="text-slate-500 font-medium mb-8">
+                Encontramos <span className="text-indigo-600 font-black">{Object.keys(props.pendingImportData).length} fornecedores</span> no arquivo. 
+                Como deseja prosseguir?
+              </p>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <button
+                  disabled={props.isImporting}
+                  onClick={() => props.handlePerformImport(false)}
+                  className="group relative flex flex-col items-center gap-3 p-6 bg-white border-2 border-slate-100 hover:border-indigo-600 rounded-3xl transition-all shadow-sm disabled:opacity-50"
+                >
+                  <Plus className="w-6 h-6 text-indigo-600 group-hover:scale-110 transition-transform" />
+                  <div className="text-left">
+                    <p className="font-black text-slate-900 uppercase text-xs tracking-widest leading-none mb-1">Manter Atuais</p>
+                    <p className="text-[10px] text-slate-400 font-bold leading-tight">Adicionar novos ao final da lista existente.</p>
+                  </div>
+                </button>
+
+                <button
+                  disabled={props.isImporting}
+                  onClick={() => props.handlePerformImport(true)}
+                  className="group relative flex flex-col items-center gap-3 p-6 bg-white border-2 border-slate-100 hover:border-red-600 rounded-3xl transition-all shadow-sm disabled:opacity-50"
+                >
+                  <Trash2 className="w-6 h-6 text-red-600 group-hover:scale-110 transition-transform" />
+                  <div className="text-left">
+                    <p className="font-black text-slate-900 uppercase text-xs tracking-widest leading-none mb-1 text-red-600">Substituir Tudo</p>
+                    <p className="text-[10px] text-slate-400 font-bold leading-tight">Remover todos os atuais e usar apenas os novos.</p>
+                  </div>
+                </button>
+              </div>
+
+              <div className="mt-8">
+                <button
+                  disabled={props.isImporting}
+                  onClick={() => props.setPendingImportData(null)}
+                  className="w-full py-4 text-slate-400 font-black uppercase text-xs tracking-widest hover:text-slate-900 transition-colors"
+                >
+                  Cancelar Importação
                 </button>
               </div>
             </motion.div>

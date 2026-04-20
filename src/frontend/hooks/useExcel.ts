@@ -27,7 +27,7 @@ export const useExcel = (suppliers: Supplier[], saveSupplier: (s: Supplier) => P
     addNotification('Exportação concluída!', 0);
   };
 
-  const handleImportExcel = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImportExcel = (e: React.ChangeEvent<HTMLInputElement>, onDataLoaded: (data: Record<string, Supplier>) => void) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
@@ -55,6 +55,11 @@ export const useExcel = (suppliers: Supplier[], saveSupplier: (s: Supplier) => P
           const pCat = row['Categoria'] || 'Outros';
 
           if (sName && pName) {
+            const upperName = sName.toUpperCase();
+            if (upperName === 'MERCADO' || upperName === 'MATERIAIS') {
+              return; // Ignora canais protegidos
+            }
+
             if (!newSuppliersMap[sName]) {
               newSuppliersMap[sName] = {
                 id: generateId(),
@@ -71,11 +76,9 @@ export const useExcel = (suppliers: Supplier[], saveSupplier: (s: Supplier) => P
           }
         });
 
-        for (const supplier of Object.values(newSuppliersMap)) {
-          await saveSupplier(supplier);
-        }
-
-        addNotification('Importação concluída com sucesso!', Object.keys(newSuppliersMap).length);
+        onDataLoaded(newSuppliersMap);
+        // Clear input value so same file can be selected again
+        e.target.value = '';
       } catch (err) {
         console.error('Erro na importação:', err);
         addNotification('Erro ao processar arquivo Excel', 0);
@@ -84,8 +87,26 @@ export const useExcel = (suppliers: Supplier[], saveSupplier: (s: Supplier) => P
     reader.readAsArrayBuffer(file);
   };
 
+  const performImport = async (data: Record<string, Supplier>, replace: boolean, deleteAllSuppliers: () => Promise<void>) => {
+    try {
+      if (replace) {
+        await deleteAllSuppliers();
+      }
+
+      for (const supplier of Object.values(data)) {
+        await saveSupplier(supplier);
+      }
+
+      addNotification(replace ? 'Lista substituída com sucesso!' : 'Importação concluída com sucesso!', Object.keys(data).length);
+    } catch (err) {
+      console.error('Erro na execução da importação:', err);
+      addNotification('Erro ao salvar dados importados', 0);
+    }
+  };
+
   return {
     handleExportExcel,
-    handleImportExcel
+    handleImportExcel,
+    performImport
   };
 };

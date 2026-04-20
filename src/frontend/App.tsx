@@ -64,6 +64,7 @@ export default function App() {
     isLoading: isSuppliersLoading,
     saveSupplier,
     deleteSupplier,
+    deleteAllSuppliers,
     addCategory,
     deleteCategory,
     error: suppliersError
@@ -103,12 +104,17 @@ export default function App() {
 
   const {
     handleExportExcel,
-    handleImportExcel
+    handleImportExcel,
+    performImport
   } = useExcel(suppliers, saveSupplier, addNotification);
 
   // --- LOCAL UI STATE ---
   const [loginCpf, setLoginCpf] = useState('');
   const [loginName, setLoginName] = useState('');
+
+  // Import State
+  const [pendingImportData, setPendingImportData] = useState<Record<string, Supplier> | null>(null);
+  const [isImporting, setIsImporting] = useState(false);
 
   // Auto-fill name based on CPF
   React.useEffect(() => {
@@ -264,6 +270,23 @@ export default function App() {
     }
   };
 
+  const onImportExcel = (e: React.ChangeEvent<HTMLInputElement>) => {
+    handleImportExcel(e, (data) => {
+      setPendingImportData(data);
+    });
+  };
+
+  const onPerformImport = async (replace: boolean) => {
+    if (!pendingImportData || isImporting) return;
+    setIsImporting(true);
+    try {
+      await performImport(pendingImportData, replace, deleteAllSuppliers);
+      setPendingImportData(null);
+    } finally {
+      setIsImporting(false);
+    }
+  };
+
   // --- RENDER ---
   if (!isAuthReady) {
     return (
@@ -326,11 +349,25 @@ export default function App() {
           />
 
         {suppliersError && (
-          <div className="mb-8 p-6 bg-red-50 border-2 border-red-200 rounded-[2rem] flex flex-col gap-2">
-            <h3 className="text-lg font-black text-red-900 uppercase tracking-tight">Erro de Sincronização</h3>
-            <p className="text-red-700 font-medium">
-              {suppliersError.includes('quota') || suppliersError.includes('exhausted') 
-                ? 'Limite diário de leitura do banco de dados atingido (Quota Exceeded). O sistema continuará funcionando com os dados em cache, mas novos dados podem não aparecer até que o limite seja resetado (meia-noite).' 
+          <div className="mb-8 p-6 bg-red-50 border-2 border-red-200 rounded-[2rem] flex flex-col gap-3 shadow-sm">
+            <div className="flex items-center gap-3 text-red-900 uppercase font-black tracking-tight">
+              <RefreshCcw className="w-5 h-5" />
+              <h3>Aviso de Sincronização</h3>
+            </div>
+            <p className="text-red-700 font-medium text-sm leading-relaxed">
+              {suppliersError.toLowerCase().includes('quota') || suppliersError.toLowerCase().includes('limit') 
+                ? (
+                  <>
+                    <span className="font-black">Limite de cota do banco de dados atingido (Quota Exceeded).</span>
+                    <br />
+                    O sistema continuará funcionando normalmente usando os dados salvos em seu navegador (cache), porém novas atualizações podem não aparecer até que o limite seja resetado.
+                    <br /><br />
+                    Esta cota é restaurada automaticamente <span className="font-bold">todos os dias à meia-noite</span>. Informações detalhadas sobre limites podem ser encontradas na coluna do plano <span className="font-bold">Spark</span> na seção Enterprise de: 
+                    <a href="https://firebase.google.com/pricing#cloud-firestore" target="_blank" rel="noopener noreferrer" className="ml-1 underline font-black hover:text-red-950 transition-colors">
+                      firebase.google.com/pricing
+                    </a>
+                  </>
+                )
                 : `Ocorreu um erro ao carregar os dados: ${suppliersError}`}
             </p>
           </div>
@@ -353,7 +390,7 @@ export default function App() {
                 addNotification(p.name, q || 1, 'cart'); 
               }}
               handleExportExcel={handleExportExcel}
-              handleImportExcel={handleImportExcel}
+              handleImportExcel={onImportExcel}
               activeTab={currentPage === 'suppliers' ? 'fornecedores' : currentPage as any}
               onTabChange={(tab) => setCurrentPage(tab === 'fornecedores' ? 'suppliers' : tab)}
             />
@@ -472,6 +509,10 @@ export default function App() {
         categoryToDelete={categoryToDelete}
         setCategoryToDelete={setCategoryToDelete}
         confirmDeleteCategory={() => { if (categoryToDelete) { deleteCategory(categoryToDelete); setCategoryToDelete(null); } }}
+        pendingImportData={pendingImportData}
+        setPendingImportData={setPendingImportData}
+        handlePerformImport={onPerformImport}
+        isImporting={isImporting}
       />
     </div>
   );
