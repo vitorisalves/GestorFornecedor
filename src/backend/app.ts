@@ -26,8 +26,13 @@ const asyncHandler = (fn: Function) => (req: any, res: any, next: any) => {
 };
 
 // --- ROTAS DE API ---
-app.get("/api/health", (req, res) => {
-  res.json({ status: "ok", env_set: !!process.env.EXTERNAL_API_URL });
+// Suporta tanto /api/health quanto /health (caso o roteador do Vercel remova o prefixo)
+app.get(["/api/health", "/health"], (req, res) => {
+  res.json({ 
+    status: "ok", 
+    env_set: !!process.env.EXTERNAL_API_URL,
+    timestamp: new Date().toISOString()
+  });
 });
 
 app.get("/api/omie-direct/products", asyncHandler(async (req: any, res: any) => {
