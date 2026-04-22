@@ -476,7 +476,7 @@ export default function App() {
               addToCart={(p, s, q) => { addToCart(p, s, q); addNotification(p.name, q, 'cart'); }}
               externalCurrentPage={externalCurrentPage}
               setExternalCurrentPage={setExternalCurrentPage}
-              externalItemsPerPage={50}
+              externalItemsPerPage={10}
             />
           )}
           {currentPage === 'reminders' && (

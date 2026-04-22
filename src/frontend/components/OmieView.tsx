@@ -249,26 +249,26 @@ export const OmieView: React.FC<OmieViewProps> = ({
           <table className="w-full text-left">
             <thead>
               <tr className="bg-slate-50/50 border-b border-slate-100">
-                <th className="px-8 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest">Produto</th>
-                <th className="px-8 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest">Código/SKU</th>
-                <th className="px-8 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest">Estoque</th>
-                <th className="px-8 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest">Preço</th>
-                <th className="px-8 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Ação</th>
+                <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Produto</th>
+                <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Código/SKU</th>
+                <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Estoque</th>
+                <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Preço</th>
+                <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Ação</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-50">
               {isSyncingExternal ? (
                 <tr>
-                  <td colSpan={5} className="px-8 py-20 text-center">
-                    <RefreshCw className="w-12 h-12 text-indigo-600 animate-spin mx-auto mb-4" />
-                    <p className="text-slate-500 font-bold">Carregando catálogo completo...</p>
+                  <td colSpan={5} className="px-6 py-12 text-center">
+                    <RefreshCw className="w-8 h-8 text-indigo-600 animate-spin mx-auto mb-3" />
+                    <p className="text-slate-500 font-bold text-sm">Carregando catálogo...</p>
                   </td>
                 </tr>
               ) : paginatedProducts.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="px-8 py-20 text-center">
-                    <Globe className="w-12 h-12 text-slate-200 mx-auto mb-4" />
-                    <p className="text-slate-500 font-bold">Nenhum produto encontrado</p>
+                  <td colSpan={5} className="px-6 py-12 text-center">
+                    <Globe className="w-8 h-8 text-slate-200 mx-auto mb-3" />
+                    <p className="text-slate-500 font-bold text-sm">Nenhum produto encontrado</p>
                   </td>
                 </tr>
               ) : (
@@ -277,25 +277,25 @@ export const OmieView: React.FC<OmieViewProps> = ({
                   
                   return (
                     <tr key={idx} className="group hover:bg-slate-50/50 transition-colors">
-                      <td className="px-8 py-6">
-                        <div className="flex items-center gap-4">
-                          <div className="w-12 h-12 bg-slate-50 rounded-2xl flex items-center justify-center group-hover:bg-white transition-colors">
-                            <Package className="w-6 h-6 text-slate-400" />
+                      <td className="px-6 py-4">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 bg-slate-50 rounded-xl flex items-center justify-center group-hover:bg-white transition-colors">
+                            <Package className="w-5 h-5 text-slate-400" />
                           </div>
                           <div>
-                            <p className="font-bold text-slate-900">{p.descricao || p.name || 'Sem nome'}</p>
-                            <p className="text-xs text-slate-400 font-medium">{p.unidade || 'UN'}</p>
+                            <p className="font-bold text-slate-900 text-sm">{p.descricao || p.name || 'Sem nome'}</p>
+                            <p className="text-[10px] text-slate-400 font-semibold uppercase">{p.unidade || 'UN'}</p>
                           </div>
                         </div>
                       </td>
-                      <td className="px-8 py-6">
-                        <span className="font-mono text-sm text-slate-500 bg-slate-100 px-3 py-1 rounded-lg">
+                      <td className="px-6 py-4">
+                        <span className="font-mono text-xs text-slate-500 bg-slate-100 px-2 py-0.5 rounded-md">
                           {p.codigo_produto || 'N/A'}
                         </span>
                       </td>
-                      <td className="px-8 py-6">
+                      <td className="px-6 py-4">
                         <div className="flex flex-col">
-                          <span className={`font-black text-lg ${Number(p.stock || p.estoque_fisico || 0) > 0 ? 'text-green-600' : 'text-red-500'}`}>
+                          <span className={`font-black text-base ${Number(p.stock || p.estoque_fisico || 0) > 0 ? 'text-green-600' : 'text-red-500'}`}>
                             {p.stock || p.estoque_fisico || 0}
                           </span>
                           <span className="text-[10px] font-black text-slate-400 uppercase tracking-tighter">Estoque</span>
