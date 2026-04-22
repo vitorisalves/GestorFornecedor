@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import { ExternalProduct } from '../types';
 import { formatCurrency } from '../utils';
+import { AlertCircle, CheckCircle2, ShieldAlert, Zap } from 'lucide-react';
 
 interface OmieViewProps {
   externalProducts: ExternalProduct[];
@@ -26,6 +27,9 @@ interface OmieViewProps {
   setExternalSearchTerm: (term: string) => void;
   isSyncingExternal: boolean;
   isTriggeringSync: boolean;
+  apiHealth: { status: string; env_set: boolean } | null;
+  isCheckingHealth: boolean;
+  checkApiHealth: () => void;
   triggerOmieSync: () => void;
   fetchExternalProducts: () => void;
   addToCart: (product: any, supplierName: string, quantity: number) => void;
@@ -40,6 +44,9 @@ export const OmieView: React.FC<OmieViewProps> = ({
   setExternalSearchTerm,
   isSyncingExternal,
   isTriggeringSync,
+  apiHealth,
+  isCheckingHealth,
+  checkApiHealth,
   triggerOmieSync,
   fetchExternalProducts,
   addToCart,
@@ -139,7 +146,33 @@ export const OmieView: React.FC<OmieViewProps> = ({
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
         <div>
           <h1 className="text-4xl font-black text-slate-900 tracking-tight mb-2">Produtos Externos</h1>
-          <p className="text-slate-500 font-medium">Integração direta com o catálogo Omie</p>
+          <p className="text-slate-500 font-medium mb-4">Integração direta com o catálogo Omie</p>
+          
+          <div className="flex items-center gap-2">
+            {isCheckingHealth ? (
+              <div className="flex items-center gap-2 px-3 py-1 bg-slate-100 rounded-full text-xs font-bold text-slate-500 animate-pulse">
+                <RefreshCw className="w-3 h-3 animate-spin" />
+                Verificando API...
+              </div>
+            ) : apiHealth ? (
+              <div className={`flex items-center gap-2 px-3 py-1 rounded-full text-xs font-bold ${
+                apiHealth.status === 'ok' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
+              }`}>
+                {apiHealth.status === 'ok' ? <CheckCircle2 className="w-3 h-3" /> : <AlertCircle className="w-3 h-3" />}
+                API: {apiHealth.status === 'ok' ? 'Online' : 'Erro ou Offline'}
+                {!apiHealth.env_set && <span className="ml-1 opacity-70">(URL não configurada)</span>}
+              </div>
+            ) : null}
+            
+            <button 
+              onClick={checkApiHealth}
+              disabled={isCheckingHealth}
+              className="p-1 hover:bg-slate-100 rounded-full text-slate-400 transition-colors"
+              title="Recarregar Status da API"
+            >
+              <Zap className={`w-3 h-3 ${isCheckingHealth ? 'animate-pulse' : ''}`} />
+            </button>
+          </div>
         </div>
         <div className="flex items-center gap-3">
           <button
@@ -160,6 +193,32 @@ export const OmieView: React.FC<OmieViewProps> = ({
           </button>
         </div>
       </div>
+
+      {apiHealth?.status !== 'ok' && !isCheckingHealth && (
+        <motion.div 
+          initial={{ opacity: 0, scale: 0.95 }}
+          animate={{ opacity: 1, scale: 1 }}
+          className="p-6 bg-amber-50 border-2 border-amber-100 rounded-[2rem] flex flex-col md:flex-row items-center gap-6"
+        >
+          <div className="w-16 h-16 bg-amber-100 rounded-2xl flex items-center justify-center shrink-0">
+            <ShieldAlert className="w-8 h-8 text-amber-600" />
+          </div>
+          <div className="flex-1 text-center md:text-left">
+            <h3 className="text-lg font-black text-amber-900 mb-1">API Externa em Espera</h3>
+            <p className="text-amber-700 font-medium text-sm leading-relaxed">
+              A API de integração (Render.com) entra em modo de suspensão após algum tempo. 
+              Isso pode causar erros de "Timeout" (10s) no Vercel. 
+              <strong> Clique no botão abaixo para "acordar" a API antes de sincronizar.</strong>
+            </p>
+          </div>
+          <button
+            onClick={checkApiHealth}
+            className="px-6 py-3 bg-white border-2 border-amber-200 text-amber-700 rounded-xl font-bold hover:bg-amber-100 transition-all shrink-0"
+          >
+            Acordar API agora
+          </button>
+        </motion.div>
+      )}
 
       <div className="relative group">
         <Search className="absolute left-6 top-1/2 -translate-y-1/2 w-6 h-6 text-slate-400 group-focus-within:text-indigo-500 transition-colors" />

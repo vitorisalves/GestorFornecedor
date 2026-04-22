@@ -92,9 +92,12 @@ export default function App() {
     isTriggeringSync,
     managedProducts,
     isFetchingManaged,
+    apiHealth,
+    isCheckingHealth,
     triggerOmieSync,
     fetchExternalProducts,
-    addToManager
+    addToManager,
+    checkApiHealth
   } = useOmie(currentPage);
 
   const {
@@ -467,6 +470,9 @@ export default function App() {
               isTriggeringSync={isTriggeringSync}
               triggerOmieSync={() => triggerOmieSync(addNotification)}
               fetchExternalProducts={() => fetchExternalProducts(addNotification)}
+              apiHealth={apiHealth}
+              isCheckingHealth={isCheckingHealth}
+              checkApiHealth={checkApiHealth}
               addToCart={(p, s, q) => { addToCart(p, s, q); addNotification(p.name, q, 'cart'); }}
               externalCurrentPage={externalCurrentPage}
               setExternalCurrentPage={setExternalCurrentPage}

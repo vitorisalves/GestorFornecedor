@@ -1,11 +1,13 @@
 import express from "express";
-import { fileURLToPath } from "url";
-import path from "path";
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+import axios from "axios";
 
 const app = express();
+
+// Aumenta o tempo limite global do axios (8 segundos para dar margem ao Vercel de 10s)
+const api = axios.create({
+  timeout: 8000,
+  validateStatus: () => true, // Não lança erro automaticamente no catch para status != 200
+});
 
 app.use(express.json());
 
@@ -18,145 +20,120 @@ const EXTERNAL_API_CONFIG = {
   base_url: sanitizeEnv(process.env.EXTERNAL_API_URL, "https://production-manager-api.onrender.com/v1").replace(/\/$/, "")
 };
 
+// Wrapper para rotas async capturarem erros no Express 4
+const asyncHandler = (fn: Function) => (req: any, res: any, next: any) => {
+  Promise.resolve(fn(req, res, next)).catch(next);
+};
+
 // --- ROTAS DE API ---
 app.get("/api/health", (req, res) => {
-  res.json({ status: "ok" });
+  res.json({ status: "ok", env_set: !!process.env.EXTERNAL_API_URL });
 });
 
-app.get("/api/omie-direct/products", async (req, res) => {
-  try {
-    const baseUrl = EXTERNAL_API_CONFIG.base_url;
+app.get("/api/omie-direct/products", asyncHandler(async (req: any, res: any) => {
+  const baseUrl = EXTERNAL_API_CONFIG.base_url;
+  
+  const fetchAllPages = async (endpoint: string) => {
+    // Usamos pageSize 100 para minimizar o número de requests
+    const firstUrl = `${baseUrl}${endpoint}${endpoint.includes('?') ? '&' : '?'}page=1&pageSize=100`;
+    const firstRes = await api.get(firstUrl);
     
-    const fetchAllPages = async (endpoint: string) => {
-      const firstUrl = `${baseUrl}${endpoint}${endpoint.includes('?') ? '&' : '?'}page=1&pageSize=50`;
-      const firstRes = await fetch(firstUrl);
-      if (!firstRes.ok) return [];
+    if (firstRes.status >= 400) return [];
+    
+    const firstData = firstRes.data;
+    const results = Array.isArray(firstData) ? [...firstData] : [...(firstData.data || [])];
+    
+    const meta = firstData.meta || {};
+    const total = meta.total || 0;
+    const pageSize = meta.pageSize || 100;
+
+    if (total > pageSize) {
+      const totalPages = Math.ceil(total / pageSize);
+      const pageNumbers = [];
+      // Pegamos apenas as páginas restantes
+      for (let i = 2; i <= totalPages; i++) pageNumbers.push(i);
       
-      let firstData: any;
-      try {
-        firstData = await firstRes.json();
-      } catch (e) {
-        console.error(`Erro ao parsear JSON da primeira página de ${endpoint}`);
-        return [];
-      }
-      const results = Array.isArray(firstData) ? [...firstData] : [...(firstData.data || [])];
-      
-      if (firstData.meta && firstData.meta.total && firstData.meta.total > (firstData.meta.pageSize || 50)) {
-        const total = firstData.meta.total;
-        const pageSize = firstData.meta.pageSize || 50;
-        const totalPages = Math.ceil(total / pageSize);
-        
-        const pageNumbers = [];
-        for (let i = 2; i <= totalPages; i++) pageNumbers.push(i);
-        
-        const batchSize = 5;
-        for (let i = 0; i < pageNumbers.length; i += batchSize) {
-          const batch = pageNumbers.slice(i, i + batchSize);
-          const batchResults = await Promise.all(batch.map(async (page) => {
-            try {
-              const res = await fetch(`${baseUrl}${endpoint}${endpoint.includes('?') ? '&' : '?'}page=${page}&pageSize=${pageSize}`);
-              if (res.ok) {
-                try {
-                  const d = await res.json();
-                  return Array.isArray(d) ? d : (d.data || []);
-                } catch (e) {
-                  return [];
-                }
-              }
-            } catch (e) {
-              console.error(`Erro na página ${page} de ${endpoint}:`, e);
+      // Parallel fetch para ganhar velocidade (mas limitado para não estourar rate limit)
+      // Vercel Hobby tem CPU limitada, 5 por vez é seguro
+      const batchSize = 5;
+      for (let i = 0; i < pageNumbers.length; i += batchSize) {
+        const batch = pageNumbers.slice(i, i + batchSize);
+        const batchResults = await Promise.all(batch.map(async (page) => {
+          try {
+            const res = await api.get(`${baseUrl}${endpoint}${endpoint.includes('?') ? '&' : '?'}page=${page}&pageSize=${pageSize}`);
+            if (res.status < 400) {
+              const d = res.data;
+              return Array.isArray(d) ? d : (d.data || []);
             }
-            return [];
-          }));
-          batchResults.forEach(list => results.push(...list));
-        }
+          } catch (e) {
+            console.error(`Erro na página ${page} de ${endpoint}`);
+          }
+          return [];
+        }));
+        batchResults.forEach(list => results.push(...list));
       }
-      return results;
+    }
+    return results;
+  };
+
+  // 1. Inicia busca de produtos e estoque em paralelo para economizar tempo
+  const [rawProductList, stockList] = await Promise.all([
+    fetchAllPages('/products'),
+    fetchAllPages('/products/stockQuantity')
+  ]);
+
+  const productList = rawProductList.filter((p: any) => p.active === true);
+  const stockMap = new Map<string, number>();
+  
+  stockList.forEach((s: any) => {
+    const code = String(s.productId || s.product_id || s.id || s.codigo || "");
+    const qty = Number(s.quantity || s.stock || s.stockQuantity || 0);
+    if (code) stockMap.set(code, qty);
+  });
+
+  const mergedProducts = productList.map((p: any) => {
+    const prodId = String(p.id || p.productId || p.codigo_produto || "").trim();
+    let stock = stockMap.has(prodId) ? stockMap.get(prodId)! : -1;
+    if (stock === -1) {
+      stock = Number(p.stockQuantity || p.quantity || p.stock || p.estoque || 0);
+    }
+
+    return {
+      id: p.id,
+      codigo_produto: p.id || p.codigo_produto,
+      descricao: p.name || p.descricao || p.description,
+      unidade: p.unit || p.unidade || 'UN',
+      valor_unitario: p.price || p.valor_unitario || 0,
+      stock,
+      estoque_fisico: stock,
+      codigo: p.sku || p.codigo,
+      codigo_familia: p.familyId || p.codigo_familia,
+      descricao_familia: p.familyName || p.descricao_familia
     };
+  });
 
-    const rawProductList = await fetchAllPages('/products');
-    const productList = rawProductList.filter((p: any) => p.active === true);
+  res.json({ data: mergedProducts });
+}));
 
-    let stockMap = new Map<string, number>();
-    try {
-      const stockList = await fetchAllPages('/products/stockQuantity');
-      stockList.forEach((s: any) => {
-        const code = s.productId || s.product_id || s.id || s.codigo;
-        const qty = Number(s.quantity || s.stock || s.stockQuantity || 0);
-        if (code) stockMap.set(String(code), qty);
-      });
-    } catch (stockErr) {
-      console.warn("Erro ao buscar estoque completo:", stockErr);
-    }
+app.all("/api/v1/*", asyncHandler(async (req: any, res: any) => {
+  const subPath = req.params[0];
+  const method = req.method;
+  const baseUrl = EXTERNAL_API_CONFIG.base_url;
+  const apiUrl = `${baseUrl}/${subPath}${req.url.includes('?') ? req.url.substring(req.url.indexOf('?')) : ''}`;
 
-    const mergedProducts = productList.map((p: any) => {
-      const prodId = String(p.id || p.productId || p.codigo_produto || "").trim();
-      let stock = stockMap.has(prodId) ? stockMap.get(prodId)! : -1;
-      if (stock === -1) {
-        stock = Number(p.stockQuantity || p.quantity || p.stock || p.estoque || 0);
-      }
-
-      return {
-        id: p.id,
-        codigo_produto: p.id || p.codigo_produto,
-        descricao: p.name || p.descricao || p.description,
-        unidade: p.unit || p.unidade || 'UN',
-        valor_unitario: p.price || p.valor_unitario || 0,
-        stock: stock,
-        estoque_fisico: stock,
-        codigo: p.sku || p.codigo,
-        codigo_familia: p.familyId || p.codigo_familia,
-        descricao_familia: p.familyName || p.descricao_familia
-      };
-    });
-
-    res.json({ data: mergedProducts });
-  } catch (error: any) {
-    res.status(500).json({ error: error.message || "Erro interno ao processar chamada da API" });
+  const response = await api({
+    method,
+    url: apiUrl,
+    data: req.body,
+    headers: { 'Content-Type': 'application/json' }
+  });
+  
+  if (response.status >= 400 && typeof response.data === 'string') {
+    return res.status(response.status).json({ error: response.data || response.statusText });
   }
-});
 
-app.all("/api/v1/*", async (req, res) => {
-  try {
-    const subPath = req.params[0];
-    const method = req.method;
-    const baseUrl = EXTERNAL_API_CONFIG.base_url;
-    const apiUrl = `${baseUrl}/${subPath}${req.url.includes('?') ? req.url.substring(req.url.indexOf('?')) : ''}`;
-
-    const fetchOptions: RequestInit = {
-      method: method,
-      headers: { 'Content-Type': 'application/json' }
-    };
-
-    if (['POST', 'PUT', 'PATCH'].includes(method)) {
-      fetchOptions.body = JSON.stringify(req.body && Object.keys(req.body).length > 0 ? req.body : {});
-    }
-
-    const response = await fetch(apiUrl, fetchOptions);
-    
-    if (!response.ok) {
-      const errorText = await response.text();
-      let errorJson;
-      try {
-        errorJson = JSON.parse(errorText);
-      } catch (e) {
-        errorJson = { error: errorText || response.statusText };
-      }
-      return res.status(response.status).json(errorJson);
-    }
-
-    let data: any;
-    try {
-      data = await response.json();
-    } catch (e) {
-      const text = await response.text();
-      return res.status(200).send(text); // Se não for JSON, retorna como texto (status 200 para não quebrar o proxy)
-    }
-    res.json(data);
-  } catch (error) {
-    res.status(500).json({ error: 'Erro interno no proxy da API' });
-  }
-});
+  res.status(response.status).send(response.data);
+}));
 
 // Middleware de tratamento de erros global (para evitar que o Vercel mostre página HTML de erro)
 app.use((err: any, req: any, res: any, next: any) => {

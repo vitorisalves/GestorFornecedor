@@ -13,6 +13,25 @@ export const useOmie = (currentPage: string) => {
   const [isTriggeringSync, setIsTriggeringSync] = useState(false);
   const [managedProducts, setManagedProducts] = useState<any[]>([]);
   const [isFetchingManaged, setIsFetchingManaged] = useState(false);
+  const [apiHealth, setApiHealth] = useState<{ status: string; env_set: boolean } | null>(null);
+  const [isCheckingHealth, setIsCheckingHealth] = useState(false);
+
+  const checkApiHealth = async () => {
+    setIsCheckingHealth(true);
+    try {
+      const response = await fetch('/api/health');
+      if (response.ok) {
+        const data = await response.json();
+        setApiHealth(data);
+      } else {
+        setApiHealth({ status: 'error', env_set: false });
+      }
+    } catch (error) {
+      setApiHealth({ status: 'offline', env_set: false });
+    } finally {
+      setIsCheckingHealth(false);
+    }
+  };
 
   const triggerOmieSync = async (addNotification: any) => {
     setIsTriggeringSync(true);
@@ -164,8 +183,11 @@ export const useOmie = (currentPage: string) => {
   };
 
   useEffect(() => {
-    if (currentPage === 'omie' && externalProducts.length === 0) {
-      fetchExternalProducts();
+    if (currentPage === 'omie') {
+      checkApiHealth();
+      if (externalProducts.length === 0) {
+        fetchExternalProducts();
+      }
     }
   }, [currentPage]);
 
@@ -175,9 +197,12 @@ export const useOmie = (currentPage: string) => {
     isTriggeringSync,
     managedProducts,
     isFetchingManaged,
+    apiHealth,
+    isCheckingHealth,
     triggerOmieSync,
     fetchExternalProducts,
     fetchManagedProducts,
-    addToManager
+    addToManager,
+    checkApiHealth
   };
 };
