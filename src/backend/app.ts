@@ -32,7 +32,13 @@ app.get("/api/omie-direct/products", async (req, res) => {
       const firstRes = await fetch(firstUrl);
       if (!firstRes.ok) return [];
       
-      const firstData: any = await firstRes.json();
+      let firstData: any;
+      try {
+        firstData = await firstRes.json();
+      } catch (e) {
+        console.error(`Erro ao parsear JSON da primeira página de ${endpoint}`);
+        return [];
+      }
       const results = Array.isArray(firstData) ? [...firstData] : [...(firstData.data || [])];
       
       if (firstData.meta && firstData.meta.total && firstData.meta.total > (firstData.meta.pageSize || 50)) {
@@ -50,8 +56,12 @@ app.get("/api/omie-direct/products", async (req, res) => {
             try {
               const res = await fetch(`${baseUrl}${endpoint}${endpoint.includes('?') ? '&' : '?'}page=${page}&pageSize=${pageSize}`);
               if (res.ok) {
-                const d = await res.json();
-                return Array.isArray(d) ? d : (d.data || []);
+                try {
+                  const d = await res.json();
+                  return Array.isArray(d) ? d : (d.data || []);
+                } catch (e) {
+                  return [];
+                }
               }
             } catch (e) {
               console.error(`Erro na página ${page} de ${endpoint}:`, e);
@@ -135,11 +145,27 @@ app.all("/api/v1/*", async (req, res) => {
       return res.status(response.status).json(errorJson);
     }
 
-    const data = await response.json();
+    let data: any;
+    try {
+      data = await response.json();
+    } catch (e) {
+      const text = await response.text();
+      return res.status(200).send(text); // Se não for JSON, retorna como texto (status 200 para não quebrar o proxy)
+    }
     res.json(data);
   } catch (error) {
     res.status(500).json({ error: 'Erro interno no proxy da API' });
   }
+});
+
+// Middleware de tratamento de erros global (para evitar que o Vercel mostre página HTML de erro)
+app.use((err: any, req: any, res: any, next: any) => {
+  console.error('ERRO GLOBAL NO BACKEND:', err);
+  res.status(500).json({ 
+    error: 'A server error occurred (Global Handler)',
+    message: err.message || 'Erro desconhecido',
+    path: req.path
+  });
 });
 
 export default app;

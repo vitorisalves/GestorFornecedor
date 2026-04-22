@@ -23,9 +23,20 @@ export const useOmie = (currentPage: string) => {
         body: JSON.stringify({})
       });
       
+      let responseData: any;
+      const contentType = response.headers.get('content-type');
+      if (contentType && contentType.includes('application/json')) {
+        responseData = await response.json();
+      } else {
+        const text = await response.text();
+        if (!response.ok) {
+          throw new Error(`Erro do servidor (${response.status}): ${text.substring(0, 100)}`);
+        }
+        throw new Error('O servidor não retornou um JSON válido');
+      }
+
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(extractErrorMessage(errorData, 'Erro ao disparar sincronização'));
+        throw new Error(extractErrorMessage(responseData, 'Erro ao disparar sincronização'));
       }
       
       addNotification('Sincronização disparada! Aguarde o processamento...', 0);
@@ -44,12 +55,23 @@ export const useOmie = (currentPage: string) => {
       const url = `/api/omie-direct/products`;
       const response = await fetch(url);
       
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(extractErrorMessage(errorData, 'Erro ao buscar produtos'));
+      let responseData: any;
+      const contentType = response.headers.get('content-type');
+      if (contentType && contentType.includes('application/json')) {
+        responseData = await response.json();
+      } else {
+        const text = await response.text();
+        if (!response.ok) {
+          throw new Error(`Erro do servidor (${response.status}): ${text.substring(0, 100)}`);
+        }
+        throw new Error('O servidor não retornou um JSON válido');
       }
       
-      const result = await response.json();
+      if (!response.ok) {
+        throw new Error(extractErrorMessage(responseData, 'Erro ao buscar produtos'));
+      }
+      
+      const result = responseData;
       let products = result.data || result || [];
       
       setExternalProducts(Array.isArray(products) ? products : []);
@@ -75,11 +97,22 @@ export const useOmie = (currentPage: string) => {
     setIsFetchingManaged(true);
     try {
       const response = await fetch('/api/v1/products');
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(extractErrorMessage(errorData, 'Erro ao buscar produtos gerenciados'));
+      let responseData: any;
+      const contentType = response.headers.get('content-type');
+      if (contentType && contentType.includes('application/json')) {
+        responseData = await response.json();
+      } else {
+        const text = await response.text();
+        if (!response.ok) {
+          throw new Error(`Erro do servidor (${response.status}): ${text.substring(0, 100)}`);
+        }
+        throw new Error('O servidor não retornou um JSON válido');
       }
-      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(extractErrorMessage(responseData, 'Erro ao buscar produtos gerenciados'));
+      }
+      const result = responseData;
       const data = result.data || result;
       setManagedProducts(Array.isArray(data) ? data : (data.products || []));
     } catch (error) {
@@ -106,9 +139,20 @@ export const useOmie = (currentPage: string) => {
         body: JSON.stringify(body)
       });
       
+      let responseData: any;
+      const contentType = response.headers.get('content-type');
+      if (contentType && contentType.includes('application/json')) {
+        responseData = await response.json();
+      } else {
+        const text = await response.text();
+        if (!response.ok) {
+          throw new Error(`Erro do servidor (${response.status}): ${text.substring(0, 100)}`);
+        }
+        throw new Error('O servidor não retornou um JSON válido');
+      }
+
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(extractErrorMessage(errorData, 'Erro ao adicionar'));
+        throw new Error(extractErrorMessage(responseData, 'Erro ao adicionar'));
       }
       
       addNotification('Produto adicionado ao gerenciador!', 1);
