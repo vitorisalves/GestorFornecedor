@@ -57,13 +57,18 @@ export const Sidebar: React.FC<SidebarProps> = ({
       <aside className={`fixed inset-y-0 left-0 w-72 bg-white border-r-2 border-slate-900 flex flex-col h-screen overflow-y-auto scrollbar-thin scrollbar-thumb-slate-200 scrollbar-track-transparent z-[100] shrink-0 transition-transform duration-300 lg:translate-x-0 ${isOpen ? 'translate-x-0' : '-translate-x-full'}`}>
         <div className="p-8">
           <div className="flex items-center justify-between mb-10">
-            <div className="flex items-center gap-3">
-              <div className="w-12 h-12 bg-slate-900 rounded-xl flex items-center justify-center shadow-xl shadow-slate-200">
-                <Building2 className="w-7 h-7 text-white" />
+            <div className="flex flex-col items-center gap-4 w-full">
+              <div className="w-24 h-24 md:w-28 md:h-28 bg-white rounded-3xl overflow-hidden flex items-center justify-center shadow-xl shadow-slate-200 border-2 border-slate-900 shrink-0">
+                <img 
+                  src="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTF8VmLyweYpbSL_D3D1F-hsvmGwm9EHcPi5A&s" 
+                  alt="Logo" 
+                  className="w-full h-full object-cover p-1"
+                  referrerPolicy="no-referrer"
+                />
               </div>
-              <span className="text-3xl font-black text-slate-900 tracking-tighter">LABARR</span>
+              <span className="text-4xl font-black text-slate-900 tracking-tighter uppercase">LABARR</span>
             </div>
-            <button onClick={onClose} className="lg:hidden p-2 text-slate-400 hover:text-slate-900">
+            <button onClick={onClose} className="lg:hidden p-2 text-slate-400 hover:text-slate-900 absolute right-4 top-4">
               <X className="w-6 h-6" />
             </button>
           </div>

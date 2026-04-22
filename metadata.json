@@ -1,6 +1,6 @@
 {
-  "name": "Gestor de Fornecedores",
-  "description": "Sistema para controle e gerenciamento de fornecedores e produtos.",
+  "name": "Labarr Gestor",
+  "description": "Sistema de gestão de suprimentos e integração Omie para a Labarr.",
   "requestFramePermissions": [],
   "majorCapabilities": []
 }

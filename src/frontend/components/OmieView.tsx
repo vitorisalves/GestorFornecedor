@@ -33,6 +33,7 @@ interface OmieViewProps {
   triggerOmieSync: () => void;
   fetchExternalProducts: () => void;
   addToCart: (product: any, supplierName: string, quantity: number) => void;
+  addToManager: (codigo: any) => void;
   externalCurrentPage: number;
   setExternalCurrentPage: (page: number | ((prev: number) => number)) => void;
   externalItemsPerPage: number;
@@ -50,6 +51,7 @@ export const OmieView: React.FC<OmieViewProps> = ({
   triggerOmieSync,
   fetchExternalProducts,
   addToCart,
+  addToManager,
   externalCurrentPage,
   setExternalCurrentPage,
   externalItemsPerPage
@@ -301,14 +303,24 @@ export const OmieView: React.FC<OmieViewProps> = ({
                           <span className="text-[10px] font-black text-slate-400 uppercase tracking-tighter">Estoque</span>
                         </div>
                       </td>
-                      <td className="px-8 py-6">
-                        <span className="text-xl font-black text-slate-900">
+                      <td className="px-6 py-4">
+                        <span className="text-lg font-black text-slate-900 tabular-nums">
                           {formatCurrency(p.valor_unitario || p.price || 0)}
                         </span>
                       </td>
-                      <td className="px-8 py-6 text-right">
-                        <div className="flex items-center justify-end gap-3">
-                          <div className="flex items-center gap-2">
+                      <td className="px-6 py-4 text-right">
+                        <div className="flex items-center justify-end gap-2">
+                          <button
+                            onClick={() => addToManager(codigo)}
+                            className="p-2.5 bg-indigo-50 text-indigo-600 rounded-xl hover:bg-indigo-100 transition-all active:scale-95 border-2 border-transparent hover:border-indigo-200"
+                            title="Salvar no Gerenciador"
+                          >
+                            <Plus className="w-4 h-4" />
+                          </button>
+                          
+                          <div className="h-6 w-[2px] bg-slate-100 mx-1" />
+
+                          <div className="flex items-center gap-1.5">
                             <input
                               type="text"
                               value={quantities[String(codigo)] ?? '1'}
@@ -319,15 +331,15 @@ export const OmieView: React.FC<OmieViewProps> = ({
                                   onAddToCart(p);
                                 }
                               }}
-                              className="w-14 px-2 py-2 bg-slate-100 border-2 border-transparent focus:border-indigo-600 rounded-lg text-center font-bold text-slate-900 outline-none text-sm"
+                              className="w-12 px-1.5 py-2 bg-slate-100 border-2 border-transparent focus:border-indigo-600 rounded-lg text-center font-bold text-slate-900 outline-none text-xs"
                               placeholder="Qtd"
                             />
                             <button
                               onClick={() => onAddToCart(p)}
-                              className="p-3 bg-slate-900 text-white rounded-xl hover:bg-green-600 transition-all active:scale-95 shadow-lg shadow-slate-100"
+                              className="p-2.5 bg-slate-900 text-white rounded-xl hover:bg-green-600 transition-all active:scale-95 shadow-md shadow-slate-100"
                               title="Adicionar ao Carrinho"
                             >
-                              <ShoppingCart className="w-5 h-5" />
+                              <ShoppingCart className="w-4 h-4" />
                             </button>
                           </div>
                         </div>

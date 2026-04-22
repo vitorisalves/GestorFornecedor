@@ -474,6 +474,7 @@ export default function App() {
               isCheckingHealth={isCheckingHealth}
               checkApiHealth={checkApiHealth}
               addToCart={(p, s, q) => { addToCart(p, s, q); addNotification(p.name, q, 'cart'); }}
+              addToManager={(code) => addToManager(code, addNotification)}
               externalCurrentPage={externalCurrentPage}
               setExternalCurrentPage={setExternalCurrentPage}
               externalItemsPerPage={10}

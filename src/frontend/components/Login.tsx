@@ -36,10 +36,15 @@ export const Login: React.FC<LoginProps> = ({
         className="max-w-md w-full"
       >
         <div className="text-center mb-8">
-          <div className="w-20 h-20 bg-indigo-600 rounded-3xl flex items-center justify-center mx-auto mb-6 shadow-xl shadow-indigo-200">
-            <Building2 className="w-10 h-10 text-white" />
+          <div className="w-40 h-40 bg-white rounded-[2.5rem] overflow-hidden flex items-center justify-center mx-auto mb-6 shadow-2xl shadow-indigo-100 border-2 border-slate-900 transition-transform hover:scale-105 active:scale-95 cursor-pointer">
+            <img 
+              src="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTF8VmLyweYpbSL_D3D1F-hsvmGwm9EHcPi5A&s" 
+              alt="Logo" 
+              className="w-full h-full object-cover p-1"
+              referrerPolicy="no-referrer"
+            />
           </div>
-          <h1 className="text-3xl font-black text-slate-900 tracking-tight mb-2">Labarr</h1>
+          <h1 className="text-4xl font-black text-slate-900 tracking-tight mb-2">Labarr</h1>
           <p className="text-slate-500 font-medium">Gerenciador de Compras e Fornecedores</p>
         </div>
 
