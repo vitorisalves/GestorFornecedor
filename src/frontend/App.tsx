@@ -5,6 +5,7 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
+import { RefreshCcw } from 'lucide-react';
 
 // Hooks
 import { useAuth } from './hooks/useAuth';
@@ -192,14 +193,31 @@ export default function App() {
 
   const onAddSupplier = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newName || !newPhone || productList.length === 0) return;
+    
+    // Auto-add product if fields are filled but not added to list yet
+    let finalProductList = [...productList];
+    if (newProductName.trim()) {
+      const product: Product = {
+        name: newProductName.trim(),
+        price: parseFloat(newProductPrice || '0'),
+        category: newProductCategory.trim() || 'Outros'
+      };
+      
+      if (editingProductIndex !== null) {
+        finalProductList[editingProductIndex] = product;
+      } else {
+        finalProductList.push(product);
+      }
+    }
+
+    if (!newName || !newPhone || finalProductList.length === 0) return;
     
     const supplierId = editingSupplierId || Math.random().toString(36).substring(2, 11);
     await saveSupplier({
       id: supplierId,
       name: newName,
       phone: newPhone,
-      products: productList
+      products: finalProductList
     });
     
     resetForm();
@@ -226,11 +244,11 @@ export default function App() {
   };
 
   const addProduct = () => {
-    if (newProductName.trim() && newProductPrice && newProductCategory.trim()) {
+    if (newProductName.trim()) {
       const product: Product = {
         name: newProductName.trim(),
-        price: parseFloat(newProductPrice),
-        category: newProductCategory.trim()
+        price: parseFloat(newProductPrice || '0'),
+        category: newProductCategory.trim() || 'Outros'
       };
       
       if (editingProductIndex !== null) {
@@ -349,28 +367,49 @@ export default function App() {
           />
 
         {suppliersError && (
-          <div className="mb-8 p-6 bg-red-50 border-2 border-red-200 rounded-[2rem] flex flex-col gap-3 shadow-sm">
-            <div className="flex items-center gap-3 text-red-900 uppercase font-black tracking-tight">
-              <RefreshCcw className="w-5 h-5" />
-              <h3>Aviso de Sincronização</h3>
+          <motion.div 
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="mb-8 overflow-hidden bg-white border border-slate-200 rounded-2xl shadow-sm"
+          >
+            <div className="flex items-center gap-3 px-6 py-3 bg-slate-900 text-white">
+              <RefreshCcw className="w-4 h-4 animate-spin-slow" />
+              <div className="flex flex-col">
+                <span className="text-[10px] font-black uppercase tracking-[0.2em] leading-none opacity-50">Status de Conexão</span>
+                <span className="text-sm font-bold tracking-tight">Sincronização Limitada (Modo Offline)</span>
+              </div>
             </div>
-            <p className="text-red-700 font-medium text-sm leading-relaxed">
-              {suppliersError.toLowerCase().includes('quota') || suppliersError.toLowerCase().includes('limit') 
-                ? (
-                  <>
-                    <span className="font-black">Limite de cota do banco de dados atingido (Quota Exceeded).</span>
-                    <br />
-                    O sistema continuará funcionando normalmente usando os dados salvos em seu navegador (cache), porém novas atualizações podem não aparecer até que o limite seja resetado.
-                    <br /><br />
-                    Esta cota é restaurada automaticamente <span className="font-bold">todos os dias à meia-noite</span>. Informações detalhadas sobre limites podem ser encontradas na coluna do plano <span className="font-bold">Spark</span> na seção Enterprise de: 
-                    <a href="https://firebase.google.com/pricing#cloud-firestore" target="_blank" rel="noopener noreferrer" className="ml-1 underline font-black hover:text-red-950 transition-colors">
-                      firebase.google.com/pricing
-                    </a>
-                  </>
-                )
-                : `Ocorreu um erro ao carregar os dados: ${suppliersError}`}
-            </p>
-          </div>
+            
+            <div className="p-6">
+              <p className="text-slate-600 font-medium text-sm leading-relaxed mb-4">
+                {suppliersError.toLowerCase().includes('quota') || suppliersError.toLowerCase().includes('limit') 
+                  ? (
+                    <>
+                      O limite diário de leitura do banco de dados foi atingido. O sistema está operando em <span className="font-bold text-slate-900 underline decoration-indigo-500/30 underline-offset-4">modo de alta disponibilidade local</span>.
+                      <br /><br />
+                      Você pode continuar usando o app normalmente. Suas alterações serão salvas localmente e sincronizadas assim que a cota for restaurada (meia-noite de hoje).
+                    </>
+                  )
+                  : `Ocorreu um erro técnico: ${suppliersError}`}
+              </p>
+              
+              <div className="flex items-center justify-between pt-4 border-t border-slate-100">
+                <div className="flex items-center gap-2 text-[10px] font-bold text-slate-400">
+                  <span className="w-2 h-2 rounded-full bg-orange-400 shadow-[0_0_8px_rgba(251,146,60,0.5)]" />
+                  <span>DADOS CARREGADOS DO CACHE (BROWSER)</span>
+                </div>
+                
+                <a 
+                  href="https://firebase.google.com/pricing#cloud-firestore" 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="text-[10px] font-black text-slate-900 uppercase tracking-widest hover:text-indigo-600 transition-colors"
+                >
+                  Ver Detalhes da Cota →
+                </a>
+              </div>
+            </div>
+          </motion.div>
         )}
 
         <AnimatePresence mode="wait">

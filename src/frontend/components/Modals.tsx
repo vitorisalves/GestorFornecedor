@@ -223,7 +223,7 @@ export const Modals: React.FC<ModalsProps> = (props) => {
                 </button>
                 <button
                   onClick={props.handleAddSupplier}
-                  disabled={!props.newName || !props.newPhone || props.productList.length === 0}
+                  disabled={!props.newName || !props.newPhone || (props.productList.length === 0 && !props.newProductName.trim())}
                   className="px-10 py-4 bg-indigo-600 text-white rounded-2xl font-bold shadow-lg shadow-indigo-100 hover:bg-indigo-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {props.editingSupplierId ? 'Salvar Alterações' : 'Cadastrar Fornecedor'}
@@ -674,7 +674,7 @@ export const Modals: React.FC<ModalsProps> = (props) => {
                   <Trash2 className="w-6 h-6 text-red-600 group-hover:scale-110 transition-transform" />
                   <div className="text-left">
                     <p className="font-black text-slate-900 uppercase text-xs tracking-widest leading-none mb-1 text-red-600">Substituir Tudo</p>
-                    <p className="text-[10px] text-slate-400 font-bold leading-tight">Remover todos os atuais e usar apenas os novos.</p>
+                    <p className="text-[10px] text-slate-400 font-bold leading-tight">Substitui apenas a lista Geral. Mercado e Materiais serão mantidos.</p>
                   </div>
                 </button>
               </div>

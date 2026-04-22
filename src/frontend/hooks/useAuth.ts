@@ -37,7 +37,8 @@ export const useAuth = () => {
       setAuthorizedUsers(data);
       localStorage.setItem('cache_authorizedUsers', JSON.stringify(data));
     }, (error) => {
-      console.error("Authorized users listener error:", error);
+      const isQuota = error.message.toLowerCase().includes('quota');
+      if (!isQuota) console.error("Authorized users listener error:", error);
       const cached = localStorage.getItem('cache_authorizedUsers');
       if (cached) setAuthorizedUsers(JSON.parse(cached));
     });

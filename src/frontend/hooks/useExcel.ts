@@ -55,8 +55,8 @@ export const useExcel = (suppliers: Supplier[], saveSupplier: (s: Supplier) => P
           const pCat = row['Categoria'] || 'Outros';
 
           if (sName && pName) {
-            const upperName = sName.toUpperCase();
-            if (upperName === 'MERCADO' || upperName === 'MATERIAIS') {
+            const trimmedName = sName.toString().trim().toUpperCase();
+            if (trimmedName === 'MERCADO' || trimmedName === 'MATERIAIS') {
               return; // Ignora canais protegidos
             }
 

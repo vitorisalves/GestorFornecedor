@@ -37,7 +37,8 @@ export const useSuppliers = (isAuthReady: boolean, isLoggedIn: boolean) => {
       }
       setError(null);
     }, (error) => {
-      console.error("Suppliers listener error:", error);
+      const isQuota = error.message.toLowerCase().includes('quota');
+      if (!isQuota) console.error("Suppliers listener error:", error);
       setError(error.message);
       setIsLoading(false);
       
@@ -55,7 +56,8 @@ export const useSuppliers = (isAuthReady: boolean, isLoggedIn: boolean) => {
         localStorage.setItem('cache_categories', JSON.stringify(data));
       }
     }, (error) => {
-      console.error("Categories listener error:", error);
+      const isQuota = error.message.toLowerCase().includes('quota');
+      if (!isQuota) console.error("Categories listener error:", error);
       // Fallback to local storage if error occurs
       const cached = localStorage.getItem('cache_categories');
       if (cached) {
@@ -82,7 +84,7 @@ export const useSuppliers = (isAuthReady: boolean, isLoggedIn: boolean) => {
     const snapshot = await getDocs(q);
     const deletePromises = snapshot.docs
       .filter(d => {
-        const name = (d.data().name as string || '').toUpperCase();
+        const name = (d.data().name as string || '').trim().toUpperCase();
         return name !== 'MERCADO' && name !== 'MATERIAIS';
       })
       .map(d => deleteDoc(d.ref));

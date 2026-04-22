@@ -34,7 +34,8 @@ export const useCart = (isAuthReady: boolean, isLoggedIn: boolean, loggedName: s
       setSavedLists(lists);
       localStorage.setItem('cache_savedLists', JSON.stringify(lists));
     }, (error) => {
-      console.error("Shopping lists listener error:", error);
+      const isQuota = error.message.toLowerCase().includes('quota');
+      if (!isQuota) console.error("Shopping lists listener error:", error);
       const cached = localStorage.getItem('cache_savedLists');
       if (cached) setSavedLists(JSON.parse(cached));
     });

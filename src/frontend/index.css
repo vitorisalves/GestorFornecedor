@@ -39,4 +39,6 @@
   --color-slate-800: #351f1a;
   --color-slate-900: #1b0f0c; /* Rich Black-Brown */
   --color-slate-950: #000000;
+
+  --animate-spin-slow: spin 3s linear infinite;
 }

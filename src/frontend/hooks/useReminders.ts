@@ -41,7 +41,8 @@ export const useReminders = (isAuthReady: boolean, addAppNotification: (title: s
         }
       });
     }, (error) => {
-      console.error("Reminders listener error:", error);
+      const isQuota = error.message.toLowerCase().includes('quota');
+      if (!isQuota) console.error("Reminders listener error:", error);
       const cached = localStorage.getItem('cache_reminders');
       if (cached) setReminders(JSON.parse(cached));
     });

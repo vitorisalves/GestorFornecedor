@@ -70,6 +70,7 @@ export const SuppliersView: React.FC<SuppliersViewProps> = ({
     } else {
       // Create a virtual supplier for this channel if it doesn't exist
       handleEditSupplier({
+        id: `CHANNEL_${channel}`,
         name: channel,
         phone: '00000000000',
         products: []
