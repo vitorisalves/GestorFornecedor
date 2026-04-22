@@ -26,14 +26,27 @@ const asyncHandler = (fn: Function) => (req: any, res: any, next: any) => {
 };
 
 // --- ROTAS DE API ---
-// Suporta tanto /api/health quanto /health (caso o roteador do Vercel remova o prefixo)
-app.get(["/api/health", "/health"], (req, res) => {
+// O health check agora tenta dar um "ping" na API externa para acordá-la (Render.com sleep)
+app.get(["/api/health", "/health"], asyncHandler(async (req: any, res: any) => {
+  const baseUrl = EXTERNAL_API_CONFIG.base_url;
+  let externalStatus = "unknown";
+  
+  try {
+    // Tenta uma chamada ultra-rápida (HEAD ou GET /) apenas para ver se o server responde
+    // Usamos um timeout curto de 5s aqui, pois se falhar é porque o server ainda está subindo
+    const ping = await api.get(baseUrl + "/", { timeout: 5000 });
+    externalStatus = ping.status < 500 ? "online" : "error";
+  } catch (e: any) {
+    externalStatus = e.code === 'ECONNABORTED' ? "waking_up" : "offline";
+  }
+
   res.json({ 
     status: "ok", 
+    external_api: externalStatus,
     env_set: !!process.env.EXTERNAL_API_URL,
     timestamp: new Date().toISOString()
   });
-});
+}));
 
 app.get("/api/omie-direct/products", asyncHandler(async (req: any, res: any) => {
   const baseUrl = EXTERNAL_API_CONFIG.base_url;

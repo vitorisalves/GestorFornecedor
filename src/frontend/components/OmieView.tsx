@@ -27,7 +27,7 @@ interface OmieViewProps {
   setExternalSearchTerm: (term: string) => void;
   isSyncingExternal: boolean;
   isTriggeringSync: boolean;
-  apiHealth: { status: string; env_set: boolean } | null;
+  apiHealth: { status: string; env_set: boolean; external_api?: string } | null;
   isCheckingHealth: boolean;
   checkApiHealth: () => void;
   triggerOmieSync: () => void;
@@ -156,11 +156,19 @@ export const OmieView: React.FC<OmieViewProps> = ({
               </div>
             ) : apiHealth ? (
               <div className={`flex items-center gap-2 px-3 py-1 rounded-full text-xs font-bold ${
-                apiHealth.status === 'ok' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
+                apiHealth.external_api === 'online' ? 'bg-green-100 text-green-700' : 
+                apiHealth.external_api === 'waking_up' ? 'bg-blue-100 text-blue-700' :
+                'bg-red-100 text-red-700'
               }`}>
-                {apiHealth.status === 'ok' ? <CheckCircle2 className="w-3 h-3" /> : <AlertCircle className="w-3 h-3" />}
-                API: {apiHealth.status === 'ok' ? 'Online' : 'Erro ou Offline'}
-                {!apiHealth.env_set && <span className="ml-1 opacity-70">(URL não configurada)</span>}
+                {apiHealth.external_api === 'online' ? <CheckCircle2 className="w-3 h-3" /> : 
+                 apiHealth.external_api === 'waking_up' ? <RefreshCw className="w-3 h-3 animate-spin" /> : 
+                 <AlertCircle className="w-3 h-3" />}
+                API Omie: {
+                  apiHealth.external_api === 'online' ? 'Online' : 
+                  apiHealth.external_api === 'waking_up' ? 'Acordando...' : 
+                  'Offline/Erro'
+                }
+                {!apiHealth.env_set && <span className="ml-1 opacity-70">(URL Padrão)</span>}
               </div>
             ) : null}
             

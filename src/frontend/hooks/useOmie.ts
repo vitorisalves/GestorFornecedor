@@ -13,7 +13,7 @@ export const useOmie = (currentPage: string) => {
   const [isTriggeringSync, setIsTriggeringSync] = useState(false);
   const [managedProducts, setManagedProducts] = useState<any[]>([]);
   const [isFetchingManaged, setIsFetchingManaged] = useState(false);
-  const [apiHealth, setApiHealth] = useState<{ status: string; env_set: boolean } | null>(null);
+  const [apiHealth, setApiHealth] = useState<{ status: string; env_set: boolean; external_api?: string } | null>(null);
   const [isCheckingHealth, setIsCheckingHealth] = useState(false);
 
   const checkApiHealth = async () => {
@@ -23,6 +23,7 @@ export const useOmie = (currentPage: string) => {
       if (response.ok) {
         const data = await response.json();
         setApiHealth(data);
+        return data;
       } else {
         setApiHealth({ status: 'error', env_set: false });
       }
@@ -31,6 +32,7 @@ export const useOmie = (currentPage: string) => {
     } finally {
       setIsCheckingHealth(false);
     }
+    return null;
   };
 
   const triggerOmieSync = async (addNotification: any) => {
