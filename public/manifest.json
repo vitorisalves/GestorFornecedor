@@ -1,0 +1,21 @@
+{
+  "name": "Labarr Gestor Fornecedores",
+  "short_name": "Labarr",
+  "description": "Sistema de gestão de compras e fornecedores",
+  "start_url": ".",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#4f46e5",
+  "icons": [
+    {
+      "src": "https://lh3.googleusercontent.com/d/1Awk9dyk0pqyjU62RU_2mGg5SbcqcY1Bo",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "https://lh3.googleusercontent.com/d/1Awk9dyk0pqyjU62RU_2mGg5SbcqcY1Bo",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}

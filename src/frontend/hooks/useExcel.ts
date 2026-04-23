@@ -51,7 +51,8 @@ export const useExcel = (suppliers: Supplier[], saveSupplier: (s: Supplier) => P
           const sName = row['Empresa Razão Social'] || row['Fornecedor'] || row['Empresa'];
           const sPhone = row['Telefone'] || row['WhatsApp'] || '';
           const pName = row['Produto'] || row['Nome'];
-          const pPrice = parseFloat(row['Preço'] || row['Valor'] || '0');
+          const rawPrice = (row['Preço'] || row['Valor'] || row['Valor Unitário'] || row['Vlr Unitario'] || row['Vlr Unit'] || '0').toString();
+          const pPrice = parseFloat(rawPrice.replace(',', '.'));
           const pCat = row['Categoria'] || 'Outros';
 
           if (sName && pName) {
