@@ -33,8 +33,7 @@ import { Product, Supplier } from './types';
 
 export default function App() {
   // --- CUSTOM HOOKS ---
-  const {
-    isLoggedIn,
+  const {isLoggedIn,
     loggedCpf,
     loggedName,
     isAuthReady,
@@ -57,8 +56,7 @@ export default function App() {
     addNotification,
     addAppNotification,
     markAllAsRead,
-    clearNotifications
-  } = useNotifications();
+    clearNotifications, requestPermission} = useNotifications();
 
   const {
     suppliers,
@@ -377,20 +375,7 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-slate-50 flex">
-      {/* Banner de Cota Excedida */}
-      <AnimatePresence>
-        {isQuotaExceeded && (
-          <motion.div
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: 'auto', opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            className="bg-amber-600 text-white px-4 py-2 text-center text-sm font-medium flex items-center justify-center gap-2 overflow-hidden"
-          >
-            <RefreshCcw className="w-4 h-4 animate-spin-slow" />
-            <span>Limite diário do banco de dados atingido (Quota). O sistema voltará ao normal em breve após o reset automático.</span>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      
 
       <Sidebar 
         currentPage={currentPage} 
@@ -403,8 +388,8 @@ export default function App() {
         onClose={() => setIsSidebarOpen(false)}
       />
 
-      <main className="flex-1 lg:ml-72 p-4 md:p-8 lg:p-12 w-full overflow-x-hidden min-h-screen transition-all">
-        <div className="max-w-7xl mx-auto">
+      <main className="flex-1 lg:ml-64 p-4 md:p-8 lg:p-12 w-full overflow-x-hidden min-h-screen transition-all">
+        <div className="max-w-6xl mx-auto px-4 md:px-0">
           <Header 
             notifications={notifications}
             appNotifications={appNotifications}

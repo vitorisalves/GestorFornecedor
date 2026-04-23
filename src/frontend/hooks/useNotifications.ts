@@ -4,12 +4,22 @@
  */
 
 import { useState } from 'react';
-import { Notification, AppNotification } from '../types';
+import { UINotification, AppNotification } from '../types';
 
 export const useNotifications = () => {
-  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [notifications, setNotifications] = useState<UINotification[]>([]);
   const [appNotifications, setAppNotifications] = useState<AppNotification[]>([]);
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
+
+  const requestPermission = async () => {
+    if (!('Notification' in window)) {
+      console.warn('Este navegador não suporta notificações');
+      return;
+    }
+    if (Notification.permission !== 'granted') {
+      await Notification.requestPermission();
+    }
+  };
 
   const addNotification = (name: string, quantity: number, type: 'cart' | 'info' = 'info') => {
     const id = Math.random().toString(36).substr(2, 9);
@@ -20,13 +30,27 @@ export const useNotifications = () => {
   };
 
   const addAppNotification = (title: string, message: string) => {
+    const id = Math.random().toString(36).substr(2, 9);
     const newNotif: AppNotification = {
-      id: Math.random().toString(36).substr(2, 9),
+      id,
       title,
       message,
       date: new Date().toISOString(),
       read: false
     };
+
+    // Notificação Nativa do Navegador
+    if ('Notification' in window && Notification.permission === 'granted') {
+      try {
+        new Notification(title, { 
+          body: message,
+          icon: '/favicon.ico'
+        });
+      } catch (e) {
+        console.warn('Erro ao enviar notificação nativa:', e);
+      }
+    }
+
     setAppNotifications(prev => [newNotif, ...prev]);
   };
 
@@ -46,6 +70,7 @@ export const useNotifications = () => {
     addNotification,
     addAppNotification,
     markAllAsRead,
-    clearNotifications
+    clearNotifications,
+    requestPermission
   };
 };

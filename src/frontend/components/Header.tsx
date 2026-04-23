@@ -6,10 +6,10 @@
 import React from 'react';
 import { ShoppingCart, Menu } from 'lucide-react';
 import { NotificationCenter } from './NotificationCenter';
-import { Notification, AppNotification, CartItem } from '../types';
+import { UINotification, AppNotification, CartItem } from '../types';
 
 interface HeaderProps {
-  notifications: Notification[];
+  notifications: UINotification[];
   appNotifications: AppNotification[];
   isNotificationsOpen: boolean;
   setIsNotificationsOpen: (open: boolean) => void;
@@ -18,6 +18,7 @@ interface HeaderProps {
   cart: CartItem[];
   setIsCartOpen: (open: boolean) => void;
   onMenuToggle?: () => void;
+  requestPermission?: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -29,7 +30,8 @@ export const Header: React.FC<HeaderProps> = ({
   clearNotifications,
   cart,
   setIsCartOpen,
-  onMenuToggle
+  onMenuToggle,
+  requestPermission
 }) => {
   const cartItemsCount = cart.reduce((acc, item) => acc + item.quantity, 0);
 
@@ -44,31 +46,32 @@ export const Header: React.FC<HeaderProps> = ({
 
       <div className="flex items-center gap-3 md:gap-4 ml-auto">
         {/* Botão do Carrinho */}
-      <button
-        onClick={() => setIsCartOpen(true)}
-        className="relative p-3 bg-white border-2 border-slate-100 text-slate-600 rounded-2xl hover:bg-slate-50 hover:text-indigo-600 transition-all shadow-sm group"
-      >
-        <ShoppingCart className="w-6 h-6" />
-        {cartItemsCount > 0 && (
-          <span className="absolute -top-2 -right-2 w-6 h-6 bg-indigo-600 text-white text-[10px] font-black rounded-full flex items-center justify-center border-2 border-white shadow-lg group-hover:scale-110 transition-transform">
-            {cartItemsCount}
-          </span>
-        )}
-      </button>
+        <button
+          onClick={() => setIsCartOpen(true)}
+          className="relative p-3 bg-white border-2 border-slate-100 text-slate-600 rounded-2xl hover:bg-slate-50 hover:text-indigo-600 transition-all shadow-sm group"
+        >
+          <ShoppingCart className="w-6 h-6" />
+          {cartItemsCount > 0 && (
+            <span className="absolute -top-2 -right-2 w-6 h-6 bg-indigo-600 text-white text-[10px] font-black rounded-full flex items-center justify-center border-2 border-white shadow-lg group-hover:scale-110 transition-transform">
+              {cartItemsCount}
+            </span>
+          )}
+        </button>
 
-      {/* Centro de Notificações */}
-      <div className="bg-white border-2 border-slate-100 rounded-2xl shadow-sm hover:bg-slate-50 transition-all">
-        <NotificationCenter 
-          notifications={notifications}
-          appNotifications={appNotifications}
-          isOpen={isNotificationsOpen}
-          setIsOpen={setIsNotificationsOpen}
-          markAllAsRead={markAllAsRead}
-          clearNotifications={clearNotifications}
-          setIsCartOpen={setIsCartOpen}
-        />
+        {/* Centro de Notificações */}
+        <div className="bg-white border-2 border-slate-100 rounded-2xl shadow-sm hover:bg-slate-50 transition-all">
+          <NotificationCenter 
+            notifications={notifications}
+            appNotifications={appNotifications}
+            isOpen={isNotificationsOpen}
+            setIsOpen={setIsNotificationsOpen}
+            markAllAsRead={markAllAsRead}
+            clearNotifications={clearNotifications}
+            setIsCartOpen={setIsCartOpen}
+            requestPermission={requestPermission}
+          />
+        </div>
       </div>
-    </div>
-  </header>
-);
+    </header>
+  );
 };

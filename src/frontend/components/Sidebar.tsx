@@ -54,7 +54,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         className={`fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-[90] transition-opacity lg:hidden ${isOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
         onClick={onClose}
       />
-      <aside className={`fixed inset-y-0 left-0 w-72 bg-white border-r-2 border-slate-900 flex flex-col h-screen overflow-y-auto scrollbar-thin scrollbar-thumb-slate-200 scrollbar-track-transparent z-[100] shrink-0 transition-transform duration-300 lg:translate-x-0 ${isOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+      <aside className={`fixed inset-y-0 left-0 w-64 bg-white border-r-2 border-slate-900 flex flex-col h-screen overflow-y-auto scrollbar-thin scrollbar-thumb-slate-200 scrollbar-track-transparent z-[100] shrink-0 transition-transform duration-300 lg:translate-x-0 ${isOpen ? 'translate-x-0' : '-translate-x-full'}`}>
         <div className="p-8">
           <div className="flex items-center justify-between mb-10">
             <div className="flex flex-col items-center gap-4 w-full">

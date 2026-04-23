@@ -5,18 +5,19 @@
 
 import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Bell, BellRing, X, Trash2, Check } from 'lucide-react';
-import { Notification, AppNotification } from '../types';
+import { Bell, BellRing, X, Trash2, Check, Smartphone } from 'lucide-react';
+import { UINotification, AppNotification } from '../types';
 import { formatDate } from '../utils';
 
 interface NotificationCenterProps {
-  notifications: Notification[];
+  notifications: UINotification[];
   appNotifications: AppNotification[];
   isOpen: boolean;
   setIsOpen: (open: boolean) => void;
   markAllAsRead: () => void;
   clearNotifications: () => void;
   setIsCartOpen?: (open: boolean) => void;
+  requestPermission?: () => void;
 }
 
 export const NotificationCenter: React.FC<NotificationCenterProps> = ({
@@ -26,9 +27,22 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({
   setIsOpen,
   markAllAsRead,
   clearNotifications,
-  setIsCartOpen
+  setIsCartOpen,
+  requestPermission
 }) => {
   const unreadCount = appNotifications.filter(n => !n.read).length;
+  const [showPermissionPrompt, setShowPermissionPrompt] = React.useState(
+    typeof window !== 'undefined' && 
+    'Notification' in window && 
+    window.Notification.permission === 'default'
+  );
+
+  const handlePermissionRequest = async () => {
+    if (requestPermission) {
+      await requestPermission();
+      setShowPermissionPrompt(false);
+    }
+  };
 
   return (
     <>
@@ -68,7 +82,7 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({
       {/* Notification Panel Button */}
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="relative p-2 text-slate-600 hover:text-indigo-600 transition-colors"
+        className="relative p-2 text-slate-600 hover:text-indigo-600 transition-all flex items-center justify-center"
       >
         {unreadCount > 0 ? (
           <BellRing className="w-6 h-6 animate-pulse" />
@@ -111,6 +125,26 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({
                   <X className="w-6 h-6 text-slate-400" />
                 </button>
               </div>
+
+              {showPermissionPrompt && (
+                <div className="m-4 p-4 bg-indigo-600 rounded-2xl text-white shadow-lg shadow-indigo-200">
+                  <div className="flex gap-4 items-start mb-3">
+                    <div className="bg-white/20 p-2 rounded-xl">
+                      <Smartphone className="w-6 h-6" />
+                    </div>
+                    <div>
+                      <p className="font-bold text-sm">Notificações no Celular</p>
+                      <p className="text-xs text-indigo-100">Ative para receber alertas mesmo com o app fechado.</p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={handlePermissionRequest}
+                    className="w-full py-2 bg-white text-indigo-600 font-bold text-xs rounded-xl hover:bg-indigo-50 transition-colors"
+                  >
+                    ATIVAR NOTIFICAÇÕES
+                  </button>
+                </div>
+              )}
 
               <div className="flex-1 overflow-y-auto p-4 space-y-3">
                 {appNotifications.length === 0 ? (

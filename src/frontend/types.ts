@@ -16,7 +16,7 @@ export interface Supplier {
   products: Product[];
 }
 
-export interface Notification {
+export interface UINotification {
   id: string;
   name: string;
   quantity: number;

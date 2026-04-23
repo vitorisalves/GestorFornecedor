@@ -1,21 +1,25 @@
 {
-  "name": "Labarr Gestor Fornecedores",
-  "short_name": "Labarr",
-  "description": "Sistema de gestão de compras e fornecedores",
-  "start_url": ".",
-  "display": "standalone",
-  "background_color": "#ffffff",
-  "theme_color": "#4f46e5",
+  "short_name": "GestorProd",
+  "name": "Gestor de Produção e Compras",
   "icons": [
     {
-      "src": "https://lh3.googleusercontent.com/d/1Awk9dyk0pqyjU62RU_2mGg5SbcqcY1Bo",
-      "sizes": "192x192",
-      "type": "image/png"
+      "src": "favicon.ico",
+      "sizes": "64x64 32x32 24x24 16x16",
+      "type": "image/x-icon"
     },
     {
-      "src": "https://lh3.googleusercontent.com/d/1Awk9dyk0pqyjU62RU_2mGg5SbcqcY1Bo",
-      "sizes": "512x512",
-      "type": "image/png"
+        "src": "https://img.icons8.com/color/192/shopping-cart.png",
+        "type": "image/png",
+        "sizes": "192x192"
+    },
+    {
+        "src": "https://img.icons8.com/color/512/shopping-cart.png",
+        "type": "image/png",
+        "sizes": "512x512"
     }
-  ]
+  ],
+  "start_url": ".",
+  "display": "standalone",
+  "theme_color": "#4f46e5",
+  "background_color": "#ffffff"
 }
