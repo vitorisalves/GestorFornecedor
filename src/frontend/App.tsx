@@ -390,7 +390,8 @@ export default function App() {
 
       <main className="flex-1 lg:ml-64 p-4 md:p-8 lg:p-12 w-full overflow-x-hidden min-h-screen transition-all">
         <div className="max-w-6xl mx-auto px-4 md:px-0">
-          <Header 
+          <Header
+            requestPermission={requestPermission} 
             notifications={notifications}
             appNotifications={appNotifications}
             isNotificationsOpen={isNotificationsOpen}

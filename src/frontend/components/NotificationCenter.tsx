@@ -34,13 +34,19 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({
   const [showPermissionPrompt, setShowPermissionPrompt] = React.useState(
     typeof window !== 'undefined' && 
     'Notification' in window && 
-    window.Notification.permission === 'default'
+    (window.Notification.permission === 'default' || window.Notification.permission === 'denied')
   );
 
   const handlePermissionRequest = async () => {
+    console.log('Solicitando permissão...');
     if (requestPermission) {
       await requestPermission();
-      setShowPermissionPrompt(false);
+      // Atualiza o estado: se agora foi concedido, podemos esconder o prompt
+      if (typeof window !== 'undefined' && 'Notification' in window) {
+        if (window.Notification.permission === 'granted') {
+          setShowPermissionPrompt(false);
+        }
+      }
     }
   };
 
@@ -134,14 +140,20 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({
                     </div>
                     <div>
                       <p className="font-bold text-sm">Notificações no Celular</p>
-                      <p className="text-xs text-indigo-100">Ative para receber alertas mesmo com o app fechado.</p>
+                      <p className="text-xs text-indigo-100">
+                        {typeof window !== 'undefined' && 'Notification' in window && window.Notification.permission === 'denied'
+                          ? 'A permissão foi bloqueada. Por favor, habilite manualmente nas configurações do seu navegador.'
+                          : 'Ative para receber alertas mesmo com o app fechado.'}
+                      </p>
                     </div>
                   </div>
                   <button
                     onClick={handlePermissionRequest}
                     className="w-full py-2 bg-white text-indigo-600 font-bold text-xs rounded-xl hover:bg-indigo-50 transition-colors"
                   >
-                    ATIVAR NOTIFICAÇÕES
+                    {typeof window !== 'undefined' && 'Notification' in window && window.Notification.permission === 'denied'
+                      ? 'TENTAR NOVAMENTE'
+                      : 'ATIVAR NOTIFICAÇÕES'}
                   </button>
                 </div>
               )}

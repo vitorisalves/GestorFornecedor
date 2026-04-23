@@ -12,12 +12,32 @@ export const useNotifications = () => {
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
 
   const requestPermission = async () => {
+    console.log('Solicitando permissão de notificação...');
     if (!('Notification' in window)) {
-      console.warn('Este navegador não suporta notificações');
+      alert('Seu navegador não suporta notificações nativas.');
       return;
     }
-    if (Notification.permission !== 'granted') {
-      await Notification.requestPermission();
+    
+    try {
+      // Alguns navegadores mais antigos usam callback, mas a maioria moderna usa Promise
+      const permission = await Notification.requestPermission();
+      console.log('Resultado da permissão:', permission);
+      
+      if (permission === 'granted') {
+        try {
+          new Notification('Notificações Ativadas!', {
+            body: 'Você agora receberá alertas neste dispositivo.',
+            icon: 'https://img.icons8.com/color/192/shopping-cart.png'
+          });
+        } catch (e) {
+          console.warn('Erro ao criar notificação de teste:', e);
+        }
+      } else if (permission === 'denied') {
+        alert('Permissão negada. Você precisa habilitar as notificações nas configurações do seu navegador ou celular para este site.');
+      }
+    } catch (error) {
+      console.error('Erro ao solicitar permissão:', error);
+      alert('Erro ao ativar notificações. Verifique se você está em uma conexão segura (HTTPS) e fora de janelas privadas.');
     }
   };
 
@@ -40,11 +60,11 @@ export const useNotifications = () => {
     };
 
     // Notificação Nativa do Navegador
-    if ('Notification' in window && Notification.permission === 'granted') {
+    if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
       try {
         new Notification(title, { 
           body: message,
-          icon: '/favicon.ico'
+          icon: 'https://img.icons8.com/color/192/shopping-cart.png'
         });
       } catch (e) {
         console.warn('Erro ao enviar notificação nativa:', e);
