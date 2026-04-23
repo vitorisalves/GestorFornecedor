@@ -33,7 +33,6 @@ interface OmieViewProps {
   triggerOmieSync: () => void;
   fetchExternalProducts: () => void;
   addToCart: (product: any, supplierName: string, quantity: number) => void;
-  addToManager: (codigo: any) => void;
   externalCurrentPage: number;
   setExternalCurrentPage: (page: number | ((prev: number) => number)) => void;
   externalItemsPerPage: number;
@@ -51,7 +50,6 @@ export const OmieView: React.FC<OmieViewProps> = ({
   triggerOmieSync,
   fetchExternalProducts,
   addToCart,
-  addToManager,
   externalCurrentPage,
   setExternalCurrentPage,
   externalItemsPerPage
@@ -309,18 +307,8 @@ export const OmieView: React.FC<OmieViewProps> = ({
                         </span>
                       </td>
                       <td className="px-6 py-4 text-right">
-                        <div className="flex items-center justify-end gap-2">
-                          <button
-                            onClick={() => addToManager(codigo)}
-                            className="p-2.5 bg-indigo-50 text-indigo-600 rounded-xl hover:bg-indigo-100 transition-all active:scale-95 border-2 border-transparent hover:border-indigo-200"
-                            title="Salvar no Gerenciador"
-                          >
-                            <Plus className="w-4 h-4" />
-                          </button>
-                          
-                          <div className="h-6 w-[2px] bg-slate-100 mx-1" />
-
-                          <div className="flex items-center gap-1.5">
+                        <div className="flex items-center justify-end gap-2 text-right">
+                          <div className="flex items-center gap-1.5 ml-auto translate-x-2">
                             <input
                               type="text"
                               value={quantities[String(codigo)] ?? '1'}

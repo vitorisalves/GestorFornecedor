@@ -5,7 +5,7 @@
 
 import { useState, useEffect } from 'react';
 import { db } from '../firebase';
-import { collection, onSnapshot, addDoc, query, orderBy, deleteDoc, doc, updateDoc } from 'firebase/firestore';
+import { collection, onSnapshot, addDoc, query, orderBy, deleteDoc, doc, updateDoc, limit } from 'firebase/firestore';
 import { Product, SavedList } from '../types';
 
 export const useCart = (isAuthReady: boolean, isLoggedIn: boolean, loggedName: string) => {
@@ -25,7 +25,14 @@ export const useCart = (isAuthReady: boolean, isLoggedIn: boolean, loggedName: s
   useEffect(() => {
     if (!isAuthReady || !isLoggedIn) return;
 
-    const q = query(collection(db, 'shopping_lists'), orderBy('date', 'desc'));
+    // Restoring real-time synchronization with onSnapshot
+    // limited to 20 items to balance performance and user experience.
+    const q = query(
+      collection(db, 'shopping_lists'), 
+      orderBy('date', 'desc'), 
+      limit(20)
+    );
+
     const unsub = onSnapshot(q, (snapshot) => {
       const lists = snapshot.docs.map(doc => ({
         id: doc.id,
@@ -34,7 +41,7 @@ export const useCart = (isAuthReady: boolean, isLoggedIn: boolean, loggedName: s
       setSavedLists(lists);
       localStorage.setItem('cache_savedLists', JSON.stringify(lists));
     }, (error) => {
-      const isQuota = error.message.toLowerCase().includes('quota');
+      const isQuota = error.message.toLowerCase().includes('quota') || error.message.toLowerCase().includes('resource-exhausted');
       if (!isQuota) console.error("Shopping lists listener error:", error);
       const cached = localStorage.getItem('cache_savedLists');
       if (cached) setSavedLists(JSON.parse(cached));
@@ -114,6 +121,34 @@ export const useCart = (isAuthReady: boolean, isLoggedIn: boolean, loggedName: s
     await deleteDoc(doc(db, 'shopping_lists', id));
   };
 
+  const addItemToList = async (listId: string, product: Product, supplierName: string, quantity: number) => {
+    const list = savedLists.find(l => l.id === listId);
+    if (!list) return;
+
+    const existingItemIndex = list.items.findIndex(item => item.name === product.name && item.supplierName === supplierName);
+    let updatedItems = [...list.items];
+
+    if (existingItemIndex !== -1) {
+      updatedItems[existingItemIndex] = {
+        ...updatedItems[existingItemIndex],
+        quantity: updatedItems[existingItemIndex].quantity + quantity
+      };
+    } else {
+      updatedItems.push({
+        ...product,
+        supplierName,
+        quantity,
+        bought: false
+      });
+    }
+
+    const newTotal = updatedItems.reduce((acc, item) => acc + (item.price * item.quantity), 0);
+    await updateDoc(doc(db, 'shopping_lists', listId), { 
+      items: updatedItems,
+      total: newTotal
+    });
+  };
+
   return {
     cart,
     setCart,
@@ -124,6 +159,7 @@ export const useCart = (isAuthReady: boolean, isLoggedIn: boolean, loggedName: s
     clearCart,
     finalizeList,
     toggleSavedListItemBought,
-    deleteSavedList
+    deleteSavedList,
+    addItemToList
   };
 };

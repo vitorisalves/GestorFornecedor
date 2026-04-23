@@ -3,24 +3,23 @@ import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChang
 import { initializeFirestore, doc, getDocFromServer, memoryLocalCache, getFirestore } from 'firebase/firestore';
 import firebaseConfig from '../../firebase-applet-config.json';
 
-// Singleton initialization for Firebase App and Firestore
-const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
-export const auth = getAuth(app);
-
-// Initialize Firestore with memory cache and long polling for stability in the preview environment.
-// We use a check to avoid re-initializing if it already exists, preventing SDK assertion errors (ID: ca9).
+// Global singleton for Firestore to prevent multiple initializations in HMR environments
 let firestoreDb;
-try {
+
+if (getApps().length === 0) {
+  const app = initializeApp(firebaseConfig);
+  // Default initialization is more stable in current AI Studio environment.
+  // Standard streaming (WebSockets) should be tried first.
   firestoreDb = initializeFirestore(app, {
-    localCache: memoryLocalCache(),
-    experimentalForceLongPolling: true
-  }, firebaseConfig.firestoreDatabaseId);
-} catch (e) {
-  // If already initialized, fallback to getFirestore
-  firestoreDb = getFirestore(app, firebaseConfig.firestoreDatabaseId);
+    localCache: memoryLocalCache()
+  }, firebaseConfig.firestoreDatabaseId || '(default)');
+} else {
+  const app = getApp();
+  firestoreDb = getFirestore(app);
 }
 
 export const db = firestoreDb;
+export const auth = getAuth(getApp());
 
 export const googleProvider = new GoogleAuthProvider();
 

@@ -5,7 +5,7 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { RefreshCcw } from 'lucide-react';
+import { RefreshCcw, PlusCircle } from 'lucide-react';
 
 // Hooks
 import { useAuth } from './hooks/useAuth';
@@ -45,7 +45,8 @@ export default function App() {
     handleLogout,
     updateUserStatus,
     removeUserRequest,
-    isAdmin
+    isAdmin,
+    authError
   } = useAuth();
 
   const {
@@ -72,6 +73,20 @@ export default function App() {
   } = useSuppliers(isAuthReady, isLoggedIn);
 
   const {
+    reminders,
+    addReminder,
+    deleteReminder,
+    error: remindersError
+  } = useReminders(isAuthReady, addAppNotification);
+
+  const isQuotaExceeded = suppliersError?.toLowerCase().includes('quota') || 
+                         suppliersError?.toLowerCase().includes('resource-exhausted') ||
+                         authError?.toLowerCase().includes('quota') ||
+                         authError?.toLowerCase().includes('resource-exhausted') ||
+                         remindersError?.toLowerCase().includes('quota') ||
+                         remindersError?.toLowerCase().includes('resource-exhausted');
+
+  const {
     cart,
     setCart,
     savedLists,
@@ -81,8 +96,22 @@ export default function App() {
     clearCart,
     finalizeList,
     toggleSavedListItemBought,
-    deleteSavedList
+    deleteSavedList,
+    addItemToList
   } = useCart(isAuthReady, isLoggedIn, loggedName);
+
+  const [activeTargetListId, setActiveTargetListId] = useState<string | null>(null);
+  const [activeTargetListName, setActiveTargetListName] = useState<string | null>(null);
+
+  const handleAddToCart = (product: Product, supplierName: string, quantity: number) => {
+    if (activeTargetListId) {
+      addItemToList(activeTargetListId, product, supplierName, quantity);
+      addNotification(`Adicionado à lista ${activeTargetListName}`, quantity, 'info');
+    } else {
+      addToCart(product, supplierName, quantity);
+      addNotification(product.name, quantity, 'cart');
+    }
+  };
 
   const [currentPage, setCurrentPage] = useState<'suppliers' | 'mercado' | 'materiais' | 'shopping' | 'history' | 'omie' | 'reminders'>('suppliers');
   
@@ -90,21 +119,12 @@ export default function App() {
     externalProducts,
     isSyncingExternal,
     isTriggeringSync,
-    managedProducts,
-    isFetchingManaged,
     apiHealth,
     isCheckingHealth,
     triggerOmieSync,
     fetchExternalProducts,
-    addToManager,
     checkApiHealth
   } = useOmie(currentPage);
-
-  const {
-    reminders,
-    addReminder,
-    deleteReminder
-  } = useReminders(isAuthReady, addAppNotification);
 
   const {
     handleExportExcel,
@@ -184,6 +204,15 @@ export default function App() {
       }
     } finally {
       setIsFinalizing(false);
+    }
+  };
+
+  const onSetActiveTargetList = (id: string | null, name: string | null) => {
+    setActiveTargetListId(id);
+    setActiveTargetListName(name);
+    if (id) {
+      setCurrentPage('suppliers');
+      addNotification(`Modo de adição para: ${name}`, 1, 'info');
     }
   };
 
@@ -344,6 +373,21 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-slate-50 flex">
+      {/* Banner de Cota Excedida */}
+      <AnimatePresence>
+        {isQuotaExceeded && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            className="bg-amber-600 text-white px-4 py-2 text-center text-sm font-medium flex items-center justify-center gap-2 overflow-hidden"
+          >
+            <RefreshCcw className="w-4 h-4 animate-spin-slow" />
+            <span>Limite diário do banco de dados atingido (Quota). O sistema voltará ao normal em breve após o reset automático.</span>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       <Sidebar 
         currentPage={currentPage} 
         setCurrentPage={setCurrentPage} 
@@ -415,6 +459,30 @@ export default function App() {
           </motion.div>
         )}
 
+        {activeTargetListId && (
+          <motion.div 
+            initial={{ scale: 0.9, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            className="mb-8 p-6 bg-indigo-600 rounded-[2.5rem] border-2 border-slate-900 shadow-xl shadow-indigo-100 flex items-center justify-between"
+          >
+            <div className="flex items-center gap-6">
+              <div className="w-16 h-16 bg-white/20 backdrop-blur-md rounded-2xl flex items-center justify-center border border-white/30">
+                <PlusCircle className="w-8 h-8 text-white" />
+              </div>
+              <div>
+                <p className="text-[10px] font-black text-indigo-100 uppercase tracking-widest mb-1">Você está adicionando itens à:</p>
+                <h3 className="text-2xl font-black text-white uppercase tracking-tighter">{activeTargetListName}</h3>
+              </div>
+            </div>
+            <button 
+              onClick={() => onSetActiveTargetList(null, null)}
+              className="px-6 py-3 bg-white text-indigo-600 rounded-xl font-black uppercase text-xs tracking-widest hover:bg-slate-100 transition-all active:scale-95 shadow-lg border-b-4 border-slate-200 active:border-b-0"
+            >
+              Concluir Edição
+            </button>
+          </motion.div>
+        )}
+
         <AnimatePresence mode="wait">
           {(currentPage === 'suppliers' || currentPage === 'mercado' || currentPage === 'materiais') && (
             <SuppliersView 
@@ -427,10 +495,7 @@ export default function App() {
               setIsAdding={setIsAdding}
               handleEditSupplier={onEditSupplier}
               setSupplierToDelete={setSupplierToDelete}
-              addToCart={(p: Product, s: string, q: number) => { 
-                addToCart(p, s, q); 
-                addNotification(p.name, q || 1, 'cart'); 
-              }}
+              addToCart={handleAddToCart}
               handleExportExcel={handleExportExcel}
               handleImportExcel={onImportExcel}
               activeTab={currentPage === 'suppliers' ? 'fornecedores' : currentPage as any}
@@ -445,10 +510,7 @@ export default function App() {
               setSearchTerm={setSearchTerm}
               shoppingQuantities={shoppingQuantities}
               setShoppingQuantities={setShoppingQuantities}
-              addToCart={(p: Product, s: string, q: number) => { 
-                addToCart(p, s, q); 
-                addNotification(p.name, q, 'cart'); 
-              }}
+              addToCart={handleAddToCart}
             />
           )}
           {currentPage === 'history' && (
@@ -458,6 +520,7 @@ export default function App() {
               editSavedList={onEditSavedList}
               deleteSavedList={setListToDelete}
               toggleSavedListItemBought={toggleSavedListItemBought}
+              setActiveTargetList={onSetActiveTargetList}
             />
           )}
           {currentPage === 'omie' && (
@@ -473,8 +536,7 @@ export default function App() {
               apiHealth={apiHealth}
               isCheckingHealth={isCheckingHealth}
               checkApiHealth={checkApiHealth}
-              addToCart={(p, s, q) => { addToCart(p, s, q); addNotification(p.name, q, 'cart'); }}
-              addToManager={(code) => addToManager(code, addNotification)}
+              addToCart={handleAddToCart}
               externalCurrentPage={externalCurrentPage}
               setExternalCurrentPage={setExternalCurrentPage}
               externalItemsPerPage={10}

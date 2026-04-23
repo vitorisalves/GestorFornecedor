@@ -13,26 +13,81 @@ import {
   Pencil, 
   Check, 
   ChevronDown, 
-  ChevronUp 
+  ChevronUp,
+  PlusCircle
 } from 'lucide-react';
 import { AnimatePresence } from 'framer-motion';
+import { jsPDF } from 'jspdf';
+import autoTable from 'jspdf-autotable';
 import { SavedList } from '../types';
 import { formatCurrency, formatDate } from '../utils';
+import { FileText } from 'lucide-react';
 
 interface HistoryViewProps {
   savedLists: SavedList[];
   editSavedList: (list: SavedList) => void;
   deleteSavedList: (id: string) => void;
   toggleSavedListItemBought: (listId: string, productName: string, supplierName: string) => void;
+  setActiveTargetList: (id: string | null, name: string | null) => void;
 }
 
 export const HistoryView: React.FC<HistoryViewProps> = ({
   savedLists,
   editSavedList,
   deleteSavedList,
-  toggleSavedListItemBought
+  toggleSavedListItemBought,
+  setActiveTargetList
 }) => {
   const [expandedList, setExpandedList] = React.useState<string | null>(null);
+
+  const exportToPDF = (list: SavedList) => {
+    const doc = new jsPDF();
+    
+    // Header
+    doc.setFontSize(20);
+    doc.setTextColor(15, 23, 42); // slate-900
+    doc.text('Lista de Compras - LABARR', 14, 22);
+    
+    doc.setFontSize(12);
+    doc.setTextColor(100);
+    doc.text(`Lista: ${list.name.toUpperCase()}`, 14, 32);
+    doc.text(`Data: ${formatDate(list.date)}`, 14, 38);
+    doc.text(`Operador: ${list.createdBy || 'Sistema'}`, 14, 44);
+    
+    // Table
+    const tableData = list.items.map(item => [
+      item.bought ? '[X]' : '[ ]',
+      item.name,
+      item.supplierName,
+      item.quantity.toString(),
+      formatCurrency(item.price),
+      formatCurrency(item.price * item.quantity)
+    ]);
+
+    autoTable(doc, {
+      startY: 55,
+      head: [['Status', 'Produto', 'Fornecedor', 'Qtd', 'Preço Un.', 'Subtotal']],
+      body: tableData,
+      theme: 'grid',
+      headStyles: { fillColor: [15, 23, 42], textColor: [255, 255, 255] },
+      styles: { fontSize: 9, cellPadding: 3 },
+      columnStyles: {
+        0: { halign: 'center', cellWidth: 15 },
+        3: { halign: 'center', cellWidth: 15 },
+        4: { halign: 'right' },
+        5: { halign: 'right', fontStyle: 'bold' },
+      },
+    });
+
+    // Total
+    const finalY = (doc as any).lastAutoTable.finalY + 10;
+    doc.setFontSize(14);
+    doc.setFont('helvetica', 'bold');
+    doc.text(`TOTAL DA LISTA: ${formatCurrency(list.total)}`, 140, finalY);
+
+    // Save
+    doc.save(`LISTA_${list.name.replace(/\s+/g, '_').toUpperCase()}_${formatDate(list.date).split(',')[0].replace(/\//g, '-')}.pdf`);
+  };
 
   return (
     <motion.div 
@@ -115,6 +170,13 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
                     </div>
                     <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
                       <button
+                        onClick={() => exportToPDF(list)}
+                        className="p-4 text-indigo-600 hover:text-white hover:bg-indigo-600 rounded-2xl transition-all border-2 border-transparent hover:border-indigo-600"
+                        title="Exportar PDF"
+                      >
+                        <FileText className="w-6 h-6" />
+                      </button>
+                      <button
                         onClick={() => editSavedList(list)}
                         className="p-4 text-slate-900 hover:text-white hover:bg-slate-900 rounded-2xl transition-all border-2 border-transparent hover:border-slate-900"
                       >
@@ -145,6 +207,16 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
                       className="overflow-hidden bg-slate-50 border-t-2 border-slate-900"
                     >
                       <div className="p-8">
+                        <div className="flex items-center justify-between mb-6">
+                            <h4 className="text-xl font-black text-slate-900 uppercase tracking-tighter">Itens da Lista</h4>
+                            <button
+                              onClick={() => setActiveTargetList(list.id, list.name)}
+                              className="flex items-center gap-2 px-6 py-3 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-100 active:scale-95 text-xs uppercase tracking-widest"
+                            >
+                              <PlusCircle className="w-4 h-4" />
+                              Adicionar Produtos
+                            </button>
+                        </div>
                         <div className="bg-white rounded-3xl border-2 border-slate-900 overflow-hidden shadow-inner">
                           <table className="w-full text-left">
                             <thead>

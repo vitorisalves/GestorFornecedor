@@ -5,7 +5,7 @@
 
 import { useState, useEffect } from 'react';
 import { db } from '../firebase';
-import { collection, onSnapshot, addDoc, doc, updateDoc, query, orderBy, deleteDoc } from 'firebase/firestore';
+import { collection, onSnapshot, addDoc, doc, updateDoc, query, orderBy, deleteDoc, where } from 'firebase/firestore';
 import { Reminder } from '../types';
 
 export const useReminders = (isAuthReady: boolean, addAppNotification: (title: string, message: string) => void) => {
@@ -13,11 +13,16 @@ export const useReminders = (isAuthReady: boolean, addAppNotification: (title: s
     const cached = localStorage.getItem('cache_reminders');
     return cached ? JSON.parse(cached) : [];
   });
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!isAuthReady) return;
 
-    const q = query(collection(db, 'reminders'), orderBy('date', 'asc'));
+    const q = query(
+      collection(db, 'reminders'), 
+      where('notified', '==', false),
+      orderBy('date', 'asc')
+    );
     const unsub = onSnapshot(q, (snapshot) => {
       const data = snapshot.docs.map(doc => ({
         id: doc.id,
@@ -65,6 +70,7 @@ export const useReminders = (isAuthReady: boolean, addAppNotification: (title: s
   return {
     reminders,
     addReminder,
-    deleteReminder
+    deleteReminder,
+    error
   };
 };

@@ -11,8 +11,6 @@ export const useOmie = (currentPage: string) => {
   const [externalProducts, setExternalProducts] = useState<ExternalProduct[]>([]);
   const [isSyncingExternal, setIsSyncingExternal] = useState(false);
   const [isTriggeringSync, setIsTriggeringSync] = useState(false);
-  const [managedProducts, setManagedProducts] = useState<any[]>([]);
-  const [isFetchingManaged, setIsFetchingManaged] = useState(false);
   const [apiHealth, setApiHealth] = useState<{ status: string; env_set: boolean; external_api?: string } | null>(null);
   const [isCheckingHealth, setIsCheckingHealth] = useState(false);
 
@@ -114,76 +112,6 @@ export const useOmie = (currentPage: string) => {
     }
   };
 
-  const fetchManagedProducts = async () => {
-    setIsFetchingManaged(true);
-    try {
-      const response = await fetch('/api/v1/products');
-      let responseData: any;
-      const contentType = response.headers.get('content-type');
-      if (contentType && contentType.includes('application/json')) {
-        responseData = await response.json();
-      } else {
-        const text = await response.text();
-        if (!response.ok) {
-          throw new Error(`Erro do servidor (${response.status}): ${text.substring(0, 100)}`);
-        }
-        throw new Error('O servidor não retornou um JSON válido');
-      }
-
-      if (!response.ok) {
-        throw new Error(extractErrorMessage(responseData, 'Erro ao buscar produtos gerenciados'));
-      }
-      const result = responseData;
-      const data = result.data || result;
-      setManagedProducts(Array.isArray(data) ? data : (data.products || []));
-    } catch (error) {
-      console.error('Erro ao buscar gerenciados:', error);
-    } finally {
-      setIsFetchingManaged(false);
-    }
-  };
-
-  const addToManager = async (codigo: any, addNotification: any) => {
-    try {
-      const body: any = {};
-      if (codigo && !isNaN(Number(codigo))) {
-        body.productId = Number(codigo);
-        body.codigo_produto = Number(codigo);
-      } else {
-        body.productId = codigo;
-        body.codigo_produto = codigo;
-      }
-
-      const response = await fetch('/api/v1/products', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body)
-      });
-      
-      let responseData: any;
-      const contentType = response.headers.get('content-type');
-      if (contentType && contentType.includes('application/json')) {
-        responseData = await response.json();
-      } else {
-        const text = await response.text();
-        if (!response.ok) {
-          throw new Error(`Erro do servidor (${response.status}): ${text.substring(0, 100)}`);
-        }
-        throw new Error('O servidor não retornou um JSON válido');
-      }
-
-      if (!response.ok) {
-        throw new Error(extractErrorMessage(responseData, 'Erro ao adicionar'));
-      }
-      
-      addNotification('Produto adicionado ao gerenciador!', 1);
-      fetchManagedProducts();
-    } catch (error) {
-      console.error('Erro ao adicionar:', error);
-      addNotification(extractErrorMessage(error, 'Erro ao adicionar'), 0);
-    }
-  };
-
   useEffect(() => {
     if (currentPage === 'omie') {
       checkApiHealth();
@@ -191,20 +119,30 @@ export const useOmie = (currentPage: string) => {
         fetchExternalProducts();
       }
     }
+    
+    // Auto-refresh every 15 minutes if on Omie page
+    let interval: any;
+    if (currentPage === 'omie') {
+      interval = setInterval(() => {
+        console.log('🔄 Auto-refreshing Omie products (15min)...');
+        fetchExternalProducts();
+        checkApiHealth();
+      }, 15 * 60 * 1000);
+    }
+
+    return () => {
+      if (interval) clearInterval(interval);
+    };
   }, [currentPage]);
 
   return {
     externalProducts,
     isSyncingExternal,
     isTriggeringSync,
-    managedProducts,
-    isFetchingManaged,
     apiHealth,
     isCheckingHealth,
     triggerOmieSync,
     fetchExternalProducts,
-    fetchManagedProducts,
-    addToManager,
     checkApiHealth
   };
 };

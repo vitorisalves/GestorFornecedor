@@ -49,6 +49,7 @@ export const useSuppliers = (isAuthReady: boolean, isLoggedIn: boolean) => {
       }
     });
 
+    // Restore real-time categories
     const unsubCategories = onSnapshot(collection(db, 'categories'), (snapshot) => {
       if (!snapshot.empty) {
         const data = snapshot.docs.map(doc => doc.data().name as string);
@@ -58,11 +59,8 @@ export const useSuppliers = (isAuthReady: boolean, isLoggedIn: boolean) => {
     }, (error) => {
       const isQuota = error.message.toLowerCase().includes('quota');
       if (!isQuota) console.error("Categories listener error:", error);
-      // Fallback to local storage if error occurs
       const cached = localStorage.getItem('cache_categories');
-      if (cached) {
-        setCategories(JSON.parse(cached));
-      }
+      if (cached) setCategories(JSON.parse(cached));
     });
 
     return () => {

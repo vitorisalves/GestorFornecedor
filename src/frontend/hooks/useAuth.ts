@@ -5,7 +5,7 @@
 
 import { useState, useEffect } from 'react';
 import { auth, signInAnonymously, onAuthStateChanged, db } from '../firebase';
-import { collection, onSnapshot, doc, setDoc, updateDoc, deleteDoc } from 'firebase/firestore';
+import { collection, onSnapshot, doc, setDoc, updateDoc, deleteDoc, getDoc } from 'firebase/firestore';
 import { AuthorizedUser } from '../types';
 
 export const useAuth = () => {
@@ -18,13 +18,19 @@ export const useAuth = () => {
     return cached ? JSON.parse(cached) : [];
   });
   const [loginError, setLoginError] = useState('');
+  const [authError, setAuthError] = useState<string | null>(null);
 
   useEffect(() => {
     const unsubAuth = onAuthStateChanged(auth, (user) => {
       if (user) {
         setIsAuthReady(true);
       } else {
-        signInAnonymously(auth).catch(err => console.error("Auth error:", err));
+        signInAnonymously(auth).catch(err => {
+          console.error("Auth error:", err);
+          if (err.message.toLowerCase().includes('quota') || err.message.toLowerCase().includes('resource-exhausted')) {
+            setAuthError(err.message);
+          }
+        });
       }
     });
     return () => unsubAuth();
@@ -32,18 +38,59 @@ export const useAuth = () => {
 
   useEffect(() => {
     if (!isAuthReady) return;
-    const unsubAuthorized = onSnapshot(collection(db, 'authorized_users'), (snapshot) => {
-      const data = snapshot.docs.map(doc => doc.data() as AuthorizedUser);
-      setAuthorizedUsers(data);
-      localStorage.setItem('cache_authorizedUsers', JSON.stringify(data));
+    
+    const currentUid = auth.currentUser?.uid;
+    if (!currentUid) return;
+
+    let unsubAll: (() => void) | undefined;
+
+    // Function to handle the global list of users if user is admin
+    const checkAdminAndListen = async (userData: AuthorizedUser) => {
+      const adminCpf = '05839352144';
+      if (userData.role === 'admin' || userData.cpf === adminCpf) {
+         // Only admins listen to the full collection
+         unsubAll = onSnapshot(collection(db, 'authorized_users'), (snapshot) => {
+           const data = snapshot.docs.map(doc => doc.data() as AuthorizedUser);
+           setAuthorizedUsers(data);
+           localStorage.setItem('cache_authorizedUsers', JSON.stringify(data));
+         }, (error) => {
+           if (error.message.toLowerCase().includes('quota') || error.message.toLowerCase().includes('resource-exhausted')) {
+             setAuthError(error.message);
+           }
+         });
+      } else {
+        // Non-admins only know about themselves
+        setAuthorizedUsers([userData]);
+      }
+    };
+
+    // Listen only to the current user's document to save reads
+    const unsubUser = onSnapshot(doc(db, 'authorized_users', currentUid), (snapshot) => {
+      if (snapshot.exists()) {
+        const userData = snapshot.data() as AuthorizedUser;
+        
+        // If this is the first time or role changed, trigger the admin check
+        if (!unsubAll) {
+          checkAdminAndListen(userData);
+        }
+
+        if (userData.status === 'approved' && !isLoggedIn) {
+          setIsLoggedIn(true);
+          setLoggedCpf(userData.cpf);
+          setLoggedName(userData.name || '');
+        }
+      }
     }, (error) => {
-      const isQuota = error.message.toLowerCase().includes('quota');
-      if (!isQuota) console.error("Authorized users listener error:", error);
-      const cached = localStorage.getItem('cache_authorizedUsers');
-      if (cached) setAuthorizedUsers(JSON.parse(cached));
+      if (error.message.toLowerCase().includes('quota') || error.message.toLowerCase().includes('resource-exhausted')) {
+        setAuthError(error.message);
+      }
     });
-    return () => unsubAuthorized();
-  }, [isAuthReady]);
+
+    return () => {
+      unsubUser();
+      if (unsubAll) unsubAll();
+    };
+  }, [isAuthReady, isLoggedIn]);
 
   const handleLogin = async (loginCpf: string, loginName: string) => {
     const adminCpf = '05839352144';
@@ -172,6 +219,7 @@ export const useAuth = () => {
     handleLogout,
     updateUserStatus,
     removeUserRequest,
-    isAdmin
+    isAdmin,
+    authError
   };
 };
