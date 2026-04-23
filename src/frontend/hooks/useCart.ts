@@ -8,7 +8,12 @@ import { db } from '../firebase';
 import { collection, onSnapshot, addDoc, query, orderBy, deleteDoc, doc, updateDoc, limit } from 'firebase/firestore';
 import { Product, SavedList } from '../types';
 
-export const useCart = (isAuthReady: boolean, isLoggedIn: boolean, loggedName: string) => {
+export const useCart = (
+  isAuthReady: boolean, 
+  isLoggedIn: boolean, 
+  loggedName: string,
+  addAppNotification: (title: string, message: string) => void
+) => {
   const [cart, setCart] = useState<(Product & { supplierName: string; quantity: number })[]>(() => {
     const cached = localStorage.getItem('cache_cart');
     return cached ? JSON.parse(cached) : [];
@@ -143,10 +148,15 @@ export const useCart = (isAuthReady: boolean, isLoggedIn: boolean, loggedName: s
     }
 
     const newTotal = updatedItems.reduce((acc, item) => acc + (item.price * item.quantity), 0);
+    const newDate = new Date().toISOString();
+    
     await updateDoc(doc(db, 'shopping_lists', listId), { 
       items: updatedItems,
-      total: newTotal
+      total: newTotal,
+      date: newDate
     });
+
+    addAppNotification('Lista Atualizada', `O produto "${product.name}" foi adicionado à lista "${list.name}".`);
   };
 
   return {

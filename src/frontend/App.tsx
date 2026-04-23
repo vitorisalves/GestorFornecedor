@@ -98,7 +98,7 @@ export default function App() {
     toggleSavedListItemBought,
     deleteSavedList,
     addItemToList
-  } = useCart(isAuthReady, isLoggedIn, loggedName);
+  } = useCart(isAuthReady, isLoggedIn, loggedName, addAppNotification);
 
   const [activeTargetListId, setActiveTargetListId] = useState<string | null>(null);
   const [activeTargetListName, setActiveTargetListName] = useState<string | null>(null);
@@ -199,8 +199,12 @@ export default function App() {
         setEditingListId(null);
         setIsCartOpen(false);
         setCurrentPage('history');
-        addNotification('Lista finalizada!', 1);
-        addAppNotification('Nova Lista de Compras', `A lista "${newList.name}" foi criada com sucesso.`);
+        addNotification(editingListId ? 'Lista atualizada!' : 'Lista finalizada!', 1);
+        const title = editingListId ? 'Lista Atualizada' : 'Nova Lista de Compras';
+        const msg = editingListId 
+          ? `A lista "${newList.name}" foi atualizada com sucesso.`
+          : `A lista "${newList.name}" foi criada com sucesso.`;
+        addAppNotification(title, msg);
       }
     } finally {
       setIsFinalizing(false);

@@ -251,7 +251,13 @@ export const SuppliersView: React.FC<SuppliersViewProps> = ({
                 >
                   <div className="p-8 pt-0">
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                      {supplier.products.map((product, idx) => (
+                      {supplier.products
+                        .filter(p => !searchTerm || 
+                          p.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
+                          p.category.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                          supplier.name.toLowerCase().includes(searchTerm.toLowerCase())
+                        )
+                        .map((product, idx) => (
                         <div key={idx} className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm flex flex-col justify-between group hover:border-indigo-200 transition-all">
                           <div>
                             <div className="flex justify-between items-start mb-3">
