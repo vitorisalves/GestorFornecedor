@@ -1,6 +1,6 @@
 import { getApp, getApps, initializeApp } from 'firebase/app';
 import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged, signInAnonymously } from 'firebase/auth';
-import { initializeFirestore, doc, getDocFromServer, memoryLocalCache, getFirestore } from 'firebase/firestore';
+import { initializeFirestore, memoryLocalCache, getFirestore } from 'firebase/firestore';
 import firebaseConfig from '../../firebase-applet-config.json';
 
 // Global singleton for Firestore to prevent multiple initializations in HMR environments
@@ -9,9 +9,11 @@ let firestoreDb;
 if (getApps().length === 0) {
   const app = initializeApp(firebaseConfig);
   // Default initialization is more stable in current AI Studio environment.
-  // Standard streaming (WebSockets) should be tried first.
+  // Standard streaming (WebSockets) sometimes fails with "Unexpected state" in Firestore 11.2.0.
+  // Enabling experimentalForceLongPolling stabilizes the connection in proxy-heavy environments.
   firestoreDb = initializeFirestore(app, {
-    localCache: memoryLocalCache()
+    localCache: memoryLocalCache(),
+    experimentalForceLongPolling: true
   }, firebaseConfig.firestoreDatabaseId || '(default)');
 } else {
   const app = getApp();
