@@ -29,6 +29,10 @@ export const useCart = (
   }, [cart]);
 
   useEffect(() => {
+    localStorage.setItem('cache_savedLists', JSON.stringify(savedLists));
+  }, [savedLists]);
+
+  useEffect(() => {
     if (!isAuthReady || !isLoggedIn) return;
 
     const fetchLists = async () => {
@@ -44,13 +48,14 @@ export const useCart = (
           id: doc.id,
           ...doc.data()
         })) as SavedList[];
-        setSavedLists(lists);
-        localStorage.setItem('cache_savedLists', JSON.stringify(lists));
+        
+        setSavedLists(prev => {
+          const optimisticLists = prev.filter(l => l.id.startsWith('temp-'));
+          return [...optimisticLists, ...lists]; // Optimistic on top or sorted? Lists are desc by date.
+        });
       } catch (error: any) {
         const isQuota = error.message.toLowerCase().includes('quota') || error.message.toLowerCase().includes('resource-exhausted');
         if (!isQuota) console.error("Shopping lists fetch error:", error);
-        const cached = localStorage.getItem('cache_savedLists');
-        if (cached) setSavedLists(JSON.parse(cached));
       } finally {
         setIsLoadingLists(false);
       }
@@ -73,8 +78,11 @@ export const useCart = (
         id: doc.id,
         ...doc.data()
       })) as SavedList[];
-      setSavedLists(lists);
-      localStorage.setItem('cache_savedLists', JSON.stringify(lists));
+      
+      setSavedLists(prev => {
+        const optimisticLists = prev.filter(l => l.id.startsWith('temp-'));
+        return [...optimisticLists, ...lists];
+      });
     } finally {
       setIsLoadingLists(false);
     }

@@ -16,6 +16,10 @@ export const useReminders = (isAuthReady: boolean, addAppNotification: (title: s
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    localStorage.setItem('cache_reminders', JSON.stringify(reminders));
+  }, [reminders]);
+
+  useEffect(() => {
     if (!isAuthReady) return;
 
     const fetchReminders = async () => {
@@ -30,16 +34,19 @@ export const useReminders = (isAuthReady: boolean, addAppNotification: (title: s
           id: doc.id,
           ...doc.data()
         })) as Reminder[];
-        setReminders(data);
-        localStorage.setItem('cache_reminders', JSON.stringify(data));
+        
+        setReminders(prev => {
+          // Mantém itens locais que ainda não foram sincronizados (IDs começam com temp-)
+          const optimisticReminders = prev.filter(r => r.id.startsWith('temp-'));
+          const merged = [...data, ...optimisticReminders].sort((a,b) => a.date.localeCompare(b.date));
+          return merged;
+        });
         
         // Manual check for due dates since we're not using a listener
         checkForDueReminders(data);
       } catch (err: any) {
         const isQuota = err.message.toLowerCase().includes('quota') || err.message.toLowerCase().includes('resource-exhausted');
         if (!isQuota) console.error("Reminders fetch error:", err);
-        const cached = localStorage.getItem('cache_reminders');
-        if (cached) setReminders(JSON.parse(cached));
       }
     };
 
@@ -48,8 +55,9 @@ export const useReminders = (isAuthReady: boolean, addAppNotification: (title: s
     // Set a timer to check dues every minute
     const interval = setInterval(() => {
       setReminders(prev => {
-        checkForDueReminders(prev);
-        return prev;
+        const next = [...prev];
+        checkForDueReminders(next);
+        return next;
       });
     }, 60000);
 
@@ -91,32 +99,19 @@ export const useReminders = (isAuthReady: boolean, addAppNotification: (title: s
         id: doc.id,
         ...doc.data()
       })) as Reminder[];
-      setReminders(data);
-      localStorage.setItem('cache_reminders', JSON.stringify(data));
+      
+      setReminders(prev => {
+        const optimisticReminders = prev.filter(r => r.id.startsWith('temp-'));
+        const merged = [...data, ...optimisticReminders].sort((a,b) => a.date.localeCompare(b.date));
+        return merged;
+      });
+      
       checkForDueReminders(data);
     } catch (err: any) {
       const isQuota = err.message.toLowerCase().includes('quota') || err.message.toLowerCase().includes('resource-exhausted');
       if (!isQuota) console.error("Reminders fetch error:", err);
-      const cached = localStorage.getItem('cache_reminders');
-      if (cached) setReminders(JSON.parse(cached));
     }
   };
-
-  useEffect(() => {
-    if (!isAuthReady) return;
-    syncReminders();
-    
-    // Check dues every minute locally
-    const interval = setInterval(() => {
-      setReminders(prev => {
-        const next = [...prev];
-        checkForDueReminders(next);
-        return next;
-      });
-    }, 60000);
-
-    return () => clearInterval(interval);
-  }, [isAuthReady, addAppNotification]);
 
   const addReminder = async (productName: string, date: string) => {
     // Generate an optimistic local ID
