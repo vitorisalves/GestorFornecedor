@@ -14,17 +14,20 @@ import {
   Check, 
   ChevronDown, 
   ChevronUp,
-  PlusCircle
+  PlusCircle,
+  RefreshCcw,
+  FileText
 } from 'lucide-react';
 import { AnimatePresence } from 'framer-motion';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { SavedList } from '../types';
 import { formatCurrency, formatDate } from '../utils';
-import { FileText } from 'lucide-react';
 
 interface HistoryViewProps {
   savedLists: SavedList[];
+  isLoading?: boolean;
+  onRefresh?: () => void;
   editSavedList: (list: SavedList) => void;
   deleteSavedList: (id: string) => void;
   toggleSavedListItemBought: (listId: string, productName: string, supplierName: string) => void;
@@ -33,6 +36,8 @@ interface HistoryViewProps {
 
 export const HistoryView: React.FC<HistoryViewProps> = ({
   savedLists,
+  isLoading,
+  onRefresh,
   editSavedList,
   deleteSavedList,
   toggleSavedListItemBought,
@@ -97,9 +102,19 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
       transition={{ duration: 0.2, ease: "easeOut" }}
       className="space-y-8"
     >
-      <div>
-        <h1 className="text-4xl font-black text-slate-900 tracking-tight mb-2">Minhas Listas</h1>
-        <p className="text-slate-500 font-medium">Histórico de compras e listas salvas</p>
+      <div className="flex items-center justify-between gap-4">
+        <div>
+          <h1 className="text-4xl font-black text-slate-900 tracking-tight mb-2">Minhas Listas</h1>
+          <p className="text-slate-500 font-medium">Histórico de compras e listas salvas</p>
+        </div>
+        <button
+          onClick={onRefresh}
+          disabled={isLoading}
+          className={`p-4 rounded-3xl transition-all ${isLoading ? 'bg-indigo-100 text-indigo-400' : 'bg-indigo-50 text-indigo-600 hover:bg-indigo-100 active:scale-95 shadow-sm'}`}
+          title="Sincronizar listas"
+        >
+          <RefreshCcw className={`w-8 h-8 ${isLoading ? 'animate-spin' : ''}`} />
+        </button>
       </div>
 
       <div className="grid grid-cols-1 gap-6">

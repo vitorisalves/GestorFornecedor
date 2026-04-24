@@ -5,12 +5,14 @@
 
 import React from 'react';
 import { motion } from 'framer-motion';
-import { BellRing, Calendar, Plus, Clock, Trash2 } from 'lucide-react';
+import { BellRing, Calendar, Plus, Clock, Trash2, RefreshCcw } from 'lucide-react';
 import { Reminder } from '../types';
 import { formatDate } from '../utils';
 
 interface RemindersViewProps {
   reminders: Reminder[];
+  isLoading?: boolean;
+  onRefresh?: () => void;
   reminderProductName: string;
   setReminderProductName: (name: string) => void;
   reminderDate: string;
@@ -21,6 +23,8 @@ interface RemindersViewProps {
 
 export const RemindersView: React.FC<RemindersViewProps> = ({
   reminders,
+  isLoading,
+  onRefresh,
   reminderProductName,
   setReminderProductName,
   reminderDate,
@@ -45,6 +49,21 @@ export const RemindersView: React.FC<RemindersViewProps> = ({
       transition={{ duration: 0.2, ease: "easeOut" }}
       className="max-w-4xl mx-auto space-y-8"
     >
+      <div className="flex items-center justify-between px-4">
+        <div>
+          <h1 className="text-3xl font-black text-slate-900 tracking-tight uppercase">Lembretes</h1>
+          <p className="text-slate-500 font-medium text-sm italic">Sincronize para ver atualizações de outros usuários</p>
+        </div>
+        <button
+          onClick={onRefresh}
+          disabled={isLoading}
+          className={`p-3 rounded-2xl transition-all ${isLoading ? 'bg-indigo-100 text-indigo-400' : 'bg-indigo-50 text-indigo-600 hover:bg-indigo-100 active:scale-95'}`}
+          title="Sincronizar lembretes"
+        >
+          <RefreshCcw className={`w-6 h-6 ${isLoading ? 'animate-spin' : ''}`} />
+        </button>
+      </div>
+
       <div className="bg-white p-8 rounded-[2rem] border-2 border-slate-900 shadow-2xl shadow-slate-200/60">
         <div className="flex items-center gap-4 mb-8">
           <div className="w-12 h-12 bg-indigo-50 rounded-2xl flex items-center justify-center">

@@ -5,7 +5,7 @@
 
 import { useState, useEffect } from 'react';
 import { db } from '../firebase';
-import { collection, onSnapshot, addDoc, query, orderBy, deleteDoc, doc, updateDoc, limit } from 'firebase/firestore';
+import { collection, getDocs, addDoc, query, orderBy, deleteDoc, doc, updateDoc, limit } from 'firebase/firestore';
 import { Product, SavedList } from '../types';
 
 export const useCart = (
@@ -22,6 +22,7 @@ export const useCart = (
     const cached = localStorage.getItem('cache_savedLists');
     return cached ? JSON.parse(cached) : [];
   });
+  const [isLoadingLists, setIsLoadingLists] = useState(false);
 
   useEffect(() => {
     localStorage.setItem('cache_cart', JSON.stringify(cart));
@@ -30,30 +31,54 @@ export const useCart = (
   useEffect(() => {
     if (!isAuthReady || !isLoggedIn) return;
 
-    // Restoring real-time synchronization with onSnapshot
-    // limited to 20 items to balance performance and user experience.
-    const q = query(
-      collection(db, 'shopping_lists'), 
-      orderBy('date', 'desc'), 
-      limit(20)
-    );
+    const fetchLists = async () => {
+      setIsLoadingLists(true);
+      try {
+        const q = query(
+          collection(db, 'shopping_lists'), 
+          orderBy('date', 'desc'), 
+          limit(15) // Reduced limit from 20 to 15 to save reads
+        );
+        const snapshot = await getDocs(q);
+        const lists = snapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        })) as SavedList[];
+        setSavedLists(lists);
+        localStorage.setItem('cache_savedLists', JSON.stringify(lists));
+      } catch (error: any) {
+        const isQuota = error.message.toLowerCase().includes('quota') || error.message.toLowerCase().includes('resource-exhausted');
+        if (!isQuota) console.error("Shopping lists fetch error:", error);
+        const cached = localStorage.getItem('cache_savedLists');
+        if (cached) setSavedLists(JSON.parse(cached));
+      } finally {
+        setIsLoadingLists(false);
+      }
+    };
 
-    const unsub = onSnapshot(q, (snapshot) => {
+    fetchLists();
+  }, [isAuthReady, isLoggedIn]);
+
+  const refreshLists = async () => {
+    if (!isAuthReady || !isLoggedIn || isLoadingLists) return;
+    setIsLoadingLists(true);
+    try {
+      const q = query(
+        collection(db, 'shopping_lists'), 
+        orderBy('date', 'desc'), 
+        limit(15)
+      );
+      const snapshot = await getDocs(q);
       const lists = snapshot.docs.map(doc => ({
         id: doc.id,
         ...doc.data()
       })) as SavedList[];
       setSavedLists(lists);
       localStorage.setItem('cache_savedLists', JSON.stringify(lists));
-    }, (error) => {
-      const isQuota = error.message.toLowerCase().includes('quota') || error.message.toLowerCase().includes('resource-exhausted');
-      if (!isQuota) console.error("Shopping lists listener error:", error);
-      const cached = localStorage.getItem('cache_savedLists');
-      if (cached) setSavedLists(JSON.parse(cached));
-    });
-
-    return () => unsub();
-  }, [isAuthReady, isLoggedIn]);
+    } finally {
+      setIsLoadingLists(false);
+    }
+  };
 
   const addToCart = (product: Product, supplierName: string, quantity: number = 1) => {
     setCart(prev => {
@@ -99,12 +124,17 @@ export const useCart = (
 
     if (editingListId) {
       await updateDoc(doc(db, 'shopping_lists', editingListId), listData);
+      // Optimistic update
+      setSavedLists(prev => prev.map(l => l.id === editingListId ? { ...l, ...listData } : l));
       clearCart();
       return { id: editingListId, ...listData };
     } else {
       const docRef = await addDoc(collection(db, 'shopping_lists'), listData);
+      const newList = { id: docRef.id, ...listData };
+      // Optimistic update
+      setSavedLists(prev => [newList, ...prev]);
       clearCart();
-      return { id: docRef.id, ...listData };
+      return newList;
     }
   };
 
@@ -119,10 +149,20 @@ export const useCart = (
       return item;
     });
 
-    await updateDoc(doc(db, 'shopping_lists', listId), { items: updatedItems });
+    // Optimistic update
+    setSavedLists(prev => prev.map(l => l.id === listId ? { ...l, items: updatedItems } : l));
+    
+    try {
+      await updateDoc(doc(db, 'shopping_lists', listId), { items: updatedItems });
+    } catch (e) {
+      // Revert on error? Or just let it be since it's a shopping list toggle
+      console.error("Error toggling bought status:", e);
+    }
   };
 
   const deleteSavedList = async (id: string) => {
+    // Optimistic delete
+    setSavedLists(prev => prev.filter(l => l.id !== id));
     await deleteDoc(doc(db, 'shopping_lists', id));
   };
 
@@ -150,11 +190,16 @@ export const useCart = (
     const newTotal = updatedItems.reduce((acc, item) => acc + (item.price * item.quantity), 0);
     const newDate = new Date().toISOString();
     
-    await updateDoc(doc(db, 'shopping_lists', listId), { 
+    const updatedListData = { 
       items: updatedItems,
       total: newTotal,
       date: newDate
-    });
+    };
+
+    // Optimistic update
+    setSavedLists(prev => prev.map(l => l.id === listId ? { ...l, ...updatedListData } : l));
+
+    await updateDoc(doc(db, 'shopping_lists', listId), updatedListData);
 
     addAppNotification('Lista Atualizada', `O produto "${product.name}" foi adicionado à lista "${list.name}".`);
   };
@@ -163,6 +208,8 @@ export const useCart = (
     cart,
     setCart,
     savedLists,
+    isLoadingLists,
+    refreshLists,
     addToCart,
     updateCartQuantity,
     removeFromCart,

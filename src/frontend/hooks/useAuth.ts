@@ -5,7 +5,7 @@
 
 import { useState, useEffect } from 'react';
 import { auth, signInAnonymously, onAuthStateChanged, db } from '../firebase';
-import { collection, onSnapshot, doc, setDoc, updateDoc, deleteDoc, getDoc } from 'firebase/firestore';
+import { collection, onSnapshot, doc, setDoc, updateDoc, deleteDoc, getDoc, getDocs } from 'firebase/firestore';
 import { AuthorizedUser } from '../types';
 
 export const useAuth = () => {
@@ -45,19 +45,19 @@ export const useAuth = () => {
     let unsubAll: (() => void) | undefined;
 
     // Function to handle the global list of users if user is admin
-    const checkAdminAndListen = async (userData: AuthorizedUser) => {
+    const checkAdminAndFetch = async (userData: AuthorizedUser) => {
       const adminCpf = '05839352144';
       if (userData.role === 'admin' || userData.cpf === adminCpf) {
-         // Only admins listen to the full collection
-         unsubAll = onSnapshot(collection(db, 'authorized_users'), (snapshot) => {
+         try {
+           const snapshot = await getDocs(collection(db, 'authorized_users'));
            const data = snapshot.docs.map(doc => doc.data() as AuthorizedUser);
            setAuthorizedUsers(data);
            localStorage.setItem('cache_authorizedUsers', JSON.stringify(data));
-         }, (error) => {
+         } catch (error: any) {
            if (error.message.toLowerCase().includes('quota') || error.message.toLowerCase().includes('resource-exhausted')) {
              setAuthError(error.message);
            }
-         });
+         }
       } else {
         // Non-admins only know about themselves
         setAuthorizedUsers([userData]);
@@ -69,15 +69,14 @@ export const useAuth = () => {
       if (snapshot.exists()) {
         const userData = snapshot.data() as AuthorizedUser;
         
-        // If this is the first time or role changed, trigger the admin check
-        if (!unsubAll) {
-          checkAdminAndListen(userData);
-        }
+        // Fetch or update local user list
+        checkAdminAndFetch(userData);
 
         if (userData.status === 'approved' && !isLoggedIn) {
           setIsLoggedIn(true);
           setLoggedCpf(userData.cpf);
           setLoggedName(userData.name || '');
+          localStorage.setItem('cache_isLoggedIn', 'true');
         }
       }
     }, (error) => {
@@ -88,7 +87,6 @@ export const useAuth = () => {
 
     return () => {
       unsubUser();
-      if (unsubAll) unsubAll();
     };
   }, [isAuthReady, isLoggedIn]);
 

@@ -24,57 +24,72 @@ export const useSuppliers = (isAuthReady: boolean, isLoggedIn: boolean) => {
   useEffect(() => {
     if (!isAuthReady || !isLoggedIn) return;
 
-    setIsLoading(true);
-    const unsubSuppliers = onSnapshot(collection(db, 'suppliers'), (snapshot) => {
-      const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Supplier));
-      setSuppliers(data);
-      localStorage.setItem('cache_suppliers', JSON.stringify(data));
+    const fetchData = async () => {
+      setIsLoading(true);
+      setError(null);
       
-      // If the snapshot is from cache and not a live update, we might still be loading server data
-      // but we can hide the loader if we have data to show.
-      if (!snapshot.metadata.fromCache || data.length > 0) {
+      try {
+        // Use one-time fetch instead of onSnapshot to save continuous reads
+        const supplierSnapshot = await getDocs(collection(db, 'suppliers'));
+        const suppliersData = supplierSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Supplier));
+        setSuppliers(suppliersData);
+        localStorage.setItem('cache_suppliers', JSON.stringify(suppliersData));
+
+        const categorySnapshot = await getDocs(collection(db, 'categories'));
+        if (!categorySnapshot.empty) {
+          const categoriesData = categorySnapshot.docs.map(doc => doc.data().name as string);
+          setCategories(categoriesData);
+          localStorage.setItem('cache_categories', JSON.stringify(categoriesData));
+        }
+      } catch (err: any) {
+        const isQuota = err.message.toLowerCase().includes('quota') || err.message.toLowerCase().includes('resource-exhausted');
+        if (!isQuota) console.error("Data fetch error:", err);
+        setError(err.message);
+        
+        // Fallback to cache on error
+        const cachedSuppliers = localStorage.getItem('cache_suppliers');
+        if (cachedSuppliers) setSuppliers(JSON.parse(cachedSuppliers));
+        
+        const cachedCategories = localStorage.getItem('cache_categories');
+        if (cachedCategories) setCategories(JSON.parse(cachedCategories));
+      } finally {
         setIsLoading(false);
       }
-      setError(null);
-    }, (error) => {
-      const isQuota = error.message.toLowerCase().includes('quota');
-      if (!isQuota) console.error("Suppliers listener error:", error);
-      setError(error.message);
-      setIsLoading(false);
-      
-      // Fallback to local storage if error occurs (like quota exceeded)
-      const cached = localStorage.getItem('cache_suppliers');
-      if (cached) {
-        setSuppliers(JSON.parse(cached));
-      }
-    });
-
-    // Restore real-time categories
-    const unsubCategories = onSnapshot(collection(db, 'categories'), (snapshot) => {
-      if (!snapshot.empty) {
-        const data = snapshot.docs.map(doc => doc.data().name as string);
-        setCategories(data);
-        localStorage.setItem('cache_categories', JSON.stringify(data));
-      }
-    }, (error) => {
-      const isQuota = error.message.toLowerCase().includes('quota');
-      if (!isQuota) console.error("Categories listener error:", error);
-      const cached = localStorage.getItem('cache_categories');
-      if (cached) setCategories(JSON.parse(cached));
-    });
-
-    return () => {
-      unsubSuppliers();
-      unsubCategories();
     };
+
+    fetchData();
   }, [isAuthReady, isLoggedIn]);
+
+  const refreshData = async () => {
+    if (!isAuthReady || !isLoggedIn) return;
+    setIsLoading(true);
+    try {
+      const supplierSnapshot = await getDocs(collection(db, 'suppliers'));
+      const suppliersData = supplierSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Supplier));
+      setSuppliers(suppliersData);
+      localStorage.setItem('cache_suppliers', JSON.stringify(suppliersData));
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const saveSupplier = async (supplier: Supplier) => {
     await setDoc(doc(db, 'suppliers', supplier.id), supplier);
+    // Optimistic update
+    setSuppliers(prev => {
+      const index = prev.findIndex(s => s.id === supplier.id);
+      if (index !== -1) {
+        const next = [...prev];
+        next[index] = supplier;
+        return next;
+      }
+      return [...prev, supplier];
+    });
   };
 
   const deleteSupplier = async (id: string) => {
     await deleteDoc(doc(db, 'suppliers', id));
+    setSuppliers(prev => prev.filter(s => s.id !== id));
   };
 
   const deleteAllSuppliers = async () => {
@@ -105,6 +120,7 @@ export const useSuppliers = (isAuthReady: boolean, isLoggedIn: boolean) => {
     suppliers,
     categories,
     isLoading,
+    refreshData,
     saveSupplier,
     deleteSupplier,
     deleteAllSuppliers,

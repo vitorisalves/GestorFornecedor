@@ -26,6 +26,7 @@ interface SuppliersViewProps {
   suppliers: Supplier[];
   allSuppliers: Supplier[];
   isLoading?: boolean;
+  onRefresh?: () => void;
   searchTerm: string;
   setSearchTerm: (term: string) => void;
   setIsAdding: (adding: boolean) => void;
@@ -42,6 +43,7 @@ export const SuppliersView: React.FC<SuppliersViewProps> = ({
   suppliers,
   allSuppliers,
   isLoading,
+  onRefresh,
   searchTerm,
   setSearchTerm,
   setIsAdding,
@@ -118,16 +120,14 @@ export const SuppliersView: React.FC<SuppliersViewProps> = ({
             <h1 className="text-2xl md:text-4xl font-black text-slate-900 tracking-tight mb-1 md:mb-2 text-balance">Gestão de Compras</h1>
             <p className="text-sm md:text-base text-slate-500 font-medium">Controle de fornecedores e itens por canal</p>
           </div>
-          {isLoading && (
-            <motion.div
-              animate={{ rotate: 360 }}
-              transition={{ repeat: Infinity, duration: 1.5, ease: "linear" }}
-              className="p-3 bg-indigo-50 text-indigo-600 rounded-2xl"
-              title="Sincronizando com a nuvem..."
-            >
-              <RefreshCcw className="w-6 h-6" />
-            </motion.div>
-          )}
+          <button
+            onClick={onRefresh}
+            disabled={isLoading}
+            className={`p-3 rounded-2xl transition-all ${isLoading ? 'bg-indigo-100 text-indigo-400' : 'bg-indigo-50 text-indigo-600 hover:bg-indigo-100 active:scale-95'}`}
+            title="Sincronizar com a nuvem"
+          >
+            <RefreshCcw className={`w-6 h-6 ${isLoading ? 'animate-spin' : ''}`} />
+          </button>
         </div>
       </div>
 

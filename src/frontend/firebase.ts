@@ -1,6 +1,6 @@
 import { getApp, getApps, initializeApp } from 'firebase/app';
 import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged, signInAnonymously } from 'firebase/auth';
-import { initializeFirestore, memoryLocalCache, getFirestore } from 'firebase/firestore';
+import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager, getFirestore } from 'firebase/firestore';
 import firebaseConfig from '../../firebase-applet-config.json';
 
 // Global singleton for Firestore to prevent multiple initializations in HMR environments
@@ -11,8 +11,9 @@ if (getApps().length === 0) {
   // Default initialization is more stable in current AI Studio environment.
   // Standard streaming (WebSockets) sometimes fails with "Unexpected state" in Firestore 11.2.0.
   // Enabling experimentalForceLongPolling stabilizes the connection in proxy-heavy environments.
+  // Using persistentLocalCache to reduce read units on page reloads.
   firestoreDb = initializeFirestore(app, {
-    localCache: memoryLocalCache(),
+    localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() }),
     experimentalForceLongPolling: true
   }, firebaseConfig.firestoreDatabaseId || '(default)');
 } else {

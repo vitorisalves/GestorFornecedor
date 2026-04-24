@@ -62,6 +62,7 @@ export default function App() {
     suppliers,
     categories,
     isLoading: isSuppliersLoading,
+    refreshData: refreshSuppliers,
     saveSupplier,
     deleteSupplier,
     deleteAllSuppliers,
@@ -72,6 +73,7 @@ export default function App() {
 
   const {
     reminders,
+    refreshReminders,
     addReminder,
     deleteReminder,
     error: remindersError
@@ -88,6 +90,8 @@ export default function App() {
     cart,
     setCart,
     savedLists,
+    isLoadingLists,
+    refreshLists,
     addToCart,
     updateCartQuantity,
     removeFromCart,
@@ -480,6 +484,7 @@ export default function App() {
               suppliers={mainSuppliers}
               allSuppliers={suppliers}
               isLoading={isSuppliersLoading}
+              onRefresh={refreshSuppliers}
               searchTerm={searchTerm}
               setSearchTerm={setSearchTerm}
               setIsAdding={setIsAdding}
@@ -507,6 +512,8 @@ export default function App() {
             <HistoryView 
               key="history"
               savedLists={savedLists}
+              isLoading={isLoadingLists}
+              onRefresh={refreshLists}
               editSavedList={onEditSavedList}
               deleteSavedList={setListToDelete}
               toggleSavedListItemBought={toggleSavedListItemBought}
@@ -536,6 +543,7 @@ export default function App() {
             <RemindersView 
               key="reminders"
               reminders={reminders}
+              onRefresh={refreshReminders}
               reminderProductName={reminderProductName}
               setReminderProductName={setReminderProductName}
               reminderDate={reminderDate}
