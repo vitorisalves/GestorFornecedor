@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { UINotification, AppNotification } from '../types';
 
 export const useNotifications = () => {
@@ -41,15 +41,15 @@ export const useNotifications = () => {
     }
   };
 
-  const addNotification = (name: string, quantity: number, type: 'cart' | 'info' = 'info') => {
+  const addNotification = useCallback((name: string, quantity: number, type: 'cart' | 'info' = 'info') => {
     const id = Math.random().toString(36).substr(2, 9);
     setNotifications(prev => [...prev, { id, name, quantity, type }]);
     setTimeout(() => {
       setNotifications(prev => prev.filter(n => n.id !== id));
     }, 3000);
-  };
+  }, []);
 
-  const addAppNotification = (title: string, message: string) => {
+  const addAppNotification = useCallback((title: string, message: string) => {
     const id = Math.random().toString(36).substr(2, 9);
     const newNotif: AppNotification = {
       id,
@@ -72,7 +72,7 @@ export const useNotifications = () => {
     }
 
     setAppNotifications(prev => [newNotif, ...prev]);
-  };
+  }, []);
 
   const markAllAsRead = () => {
     setAppNotifications(prev => prev.map(n => ({ ...n, read: true })));

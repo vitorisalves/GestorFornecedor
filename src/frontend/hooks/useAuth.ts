@@ -69,8 +69,21 @@ export const useAuth = () => {
       if (snapshot.exists()) {
         const userData = snapshot.data() as AuthorizedUser;
         
-        // Fetch or update local user list
-        checkAdminAndFetch(userData);
+        // Fetch list if admin, otherwise just set self
+        const adminCpf = '05839352144';
+        if (userData.role === 'admin' || userData.cpf === adminCpf) {
+          checkAdminAndFetch(userData);
+        } else {
+          setAuthorizedUsers(prev => {
+            if (prev.length === 1 && prev[0].uid === userData.uid && 
+                prev[0].status === userData.status && 
+                prev[0].role === userData.role && 
+                prev[0].name === userData.name) {
+              return prev;
+            }
+            return [userData];
+          });
+        }
 
         if (userData.status === 'approved' && !isLoggedIn) {
           setIsLoggedIn(true);
