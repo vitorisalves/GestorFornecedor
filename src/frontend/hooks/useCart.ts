@@ -32,40 +32,17 @@ export const useCart = (
     localStorage.setItem('cache_savedLists', JSON.stringify(savedLists));
   }, [savedLists]);
 
-  useEffect(() => {
-    if (!isAuthReady || !isLoggedIn) return;
+  const fetchLists = async (force = false) => {
+    const CACHE_KEY = 'last_fetch_lists';
+    const CACHE_TIMEOUT = 5 * 60 * 1000; // 5 minutos
+    const lastFetch = localStorage.getItem(CACHE_KEY);
+    
+    if (!force && lastFetch && (Date.now() - parseInt(lastFetch)) < CACHE_TIMEOUT) {
+      const cached = localStorage.getItem('cache_savedLists');
+      if (cached) setSavedLists(JSON.parse(cached));
+      return;
+    }
 
-    const fetchLists = async () => {
-      setIsLoadingLists(true);
-      try {
-        const q = query(
-          collection(db, 'shopping_lists'), 
-          orderBy('date', 'desc'), 
-          limit(15) // Reduced limit from 20 to 15 to save reads
-        );
-        const snapshot = await getDocs(q);
-        const lists = snapshot.docs.map(doc => ({
-          id: doc.id,
-          ...doc.data()
-        })) as SavedList[];
-        
-        setSavedLists(prev => {
-          const optimisticLists = prev.filter(l => l.id.startsWith('temp-'));
-          return [...optimisticLists, ...lists]; // Optimistic on top or sorted? Lists are desc by date.
-        });
-      } catch (error: any) {
-        const isQuota = error.message.toLowerCase().includes('quota') || error.message.toLowerCase().includes('resource-exhausted');
-        if (!isQuota) console.error("Shopping lists fetch error:", error);
-      } finally {
-        setIsLoadingLists(false);
-      }
-    };
-
-    fetchLists();
-  }, [isAuthReady, isLoggedIn]);
-
-  const refreshLists = async () => {
-    if (!isAuthReady || !isLoggedIn || isLoadingLists) return;
     setIsLoadingLists(true);
     try {
       const q = query(
@@ -83,9 +60,24 @@ export const useCart = (
         const optimisticLists = prev.filter(l => l.id.startsWith('temp-'));
         return [...optimisticLists, ...lists];
       });
+      
+      localStorage.setItem(CACHE_KEY, Date.now().toString());
+    } catch (error: any) {
+      const isQuota = error.message.toLowerCase().includes('quota') || error.message.toLowerCase().includes('resource-exhausted');
+      if (!isQuota) console.error("Shopping lists fetch error:", error);
     } finally {
       setIsLoadingLists(false);
     }
+  };
+
+  useEffect(() => {
+    if (!isAuthReady || !isLoggedIn) return;
+    fetchLists();
+  }, [isAuthReady, isLoggedIn]);
+
+  const refreshLists = async () => {
+    if (!isAuthReady || !isLoggedIn || isLoadingLists) return;
+    await fetchLists(true);
   };
 
   const addToCart = (product: Product, supplierName: string, quantity: number = 1) => {

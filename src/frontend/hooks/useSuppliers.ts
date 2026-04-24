@@ -21,56 +21,52 @@ export const useSuppliers = (isAuthReady: boolean, isLoggedIn: boolean) => {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (!isAuthReady || !isLoggedIn) return;
+  const fetchData = async (force = false) => {
+    const CACHE_KEY = 'last_fetch_suppliers';
+    const CACHE_TIMEOUT = 10 * 60 * 1000; // 10 minutos
+    const lastFetch = localStorage.getItem(CACHE_KEY);
 
-    const fetchData = async () => {
-      setIsLoading(true);
-      setError(null);
-      
-      try {
-        // Use one-time fetch instead of onSnapshot to save continuous reads
-        const supplierSnapshot = await getDocs(collection(db, 'suppliers'));
-        const suppliersData = supplierSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Supplier));
-        setSuppliers(suppliersData);
-        localStorage.setItem('cache_suppliers', JSON.stringify(suppliersData));
+    if (!force && lastFetch && (Date.now() - parseInt(lastFetch)) < CACHE_TIMEOUT) {
+      const cachedS = localStorage.getItem('cache_suppliers');
+      if (cachedS) setSuppliers(JSON.parse(cachedS));
+      const cachedC = localStorage.getItem('cache_categories');
+      if (cachedC) setCategories(JSON.parse(cachedC));
+      return;
+    }
 
-        const categorySnapshot = await getDocs(collection(db, 'categories'));
-        if (!categorySnapshot.empty) {
-          const categoriesData = categorySnapshot.docs.map(doc => doc.data().name as string);
-          setCategories(categoriesData);
-          localStorage.setItem('cache_categories', JSON.stringify(categoriesData));
-        }
-      } catch (err: any) {
-        const isQuota = err.message.toLowerCase().includes('quota') || err.message.toLowerCase().includes('resource-exhausted');
-        if (!isQuota) console.error("Data fetch error:", err);
-        setError(err.message);
-        
-        // Fallback to cache on error
-        const cachedSuppliers = localStorage.getItem('cache_suppliers');
-        if (cachedSuppliers) setSuppliers(JSON.parse(cachedSuppliers));
-        
-        const cachedCategories = localStorage.getItem('cache_categories');
-        if (cachedCategories) setCategories(JSON.parse(cachedCategories));
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    fetchData();
-  }, [isAuthReady, isLoggedIn]);
-
-  const refreshData = async () => {
-    if (!isAuthReady || !isLoggedIn) return;
     setIsLoading(true);
+    setError(null);
+    
     try {
       const supplierSnapshot = await getDocs(collection(db, 'suppliers'));
       const suppliersData = supplierSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Supplier));
       setSuppliers(suppliersData);
       localStorage.setItem('cache_suppliers', JSON.stringify(suppliersData));
+
+      const categorySnapshot = await getDocs(collection(db, 'categories'));
+      if (!categorySnapshot.empty) {
+        const categoriesData = categorySnapshot.docs.map(doc => doc.data().name as string);
+        setCategories(categoriesData);
+        localStorage.setItem('cache_categories', JSON.stringify(categoriesData));
+      }
+      localStorage.setItem(CACHE_KEY, Date.now().toString());
+    } catch (err: any) {
+      const isQuota = err.message.toLowerCase().includes('quota') || err.message.toLowerCase().includes('resource-exhausted');
+      if (!isQuota) console.error("Data fetch error:", err);
+      setError(err.message);
     } finally {
       setIsLoading(false);
     }
+  };
+
+  useEffect(() => {
+    if (!isAuthReady || !isLoggedIn) return;
+    fetchData();
+  }, [isAuthReady, isLoggedIn]);
+
+  const refreshData = async () => {
+    if (!isAuthReady || !isLoggedIn) return;
+    await fetchData(true);
   };
 
   const saveSupplier = async (supplier: Supplier) => {
