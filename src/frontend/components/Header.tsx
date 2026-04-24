@@ -4,7 +4,7 @@
  */
 
 import React from 'react';
-import { ShoppingCart, Menu } from 'lucide-react';
+import { ShoppingCart, Menu, CloudOff, RefreshCw } from 'lucide-react';
 import { NotificationCenter } from './NotificationCenter';
 import { UINotification, AppNotification, CartItem } from '../types';
 
@@ -19,6 +19,7 @@ interface HeaderProps {
   setIsCartOpen: (open: boolean) => void;
   onMenuToggle?: () => void;
   requestPermission?: () => void;
+  isOffline?: boolean;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -31,7 +32,8 @@ export const Header: React.FC<HeaderProps> = ({
   cart,
   setIsCartOpen,
   onMenuToggle,
-  requestPermission
+  requestPermission,
+  isOffline
 }) => {
   const cartItemsCount = cart.reduce((acc, item) => acc + item.quantity, 0);
 
@@ -45,6 +47,17 @@ export const Header: React.FC<HeaderProps> = ({
       </button>
 
       <div className="flex items-center gap-3 md:gap-4 ml-auto">
+        {/* Indicador de Status de Sincronização */}
+        {isOffline && (
+          <div 
+            className="flex items-center gap-2 px-4 py-2 bg-amber-50 border-2 border-amber-100 text-amber-700 rounded-2xl shadow-sm animate-pulse cursor-help"
+            title="Limite de leitura atingido. O app está carregando dados locais. O sincronismo voltará ao normal em breve."
+          >
+            <CloudOff className="w-5 h-5" />
+            <span className="text-xs font-bold hidden sm:inline">MODO LOCAL (LIMITE ATINGIDO)</span>
+          </div>
+        )}
+
         {/* Botão do Carrinho */}
         <button
           onClick={() => setIsCartOpen(true)}

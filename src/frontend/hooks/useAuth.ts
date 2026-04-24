@@ -218,6 +218,7 @@ export const useAuth = () => {
     updateUserStatus,
     removeUserRequest,
     isAdmin,
-    authError
+    authError,
+    setAuthError
   };
 };

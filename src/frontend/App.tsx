@@ -405,6 +405,7 @@ export default function App() {
             cart={cart}
             setIsCartOpen={setIsCartOpen}
             onMenuToggle={() => setIsSidebarOpen(true)}
+            isOffline={isQuotaExceeded}
           />
 
         {suppliersError && (

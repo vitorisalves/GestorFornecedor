@@ -74,46 +74,102 @@ export const useSuppliers = (isAuthReady: boolean, isLoggedIn: boolean) => {
   };
 
   const saveSupplier = async (supplier: Supplier) => {
-    await setDoc(doc(db, 'suppliers', supplier.id), supplier);
     // Optimistic update
     setSuppliers(prev => {
       const index = prev.findIndex(s => s.id === supplier.id);
+      const next = [...prev];
       if (index !== -1) {
-        const next = [...prev];
         next[index] = supplier;
-        return next;
+      } else {
+        next.push(supplier);
       }
-      return [...prev, supplier];
+      localStorage.setItem('cache_suppliers', JSON.stringify(next));
+      return next;
     });
+
+    try {
+      await setDoc(doc(db, 'suppliers', supplier.id), supplier);
+    } catch (err: any) {
+      console.warn("Cloud sync failed (could be quota):", err.message);
+      // We keep the local state so the user can continue working
+    }
   };
 
   const deleteSupplier = async (id: string) => {
-    await deleteDoc(doc(db, 'suppliers', id));
-    setSuppliers(prev => prev.filter(s => s.id !== id));
+    // Optimistic update
+    setSuppliers(prev => {
+      const next = prev.filter(s => s.id !== id);
+      localStorage.setItem('cache_suppliers', JSON.stringify(next));
+      return next;
+    });
+
+    try {
+      await deleteDoc(doc(db, 'suppliers', id));
+    } catch (err: any) {
+      console.warn("Cloud delete failed:", err.message);
+    }
   };
 
   const deleteAllSuppliers = async () => {
-    const q = collection(db, 'suppliers');
-    const snapshot = await getDocs(q);
-    const deletePromises = snapshot.docs
-      .filter(d => {
-        const name = (d.data().name as string || '').trim().toUpperCase();
-        return name !== 'MERCADO' && name !== 'MATERIAIS';
-      })
-      .map(d => deleteDoc(d.ref));
-    await Promise.all(deletePromises);
+    // Target filtered list for optimistic update matching the backend logic
+    setSuppliers(prev => {
+      const next = prev.filter(s => {
+        const name = (s.name || '').trim().toUpperCase();
+        return name === 'MERCADO' || name === 'MATERIAIS';
+      });
+      localStorage.setItem('cache_suppliers', JSON.stringify(next));
+      return next;
+    });
+
+    try {
+      const q = collection(db, 'suppliers');
+      const snapshot = await getDocs(q);
+      const deletePromises = snapshot.docs
+        .filter(d => {
+          const name = (d.data().name as string || '').trim().toUpperCase();
+          return name !== 'MERCADO' && name !== 'MATERIAIS';
+        })
+        .map(d => deleteDoc(d.ref));
+      await Promise.all(deletePromises);
+    } catch (err: any) {
+      console.warn("Cloud batch delete failed:", err.message);
+    }
   };
 
   const addCategory = async (name: string) => {
-    const id = generateId();
-    await setDoc(doc(db, 'categories', id), { name });
+    if (categories.includes(name)) return;
+    
+    // Optimistic update
+    setCategories(prev => {
+      const next = [...prev, name];
+      localStorage.setItem('cache_categories', JSON.stringify(next));
+      return next;
+    });
+
+    try {
+      const id = generateId();
+      await setDoc(doc(db, 'categories', id), { name });
+    } catch (err: any) {
+      console.warn("Cloud category add failed:", err.message);
+    }
   };
 
   const deleteCategory = async (name: string) => {
-    const q = query(collection(db, 'categories'), where('name', '==', name));
-    const snapshot = await getDocs(q);
-    const deletePromises = snapshot.docs.map(d => deleteDoc(d.ref));
-    await Promise.all(deletePromises);
+    // Optimistic update
+    setCategories(prev => {
+      const next = prev.filter(c => c !== name);
+      localStorage.setItem('cache_categories', JSON.stringify(next));
+      return next;
+    });
+
+    try {
+      const q = query(collection(db, 'categories'), where('name', '==', name));
+      const snapshot = await getDocs(q);
+      const deletePromises = snapshot.docs.map(d => deleteDoc(d.ref));
+      await Promise.all(deletePromises);
+    } catch (err: any) {
+       console.warn("Cloud category delete failed:", err.message);
+    }
   };
 
   return {

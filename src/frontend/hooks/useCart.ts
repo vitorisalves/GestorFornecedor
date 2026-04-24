@@ -123,18 +123,32 @@ export const useCart = (
     };
 
     if (editingListId) {
-      await updateDoc(doc(db, 'shopping_lists', editingListId), listData);
       // Optimistic update
-      setSavedLists(prev => prev.map(l => l.id === editingListId ? { ...l, ...listData } : l));
+      setSavedLists(prev => prev.map(l => l.id === editingListId ? { id: editingListId, ...l, ...listData } : l));
       clearCart();
+      
+      try {
+        await updateDoc(doc(db, 'shopping_lists', editingListId), listData);
+      } catch (err: any) {
+        console.warn("Could not sync list update:", err.message);
+      }
       return { id: editingListId, ...listData };
     } else {
-      const docRef = await addDoc(collection(db, 'shopping_lists'), listData);
-      const newList = { id: docRef.id, ...listData };
-      // Optimistic update
+      // Optimistic local ID
+      const tempId = 'temp-' + Date.now();
+      const newList = { id: tempId, ...listData };
       setSavedLists(prev => [newList, ...prev]);
       clearCart();
-      return newList;
+
+      try {
+        const docRef = await addDoc(collection(db, 'shopping_lists'), listData);
+        // Replace temp ID with real ID
+        setSavedLists(prev => prev.map(l => l.id === tempId ? { ...l, id: docRef.id } : l));
+        return { id: docRef.id, ...listData };
+      } catch (err: any) {
+        console.warn("Could not sync new list:", err.message);
+        return newList;
+      }
     }
   };
 
@@ -153,9 +167,10 @@ export const useCart = (
     setSavedLists(prev => prev.map(l => l.id === listId ? { ...l, items: updatedItems } : l));
     
     try {
-      await updateDoc(doc(db, 'shopping_lists', listId), { items: updatedItems });
+      if (!listId.startsWith('temp-')) {
+        await updateDoc(doc(db, 'shopping_lists', listId), { items: updatedItems });
+      }
     } catch (e) {
-      // Revert on error? Or just let it be since it's a shopping list toggle
       console.error("Error toggling bought status:", e);
     }
   };
@@ -163,7 +178,14 @@ export const useCart = (
   const deleteSavedList = async (id: string) => {
     // Optimistic delete
     setSavedLists(prev => prev.filter(l => l.id !== id));
-    await deleteDoc(doc(db, 'shopping_lists', id));
+    
+    try {
+      if (!id.startsWith('temp-')) {
+        await deleteDoc(doc(db, 'shopping_lists', id));
+      }
+    } catch (err: any) {
+      console.warn("Cloud delete failed:", err.message);
+    }
   };
 
   const addItemToList = async (listId: string, product: Product, supplierName: string, quantity: number) => {
@@ -199,7 +221,13 @@ export const useCart = (
     // Optimistic update
     setSavedLists(prev => prev.map(l => l.id === listId ? { ...l, ...updatedListData } : l));
 
-    await updateDoc(doc(db, 'shopping_lists', listId), updatedListData);
+    try {
+      if (!listId.startsWith('temp-')) {
+        await updateDoc(doc(db, 'shopping_lists', listId), updatedListData);
+      }
+    } catch (err: any) {
+      console.warn("Cloud update failed:", err.message);
+    }
 
     addAppNotification('Lista Atualizada', `O produto "${product.name}" foi adicionado à lista "${list.name}".`);
   };
