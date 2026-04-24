@@ -6,7 +6,9 @@ import {
   persistentMultipleTabManager, 
   getFirestore,
   disableNetwork,
-  enableNetwork
+  enableNetwork,
+  terminate,
+  clearIndexedDbPersistence
 } from 'firebase/firestore';
 import firebaseConfig from '../../firebase-applet-config.json';
 
@@ -29,7 +31,7 @@ if (getApps().length === 0) {
 }
 
 export const db = firestoreDb;
-export { disableNetwork, enableNetwork };
+export { disableNetwork, enableNetwork, terminate, clearIndexedDbPersistence };
 export const auth = getAuth(getApp());
 
 export const googleProvider = new GoogleAuthProvider();

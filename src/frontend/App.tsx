@@ -86,6 +86,27 @@ export default function App() {
                          remindersError?.toLowerCase().includes('quota') ||
                          remindersError?.toLowerCase().includes('resource-exhausted');
 
+  useEffect(() => {
+    if (isQuotaExceeded) {
+      import('./firebase').then(({ db, disableNetwork }) => {
+        disableNetwork(db).catch(console.error);
+      });
+    }
+  }, [isQuotaExceeded]);
+
+  const handleReconnect = async () => {
+    const { db, enableNetwork } = await import('./firebase');
+    try {
+      await enableNetwork(db);
+      refreshSuppliers();
+      refreshLists();
+      refreshReminders();
+      addNotification("Reconectando...", 1, 'info');
+    } catch (e) {
+      console.error("Reconnection failed:", e);
+    }
+  };
+
   const {
     cart,
     setCart,
@@ -406,6 +427,7 @@ export default function App() {
             setIsCartOpen={setIsCartOpen}
             onMenuToggle={() => setIsSidebarOpen(true)}
             isOffline={isQuotaExceeded}
+            onReconnect={handleReconnect}
           />
 
         {suppliersError && (
@@ -445,10 +467,18 @@ export default function App() {
                   href="https://firebase.google.com/pricing#cloud-firestore" 
                   target="_blank" 
                   rel="noopener noreferrer"
-                  className="text-[10px] font-black text-slate-900 uppercase tracking-widest hover:text-indigo-600 transition-colors"
+                  className="text-[10px] font-black text-slate-400 uppercase tracking-widest hover:text-indigo-600 transition-colors mr-6"
                 >
-                  Ver Detalhes da Cota →
+                  Documentação de Cota →
                 </a>
+
+                <button 
+                  onClick={handleReconnect}
+                  className="text-[10px] font-black text-white bg-indigo-600 px-4 py-2 rounded-xl uppercase tracking-tighter hover:bg-indigo-700 transition-all flex items-center gap-2"
+                >
+                  <RefreshCcw className="w-3 h-3" />
+                  Tentar Reconectar Agora
+                </button>
               </div>
             </div>
           </motion.div>

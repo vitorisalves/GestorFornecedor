@@ -20,6 +20,7 @@ interface HeaderProps {
   onMenuToggle?: () => void;
   requestPermission?: () => void;
   isOffline?: boolean;
+  onReconnect?: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -33,7 +34,8 @@ export const Header: React.FC<HeaderProps> = ({
   setIsCartOpen,
   onMenuToggle,
   requestPermission,
-  isOffline
+  isOffline,
+  onReconnect
 }) => {
   const cartItemsCount = cart.reduce((acc, item) => acc + item.quantity, 0);
 
@@ -49,13 +51,14 @@ export const Header: React.FC<HeaderProps> = ({
       <div className="flex items-center gap-3 md:gap-4 ml-auto">
         {/* Indicador de Status de Sincronização */}
         {isOffline && (
-          <div 
-            className="flex items-center gap-2 px-4 py-2 bg-amber-50 border-2 border-amber-100 text-amber-700 rounded-2xl shadow-sm animate-pulse cursor-help"
-            title="Limite de leitura atingido. O app está carregando dados locais. O sincronismo voltará ao normal em breve."
+          <button 
+            onClick={onReconnect}
+            className="flex items-center gap-2 px-4 py-2 bg-amber-50 border-2 border-amber-100 text-amber-700 rounded-2xl shadow-sm animate-pulse cursor-pointer hover:bg-amber-100 transition-colors"
+            title="Sincronização interrompida (Limite atingido). Clique para tentar reconectar."
           >
             <CloudOff className="w-5 h-5" />
-            <span className="text-xs font-bold hidden sm:inline">MODO LOCAL (LIMITE ATINGIDO)</span>
-          </div>
+            <span className="text-xs font-bold hidden sm:inline">LIMITE ATINGIDO (RECONECTAR)</span>
+          </button>
         )}
 
         {/* Botão do Carrinho */}
