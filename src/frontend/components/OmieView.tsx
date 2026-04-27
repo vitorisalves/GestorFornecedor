@@ -29,6 +29,8 @@ interface OmieViewProps {
   isTriggeringSync: boolean;
   apiHealth: { status: string; env_set: boolean; external_api?: string } | null;
   isCheckingHealth: boolean;
+  isWakingUp: boolean;
+  wakeUpMessage: string;
   checkApiHealth: () => void;
   triggerOmieSync: () => void;
   fetchExternalProducts: () => void;
@@ -46,6 +48,8 @@ export const OmieView: React.FC<OmieViewProps> = ({
   isTriggeringSync,
   apiHealth,
   isCheckingHealth,
+  isWakingUp,
+  wakeUpMessage,
   checkApiHealth,
   triggerOmieSync,
   fetchExternalProducts,
@@ -149,10 +153,10 @@ export const OmieView: React.FC<OmieViewProps> = ({
           <p className="text-slate-500 font-medium mb-4">Integração direta com o catálogo Omie</p>
           
           <div className="flex items-center gap-2">
-            {isCheckingHealth ? (
-              <div className="flex items-center gap-2 px-3 py-1 bg-slate-100 rounded-full text-xs font-bold text-slate-500 animate-pulse">
+            {isCheckingHealth || isWakingUp ? (
+              <div className="flex items-center gap-2 px-3 py-1 bg-indigo-50 rounded-full text-xs font-bold text-indigo-600 animate-pulse">
                 <RefreshCw className="w-3 h-3 animate-spin" />
-                Verificando API...
+                {isWakingUp ? wakeUpMessage : 'Verificando API...'}
               </div>
             ) : apiHealth ? (
               <div className={`flex items-center gap-2 px-3 py-1 rounded-full text-xs font-bold ${
@@ -185,46 +189,49 @@ export const OmieView: React.FC<OmieViewProps> = ({
         <div className="flex items-center gap-3">
           <button
             onClick={fetchExternalProducts}
-            disabled={isSyncingExternal}
+            disabled={isSyncingExternal || isWakingUp}
             className="flex items-center gap-2 px-6 py-4 bg-white border-2 border-slate-100 text-slate-600 rounded-2xl font-bold hover:bg-slate-50 transition-all shadow-sm disabled:opacity-50"
           >
-            <RefreshCw className={`w-5 h-5 ${isSyncingExternal ? 'animate-spin' : ''}`} />
+            <RefreshCw className={`w-5 h-5 ${(isSyncingExternal || isWakingUp) ? 'animate-spin' : ''}`} />
             Atualizar Lista
           </button>
           <button
             onClick={triggerOmieSync}
-            disabled={isTriggeringSync}
+            disabled={isTriggeringSync || isWakingUp}
             className="flex items-center gap-2 px-8 py-4 bg-indigo-600 text-white rounded-2xl font-bold hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-200 disabled:opacity-50"
           >
-            <RefreshCw className={`w-5 h-5 ${isTriggeringSync ? 'animate-spin' : ''}`} />
+            <RefreshCw className={`w-5 h-5 ${(isTriggeringSync || isWakingUp) ? 'animate-spin' : ''}`} />
             Forçar Sincronização
           </button>
         </div>
       </div>
 
-      {apiHealth?.status !== 'ok' && !isCheckingHealth && (
+      {((apiHealth?.status !== 'ok' && !isCheckingHealth) || isWakingUp) && (
         <motion.div 
           initial={{ opacity: 0, scale: 0.95 }}
           animate={{ opacity: 1, scale: 1 }}
-          className="p-6 bg-amber-50 border-2 border-amber-100 rounded-[2rem] flex flex-col md:flex-row items-center gap-6"
+          className={`p-6 border-2 rounded-[2rem] flex flex-col md:flex-row items-center gap-6 ${isWakingUp ? 'bg-indigo-50 border-indigo-100' : 'bg-amber-50 border-amber-100'}`}
         >
-          <div className="w-16 h-16 bg-amber-100 rounded-2xl flex items-center justify-center shrink-0">
-            <ShieldAlert className="w-8 h-8 text-amber-600" />
+          <div className={`w-16 h-16 rounded-2xl flex items-center justify-center shrink-0 ${isWakingUp ? 'bg-indigo-100' : 'bg-amber-100'}`}>
+            {isWakingUp ? <Zap className="w-8 h-8 text-indigo-600 animate-pulse" /> : <ShieldAlert className="w-8 h-8 text-amber-600" />}
           </div>
           <div className="flex-1 text-center md:text-left">
-            <h3 className="text-lg font-black text-amber-900 mb-1">API Externa em Espera</h3>
-            <p className="text-amber-700 font-medium text-sm leading-relaxed">
-              A API de integração (Render.com) entra em modo de suspensão após algum tempo. 
-              Isso pode causar erros de "Timeout" (10s) no Vercel. 
-              <strong> Clique no botão abaixo para "acordar" a API antes de sincronizar.</strong>
+            <h3 className={`text-lg font-black mb-1 ${isWakingUp ? 'text-indigo-900' : 'text-amber-900'}`}>{isWakingUp ? 'Servidor Externo Ativando' : 'API Externa em Espera'}</h3>
+            <p className={`font-medium text-sm leading-relaxed ${isWakingUp ? 'text-indigo-700' : 'text-amber-700'}`}>
+              {isWakingUp 
+                ? wakeUpMessage 
+                : 'A API de integração (Render.com) entra em modo de suspensão após algum tempo. Isso pode causar erros de "Timeout" (10s) no Vercel. Clique no botão abaixo para "acordar" a API antes de sincronizar.'
+              }
             </p>
           </div>
-          <button
-            onClick={checkApiHealth}
-            className="px-6 py-3 bg-white border-2 border-amber-200 text-amber-700 rounded-xl font-bold hover:bg-amber-100 transition-all shrink-0"
-          >
-            Acordar API agora
-          </button>
+          {!isWakingUp && (
+            <button
+              onClick={checkApiHealth}
+              className="px-6 py-3 bg-white border-2 border-amber-200 text-amber-700 rounded-xl font-bold hover:bg-amber-100 transition-all shrink-0"
+            >
+              Acordar API agora
+            </button>
+          )}
         </motion.div>
       )}
 

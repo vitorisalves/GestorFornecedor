@@ -148,6 +148,8 @@ export default function App() {
     isTriggeringSync,
     apiHealth,
     isCheckingHealth,
+    isWakingUp,
+    wakeUpMessage,
     triggerOmieSync,
     fetchExternalProducts,
     checkApiHealth
@@ -574,6 +576,8 @@ export default function App() {
               fetchExternalProducts={() => fetchExternalProducts(addNotification)}
               apiHealth={apiHealth}
               isCheckingHealth={isCheckingHealth}
+              isWakingUp={isWakingUp}
+              wakeUpMessage={wakeUpMessage}
               checkApiHealth={checkApiHealth}
               addToCart={handleAddToCart}
               externalCurrentPage={externalCurrentPage}
