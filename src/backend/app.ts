@@ -3,10 +3,16 @@ import axios from "axios";
 
 const app = express();
 
-// Aumenta o tempo limite global do axios (8 segundos para dar margem ao Vercel de 10s)
+// Aumenta o tempo limite global do axios (30 segundos para suportar cold starts da Render.com)
 const api = axios.create({
-  timeout: 8000,
+  timeout: 30000,
   validateStatus: () => true, // Não lança erro automaticamente no catch para status != 200
+});
+
+// Axios específico para ping (timeout curto)
+const pingApi = axios.create({
+  timeout: 5000,
+  validateStatus: () => true,
 });
 
 app.use(express.json());
@@ -33,8 +39,7 @@ app.get(["/api/health", "/health"], asyncHandler(async (req: any, res: any) => {
   
   try {
     // Tenta uma chamada ultra-rápida (HEAD ou GET /) apenas para ver se o server responde
-    // Usamos um timeout curto de 5s aqui, pois se falhar é porque o server ainda está subindo
-    const ping = await api.get(baseUrl + "/", { timeout: 5000 });
+    const ping = await pingApi.get(baseUrl + "/");
     externalStatus = ping.status < 500 ? "online" : "error";
   } catch (e: any) {
     externalStatus = e.code === 'ECONNABORTED' ? "waking_up" : "offline";

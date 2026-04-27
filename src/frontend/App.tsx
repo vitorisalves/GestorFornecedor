@@ -33,7 +33,8 @@ import { Product, Supplier } from './types';
 
 export default function App() {
   // --- CUSTOM HOOKS ---
-  const {isLoggedIn,
+  const {
+    isLoggedIn,
     loggedCpf,
     loggedName,
     isAuthReady,
@@ -56,7 +57,9 @@ export default function App() {
     addNotification,
     addAppNotification,
     markAllAsRead,
-    clearNotifications, requestPermission} = useNotifications();
+    clearNotifications,
+    requestPermission
+  } = useNotifications();
 
   const {
     suppliers,
@@ -79,33 +82,13 @@ export default function App() {
     error: remindersError
   } = useReminders(isAuthReady, addAppNotification);
 
-  const isQuotaExceeded = suppliersError?.toLowerCase().includes('quota') || 
-                         suppliersError?.toLowerCase().includes('resource-exhausted') ||
-                         authError?.toLowerCase().includes('quota') ||
-                         authError?.toLowerCase().includes('resource-exhausted') ||
-                         remindersError?.toLowerCase().includes('quota') ||
-                         remindersError?.toLowerCase().includes('resource-exhausted');
-
-  useEffect(() => {
-    if (isQuotaExceeded) {
-      import('./firebase').then(({ db, disableNetwork }) => {
-        disableNetwork(db).catch(console.error);
-      });
-    }
-  }, [isQuotaExceeded]);
-
-  const handleReconnect = async () => {
-    const { db, enableNetwork } = await import('./firebase');
-    try {
-      await enableNetwork(db);
-      refreshSuppliers();
-      refreshLists();
-      refreshReminders();
-      addNotification("Reconectando...", 1, 'info');
-    } catch (e) {
-      console.error("Reconnection failed:", e);
-    }
-  };
+  // Memoized logic for quota check
+  const isQuotaExceeded = React.useMemo(() => {
+    const errors = [suppliersError, authError, remindersError];
+    return errors.some(err => 
+      err?.toLowerCase().includes('quota') || err?.toLowerCase().includes('resource-exhausted')
+    );
+  }, [suppliersError, authError, remindersError]);
 
   const {
     cart,
@@ -123,10 +106,31 @@ export default function App() {
     addItemToList
   } = useCart(isAuthReady, isLoggedIn, loggedName, addAppNotification);
 
+  const handleReconnect = React.useCallback(async () => {
+    const { db, enableNetwork } = await import('./firebase');
+    try {
+      await enableNetwork(db);
+      refreshSuppliers();
+      refreshLists();
+      refreshReminders();
+      addNotification("Reconectando...", 1, 'info');
+    } catch (e) {
+      console.error("Reconnection failed:", e);
+    }
+  }, [refreshSuppliers, refreshLists, refreshReminders, addNotification]);
+
+  useEffect(() => {
+    if (isQuotaExceeded) {
+      import('./firebase').then(({ db, disableNetwork }) => {
+        disableNetwork(db).catch(console.error);
+      });
+    }
+  }, [isQuotaExceeded]);
+
   const [activeTargetListId, setActiveTargetListId] = useState<string | null>(null);
   const [activeTargetListName, setActiveTargetListName] = useState<string | null>(null);
 
-  const handleAddToCart = (product: Product, supplierName: string, quantity: number) => {
+  const handleAddToCart = React.useCallback((product: Product, supplierName: string, quantity: number) => {
     if (activeTargetListId) {
       addItemToList(activeTargetListId, product, supplierName, quantity);
       addNotification(`Adicionado à lista ${activeTargetListName}`, quantity, 'info');
@@ -134,7 +138,7 @@ export default function App() {
       addToCart(product, supplierName, quantity);
       addNotification(product.name, quantity, 'cart');
     }
-  };
+  }, [activeTargetListId, activeTargetListName, addItemToList, addNotification, addToCart]);
 
   const [currentPage, setCurrentPage] = useState<'suppliers' | 'mercado' | 'materiais' | 'shopping' | 'history' | 'omie' | 'reminders'>('suppliers');
   
@@ -164,11 +168,11 @@ export default function App() {
   const [isImporting, setIsImporting] = useState(false);
 
   // Auto-fill name based on CPF
-  React.useEffect(() => {
+  useEffect(() => {
     const cleanCpf = loginCpf.replace(/\D/g, '');
     if (cleanCpf.length === 11) {
       const user = authorizedUsers.find(u => u.cpf === cleanCpf);
-      if (user && user.name) {
+      if (user?.name) {
         setLoginName(user.name);
       }
     } else if (cleanCpf.length === 0) {
@@ -207,12 +211,12 @@ export default function App() {
   const productNameRef = useRef<HTMLInputElement>(null);
 
   // --- HANDLERS ---
-  const onLogin = (e: React.FormEvent) => {
+  const onLogin = React.useCallback((e: React.FormEvent) => {
     e.preventDefault();
     handleLogin(loginCpf, loginName);
-  };
+  }, [handleLogin, loginCpf, loginName]);
 
-  const onFinalizeList = async () => {
+  const onFinalizeList = React.useCallback(async () => {
     if (isFinalizing) return;
     setIsFinalizing(true);
     try {
@@ -223,37 +227,49 @@ export default function App() {
         setIsCartOpen(false);
         setCurrentPage('history');
         addNotification(editingListId ? 'Lista atualizada!' : 'Lista finalizada!', 1);
+        
         const title = editingListId ? 'Lista Atualizada' : 'Nova Lista de Compras';
         const msg = editingListId 
           ? `A lista "${newList.name}" foi atualizada com sucesso.`
           : `A lista "${newList.name}" foi criada com sucesso.`;
+        
         addAppNotification(title, msg);
       }
     } finally {
       setIsFinalizing(false);
     }
-  };
+  }, [isFinalizing, finalizeList, listName, editingListId, addNotification, addAppNotification]);
 
-  const onSetActiveTargetList = (id: string | null, name: string | null) => {
+  const onSetActiveTargetList = React.useCallback((id: string | null, name: string | null) => {
     setActiveTargetListId(id);
     setActiveTargetListName(name);
     if (id) {
       setCurrentPage('suppliers');
       addNotification(`Modo de adição para: ${name}`, 1, 'info');
     }
-  };
+  }, [addNotification]);
 
-  const onEditSavedList = (list: any) => {
+  const onEditSavedList = React.useCallback((list: any) => {
     setCart(list.items);
     setListName(list.name);
     setEditingListId(list.id);
     setIsCartOpen(true);
-  };
+  }, [setCart]);
 
-  const onAddSupplier = async (e: React.FormEvent) => {
+  const resetForm = React.useCallback(() => {
+    setNewName('');
+    setNewPhone('');
+    setNewProductName('');
+    setNewProductPrice('');
+    setNewProductCategory('');
+    setProductList([]);
+    setEditingProductIndex(null);
+    setEditingSupplierId(null);
+  }, []);
+
+  const onAddSupplier = React.useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
     
-    // Auto-add product if fields are filled but not added to list yet
     let finalProductList = [...productList];
     if (newProductName.trim()) {
       const product: Product = {
@@ -281,28 +297,17 @@ export default function App() {
     
     resetForm();
     setIsAdding(false);
-  };
+  }, [productList, newProductName, newProductPrice, newProductCategory, editingProductIndex, newName, newPhone, editingSupplierId, saveSupplier, resetForm]);
 
-  const onEditSupplier = (supplier: Supplier) => {
+  const onEditSupplier = React.useCallback((supplier: Supplier) => {
     setEditingSupplierId(supplier.id);
     setNewName(supplier.name);
     setNewPhone(supplier.phone);
     setProductList(supplier.products);
     setIsAdding(true);
-  };
+  }, []);
 
-  const resetForm = () => {
-    setNewName('');
-    setNewPhone('');
-    setNewProductName('');
-    setNewProductPrice('');
-    setNewProductCategory('');
-    setProductList([]);
-    setEditingProductIndex(null);
-    setEditingSupplierId(null);
-  };
-
-  const addProduct = () => {
+  const addProduct = React.useCallback(() => {
     if (newProductName.trim()) {
       const product: Product = {
         name: newProductName.trim(),
@@ -324,18 +329,17 @@ export default function App() {
       setNewProductCategory('');
       productNameRef.current?.focus();
     }
-  };
+  }, [newProductName, newProductPrice, newProductCategory, editingProductIndex, productList]);
 
-  const onAddCategory = () => {
+  const onAddCategory = React.useCallback(() => {
     if (newCategoryName.trim()) {
       addCategory(newCategoryName.trim());
       setNewCategoryName('');
     }
-  };
+  }, [newCategoryName, addCategory]);
 
-  const onScheduleReminder = () => {
+  const onScheduleReminder = React.useCallback(() => {
     if (reminderProductName && reminderDate) {
-      // Se for apenas data (YYYY-MM-DD), normalizamos para permitir o processamento
       let finalDate = reminderDate;
       if (reminderDate.length === 10) {
         finalDate = `${reminderDate}T09:00:00`;
@@ -345,15 +349,15 @@ export default function App() {
       setReminderDate('');
       addNotification('Lembrete agendado!', 1);
     }
-  };
+  }, [reminderProductName, reminderDate, addReminder, addNotification]);
 
-  const onImportExcel = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const onImportExcel = React.useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     handleImportExcel(e, (data) => {
       setPendingImportData(data);
     });
-  };
+  }, [handleImportExcel]);
 
-  const onPerformImport = async (replace: boolean) => {
+  const onPerformImport = React.useCallback(async (replace: boolean) => {
     if (!pendingImportData || isImporting) return;
     setIsImporting(true);
     try {
@@ -362,9 +366,23 @@ export default function App() {
     } finally {
       setIsImporting(false);
     }
-  };
+  }, [pendingImportData, isImporting, performImport, deleteAllSuppliers]);
 
-  // --- RENDER ---
+  // --- RENDER HELPERS ---
+  const mainSuppliers = React.useMemo(() => 
+    suppliers.filter(s => 
+      !['MERCADO', 'MATERIAIS'].includes(s.name.toUpperCase())
+    ), [suppliers]
+  );
+
+  const authorizedCpfs = React.useMemo(() => 
+    Array.from(new Set(authorizedUsers.map(u => u.cpf))), 
+    [authorizedUsers]
+  );
+
+  // Common UI styles
+  const smallLabelStyle = "text-[10px] font-black uppercase tracking-[0.2em] leading-none opacity-50";
+
   if (!isAuthReady) {
     return (
       <div className="min-h-screen bg-slate-50 flex items-center justify-center">
@@ -378,7 +396,6 @@ export default function App() {
   }
 
   if (!isLoggedIn) {
-    const authorizedCpfs = Array.from(new Set(authorizedUsers.map(u => u.cpf)));
     return (
       <Login 
         loginCpf={loginCpf}
@@ -392,16 +409,8 @@ export default function App() {
     );
   }
 
-  // Filter suppliers to remove specific channels from main list
-  const mainSuppliers = suppliers.filter(s => 
-    s.name.toUpperCase() !== 'MERCADO' && 
-    s.name.toUpperCase() !== 'MATERIAIS'
-  );
-
   return (
     <div className="min-h-screen bg-slate-50 flex">
-      
-
       <Sidebar 
         currentPage={currentPage} 
         setCurrentPage={setCurrentPage} 
@@ -439,14 +448,14 @@ export default function App() {
             <div className="flex items-center gap-3 px-6 py-3 bg-slate-900 text-white">
               <RefreshCcw className="w-4 h-4 animate-spin-slow" />
               <div className="flex flex-col">
-                <span className="text-[10px] font-black uppercase tracking-[0.2em] leading-none opacity-50">Status de Conexão</span>
+                <span className={smallLabelStyle}>Status de Conexão</span>
                 <span className="text-sm font-bold tracking-tight">Sincronização Limitada (Modo Offline)</span>
               </div>
             </div>
             
             <div className="p-6">
               <p className="text-slate-600 font-medium text-sm leading-relaxed mb-4">
-                {suppliersError.toLowerCase().includes('quota') || suppliersError.toLowerCase().includes('limit') 
+                {isQuotaExceeded 
                   ? (
                     <>
                       O limite diário de leitura do banco de dados foi atingido. O sistema está operando em <span className="font-bold text-slate-900 underline decoration-indigo-500/30 underline-offset-4">modo de alta disponibilidade local</span>.
@@ -463,22 +472,24 @@ export default function App() {
                   <span>DADOS CARREGADOS DO CACHE (BROWSER)</span>
                 </div>
                 
-                <a 
-                  href="https://firebase.google.com/pricing#cloud-firestore" 
-                  target="_blank" 
-                  rel="noopener noreferrer"
-                  className="text-[10px] font-black text-slate-400 uppercase tracking-widest hover:text-indigo-600 transition-colors mr-6"
-                >
-                  Documentação de Cota →
-                </a>
+                <div className="flex items-center gap-4">
+                  <a 
+                    href="https://firebase.google.com/pricing#cloud-firestore" 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    className="text-[10px] font-black text-slate-400 uppercase tracking-widest hover:text-indigo-600 transition-colors"
+                  >
+                    Documentação de Cota →
+                  </a>
 
-                <button 
-                  onClick={handleReconnect}
-                  className="text-[10px] font-black text-white bg-indigo-600 px-4 py-2 rounded-xl uppercase tracking-tighter hover:bg-indigo-700 transition-all flex items-center gap-2"
-                >
-                  <RefreshCcw className="w-3 h-3" />
-                  Tentar Reconectar Agora
-                </button>
+                  <button 
+                    onClick={handleReconnect}
+                    className="text-[10px] font-black text-white bg-indigo-600 px-4 py-2 rounded-xl uppercase tracking-tighter hover:bg-indigo-700 transition-all flex items-center gap-2"
+                  >
+                    <RefreshCcw className="w-3 h-3" />
+                    Tentar Reconectar Agora
+                  </button>
+                </div>
               </div>
             </div>
           </motion.div>
