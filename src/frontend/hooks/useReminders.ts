@@ -5,7 +5,7 @@
 
 import { useState, useEffect } from 'react';
 import { db } from '../firebase';
-import { collection, getDocs, addDoc, doc, updateDoc, query, orderBy, deleteDoc, where } from 'firebase/firestore';
+import { collection, onSnapshot, addDoc, doc, updateDoc, query, orderBy, deleteDoc, where } from 'firebase/firestore';
 import { Reminder } from '../types';
 
 export const useReminders = (isAuthReady: boolean, addAppNotification: (title: string, message: string) => void) => {
@@ -29,9 +29,7 @@ export const useReminders = (isAuthReady: boolean, addAppNotification: (title: s
             "Lembrete de Produto",
             `Está na hora de comprar: ${reminder.productName}`
           );
-          // Mark as notified in local object
-          reminder.notified = true;
-          // Sync to DB
+          // Mark as notified in DB
           if (reminder.id && !reminder.id.startsWith('temp-')) {
             updateDoc(doc(db, 'reminders', reminder.id), { notified: true }).catch(err => {
               console.warn("Could not sync reminder status:", err.message);
@@ -42,62 +40,41 @@ export const useReminders = (isAuthReady: boolean, addAppNotification: (title: s
     });
   };
 
-  const syncReminders = async (force = false) => {
-    const CACHE_KEY = 'last_fetch_reminders';
-    const CACHE_TIMEOUT = 5 * 60 * 1000; // 5 minutos
-    const lastFetch = localStorage.getItem(CACHE_KEY);
+  useEffect(() => {
+    if (!isAuthReady) return;
 
-    if (!force && lastFetch && (Date.now() - parseInt(lastFetch)) < CACHE_TIMEOUT) {
-      const cached = localStorage.getItem('cache_reminders');
-      if (cached) {
-        const data = JSON.parse(cached);
-        setReminders(data);
-        checkForDueReminders(data);
-      }
-      return;
-    }
+    const q = query(
+      collection(db, 'reminders'), 
+      where('notified', '==', false),
+      orderBy('date', 'asc')
+    );
 
-    try {
-      const q = query(
-        collection(db, 'reminders'), 
-        where('notified', '==', false),
-        orderBy('date', 'asc')
-      );
-      const snapshot = await getDocs(q);
+    const unsubscribe = onSnapshot(q, (snapshot) => {
       const data = snapshot.docs.map(doc => ({
         id: doc.id,
         ...doc.data()
       })) as Reminder[];
       
-      setReminders(prev => {
-        const optimisticReminders = prev.filter(r => r.id.startsWith('temp-'));
-        const merged = [...data, ...optimisticReminders].sort((a,b) => a.date.localeCompare(b.date));
-        return merged;
-      });
-      
-      localStorage.setItem(CACHE_KEY, Date.now().toString());
+      setReminders(data);
       checkForDueReminders(data);
-    } catch (err: any) {
+    }, (err: any) => {
       const isQuota = err.message.toLowerCase().includes('quota') || err.message.toLowerCase().includes('resource-exhausted');
-      if (!isQuota) console.error("Reminders fetch error:", err);
-    }
-  };
+      if (!isQuota) console.error("Reminders sync error:", err);
+    });
+
+    return () => unsubscribe();
+  }, [isAuthReady, addAppNotification]);
 
   useEffect(() => {
     if (!isAuthReady) return;
-    syncReminders();
     
     // Check dues every minute locally
     const interval = setInterval(() => {
-      setReminders(prev => {
-        const next = [...prev];
-        checkForDueReminders(next);
-        return next;
-      });
+      checkForDueReminders(reminders);
     }, 60000);
 
     return () => clearInterval(interval);
-  }, [isAuthReady, addAppNotification]);
+  }, [isAuthReady, reminders]);
 
   const addReminder = async (productName: string, date: string) => {
     // Generate an optimistic local ID
@@ -141,7 +118,7 @@ export const useReminders = (isAuthReady: boolean, addAppNotification: (title: s
 
   return {
     reminders,
-    refreshReminders: syncReminders,
+    refreshReminders: () => {}, // onSnapshot handles it
     addReminder,
     deleteReminder,
     error

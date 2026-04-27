@@ -5,7 +5,7 @@
 
 import { useState, useEffect } from 'react';
 import { db } from '../firebase';
-import { collection, getDocs, addDoc, query, orderBy, deleteDoc, doc, updateDoc, limit } from 'firebase/firestore';
+import { collection, onSnapshot, addDoc, query, orderBy, deleteDoc, doc, updateDoc, limit } from 'firebase/firestore';
 import { Product, SavedList } from '../types';
 
 export const useCart = (
@@ -32,52 +32,50 @@ export const useCart = (
     localStorage.setItem('cache_savedLists', JSON.stringify(savedLists));
   }, [savedLists]);
 
-  const fetchLists = async (force = false) => {
-    const CACHE_KEY = 'last_fetch_lists';
-    const CACHE_TIMEOUT = 5 * 60 * 1000; // 5 minutos
-    const lastFetch = localStorage.getItem(CACHE_KEY);
-    
-    if (!force && lastFetch && (Date.now() - parseInt(lastFetch)) < CACHE_TIMEOUT) {
-      const cached = localStorage.getItem('cache_savedLists');
-      if (cached) setSavedLists(JSON.parse(cached));
-      return;
-    }
+  useEffect(() => {
+    if (!isAuthReady || !isLoggedIn) return;
 
     setIsLoadingLists(true);
-    try {
-      const q = query(
-        collection(db, 'shopping_lists'), 
-        orderBy('date', 'desc'), 
-        limit(15)
-      );
-      const snapshot = await getDocs(q);
+    const q = query(
+      collection(db, 'shopping_lists'), 
+      orderBy('date', 'desc'), 
+      limit(25)
+    );
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      snapshot.docChanges().forEach((change) => {
+        if (change.type === 'added') {
+          const newList = { id: change.doc.id, ...change.doc.data() } as SavedList;
+          // Se o documento for novo (não de snapshot inicial massivo) e não for do próprio usuário
+          // Usamos um timestamp para evitar notificações de itens antigos no carregamento inicial
+          const listDate = new Date(newList.date).getTime();
+          if (listDate > Date.now() - 30000 && newList.createdBy !== loggedName) {
+            addAppNotification(
+              'Nova Lista de Compras',
+              `"${newList.name}" foi criada por ${newList.createdBy || 'outro usuário'}.`
+            );
+          }
+        }
+      });
+
       const lists = snapshot.docs.map(doc => ({
         id: doc.id,
         ...doc.data()
       })) as SavedList[];
       
-      setSavedLists(prev => {
-        const optimisticLists = prev.filter(l => l.id.startsWith('temp-'));
-        return [...optimisticLists, ...lists];
-      });
-      
-      localStorage.setItem(CACHE_KEY, Date.now().toString());
-    } catch (error: any) {
-      const isQuota = error.message.toLowerCase().includes('quota') || error.message.toLowerCase().includes('resource-exhausted');
-      if (!isQuota) console.error("Shopping lists fetch error:", error);
-    } finally {
+      setSavedLists(lists);
       setIsLoadingLists(false);
-    }
-  };
+    }, (error: any) => {
+      const isQuota = error.message.toLowerCase().includes('quota') || error.message.toLowerCase().includes('resource-exhausted');
+      if (!isQuota) console.error("Shopping lists sync error:", error);
+      setIsLoadingLists(false);
+    });
 
-  useEffect(() => {
-    if (!isAuthReady || !isLoggedIn) return;
-    fetchLists();
+    return () => unsubscribe();
   }, [isAuthReady, isLoggedIn]);
 
   const refreshLists = async () => {
-    if (!isAuthReady || !isLoggedIn || isLoadingLists) return;
-    await fetchLists(true);
+    // onSnapshot já lida com o refresh
   };
 
   const addToCart = (product: Product, supplierName: string, quantity: number = 1) => {
