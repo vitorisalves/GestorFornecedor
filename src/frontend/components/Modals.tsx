@@ -638,7 +638,14 @@ export const Modals: React.FC<ModalsProps> = (props) => {
               transition={{ duration: 0.2 }}
               className="bg-white w-full max-w-lg p-8 md:p-10 rounded-[3rem] shadow-2xl text-center"
             >
-              <div className="w-24 h-24 bg-indigo-50 text-indigo-600 rounded-[2rem] flex items-center justify-center mx-auto mb-8 border-4 border-indigo-100 shadow-xl shadow-indigo-100/30">
+              <div className="w-24 h-24 bg-indigo-50 text-indigo-600 rounded-[2rem] flex items-center justify-center mx-auto mb-8 border-4 border-indigo-100 shadow-xl shadow-indigo-100/30 relative">
+                <button 
+                  onClick={() => props.setPendingImportData(null)}
+                  className="absolute -top-4 -right-4 p-2 bg-white border-2 border-slate-900 rounded-xl hover:bg-slate-100 transition-all text-slate-900 shadow-lg"
+                  title="Fechar"
+                >
+                  <X className="w-5 h-5" />
+                </button>
                 <motion.div
                   animate={props.isImporting ? { rotate: 360 } : {}}
                   transition={{ repeat: Infinity, duration: 1, ease: "linear" }}

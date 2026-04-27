@@ -93,11 +93,24 @@ export const useExcel = (suppliers: Supplier[], saveSupplier: (s: Supplier) => P
         await deleteAllSuppliers();
       }
 
-      for (const supplier of Object.values(data)) {
+      const existingNames = new Set(suppliers.map(s => s.name.trim().toUpperCase()));
+      const importedSuppliers = Object.values(data);
+      let addedCount = 0;
+
+      for (const supplier of importedSuppliers) {
+        // Se não for substituir, verificamos duplicatas pelo nome
+        if (!replace && existingNames.has(supplier.name.trim().toUpperCase())) {
+          continue;
+        }
         await saveSupplier(supplier);
+        addedCount++;
       }
 
-      addNotification(replace ? 'Lista substituída com sucesso!' : 'Importação concluída com sucesso!', Object.keys(data).length);
+      if (addedCount === 0 && !replace) {
+        addNotification('Todos os fornecedores já existem na lista.', 0);
+      } else {
+        addNotification(replace ? 'Lista substituída com sucesso!' : 'Importação concluída com sucesso!', addedCount);
+      }
     } catch (err) {
       console.error('Erro na execução da importação:', err);
       addNotification('Erro ao salvar dados importados', 0);
