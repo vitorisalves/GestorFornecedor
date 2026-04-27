@@ -5,7 +5,7 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { RefreshCcw, PlusCircle } from 'lucide-react';
+import { RefreshCcw, PlusCircle, BellRing, X } from 'lucide-react';
 
 // Hooks
 import { useAuth } from './hooks/useAuth';
@@ -385,6 +385,22 @@ export default function App() {
   // Common UI styles
   const smallLabelStyle = "text-[10px] font-black uppercase tracking-[0.2em] leading-none opacity-50";
 
+  const [showNativePermissionBanner, setShowNativePermissionBanner] = useState(false);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined' && 'Notification' in window) {
+      if (Notification.permission === 'default') {
+        const timer = setTimeout(() => setShowNativePermissionBanner(true), 3000);
+        return () => clearTimeout(timer);
+      }
+    }
+  }, []);
+
+  const handleRequestNativePermission = async () => {
+    await requestPermission();
+    setShowNativePermissionBanner(false);
+  };
+
   if (!isAuthReady) {
     return (
       <div className="min-h-screen bg-slate-50 flex items-center justify-center">
@@ -426,6 +442,38 @@ export default function App() {
 
       <main className="flex-1 lg:ml-64 p-4 md:p-8 lg:p-12 w-full overflow-x-hidden min-h-screen transition-all">
         <div className="max-w-6xl mx-auto px-4 md:px-0">
+          {showNativePermissionBanner && (
+            <motion.div 
+              initial={{ opacity: 0, y: -20 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="mb-8 p-6 bg-indigo-600 rounded-[2rem] text-white flex flex-col md:flex-row items-center justify-between gap-6 shadow-xl shadow-indigo-100"
+            >
+              <div className="flex items-center gap-5">
+                <div className="w-14 h-14 bg-white/20 rounded-2xl flex items-center justify-center shrink-0 border border-white/20">
+                  <BellRing className="w-7 h-7 text-white" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-base">Ative Notificações no Celular</h3>
+                  <p className="text-sm text-indigo-100 font-medium">Receba alertas de lembretes e novas listas de compras direto no seu dispositivo.</p>
+                  <p className="text-[10px] text-indigo-200 mt-1 italic font-bold">Dica iPhone: Escolha "Compartilhar" &gt; "Adicionar à Tela de Início" para o app funcionar 100%.</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-3 w-full md:w-auto">
+                <button 
+                  onClick={handleRequestNativePermission}
+                  className="flex-1 md:flex-none px-8 py-3 bg-white text-indigo-600 font-black text-xs rounded-xl hover:bg-indigo-50 transition-colors shadow-lg uppercase tracking-widest"
+                >
+                  ATIVAR AGORA
+                </button>
+                <button 
+                  onClick={() => setShowNativePermissionBanner(false)}
+                  className="p-3 hover:bg-white/10 rounded-xl transition-colors border border-white/10"
+                >
+                  <X className="w-6 h-6" />
+                </button>
+              </div>
+            </motion.div>
+          )}
           <Header
             requestPermission={requestPermission} 
             notifications={notifications}

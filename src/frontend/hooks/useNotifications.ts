@@ -12,38 +12,40 @@ export const useNotifications = () => {
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
 
   const requestPermission = async () => {
-    console.log('Solicitando permissão de notificação...');
     if (!('Notification' in window)) {
       alert('Seu navegador não suporta notificações nativas.');
       return;
     }
     
     try {
-      // Alguns navegadores mais antigos usam callback, mas a maioria moderna usa Promise
       const permission = await Notification.requestPermission();
-      console.log('Resultado da permissão:', permission);
       
       if (permission === 'granted') {
-        try {
-          new Notification('Notificações Ativadas!', {
-            body: 'Você agora receberá alertas neste dispositivo.',
-            icon: 'https://img.icons8.com/color/192/shopping-cart.png'
-          });
-        } catch (e) {
-          console.warn('Erro ao criar notificação de teste:', e);
+        if ('vibrate' in navigator) {
+          navigator.vibrate([100, 50, 100]);
         }
+        new Notification('Notificações Ativadas!', {
+          body: 'Você agora receberá alertas de lembretes e listas neste dispositivo.',
+          icon: 'https://img.icons8.com/color/192/shopping-cart.png',
+          tag: 'welcome-notif'
+        });
       } else if (permission === 'denied') {
-        alert('Permissão negada. Você precisa habilitar as notificações nas configurações do seu navegador ou celular para este site.');
+        alert('Permissão negada. Ative as notificações nas configurações do navegador/celular para receber lembretes.');
       }
     } catch (error) {
       console.error('Erro ao solicitar permissão:', error);
-      alert('Erro ao ativar notificações. Verifique se você está em uma conexão segura (HTTPS) e fora de janelas privadas.');
     }
   };
 
   const addNotification = useCallback((name: string, quantity: number, type: 'cart' | 'info' = 'info') => {
     const id = Math.random().toString(36).substr(2, 9);
     setNotifications(prev => [...prev, { id, name, quantity, type }]);
+    
+    // Pequena vibração ao adicionar ao carrinho
+    if (type === 'cart' && 'vibrate' in navigator) {
+      navigator.vibrate(50);
+    }
+
     setTimeout(() => {
       setNotifications(prev => prev.filter(n => n.id !== id));
     }, 3000);
@@ -59,15 +61,31 @@ export const useNotifications = () => {
       read: false
     };
 
-    // Notificação Nativa do Navegador
-    if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
-      try {
-        new Notification(title, { 
-          body: message,
-          icon: 'https://img.icons8.com/color/192/shopping-cart.png'
-        });
-      } catch (e) {
-        console.warn('Erro ao enviar notificação nativa:', e);
+    // Notificação Nativa do Navegador (Sistema/Celular)
+    if (typeof window !== 'undefined' && 'Notification' in window) {
+      if (Notification.permission === 'granted') {
+        try {
+          if ('vibrate' in navigator) {
+            navigator.vibrate([200, 100, 200]);
+          }
+          
+          const notif = new Notification(title, { 
+            body: message,
+            icon: 'https://img.icons8.com/color/192/shopping-cart.png',
+            tag: title.replace(/\s+/g, '-').toLowerCase(), // Evita duplicatas do mesmo tipo
+            requireInteraction: true // Mantém a notificação até que o usuário interaja (bom para lembretes)
+          });
+
+          notif.onclick = () => {
+            window.focus();
+            notif.close();
+          };
+        } catch (e) {
+          console.warn('Erro ao enviar notificação nativa:', e);
+        }
+      } else if (Notification.permission === 'default') {
+        // Se ainda não perguntou, tentamos pedir na primeira vez que uma notificação de app ocorre
+        console.log('Permissão de notificação padrão, não enviando nativa.');
       }
     }
 

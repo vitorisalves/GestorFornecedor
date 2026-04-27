@@ -1,6 +1,6 @@
 {
   "name": "Labarr Gestor",
   "description": "Sistema de gestão de suprimentos e integração Omie para a Labarr.",
-  "requestFramePermissions": [],
+  "requestFramePermissions": ["notifications"],
   "majorCapabilities": []
 }
