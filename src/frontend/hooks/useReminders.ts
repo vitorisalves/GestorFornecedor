@@ -7,6 +7,7 @@ import { useState, useEffect } from 'react';
 import { db } from '../firebase';
 import { collection, onSnapshot, addDoc, doc, updateDoc, query, orderBy, deleteDoc, where } from 'firebase/firestore';
 import { Reminder } from '../types';
+import { extractErrorMessage, safeStringify } from '../utils';
 
 export const useReminders = (isAuthReady: boolean, addAppNotification: (title: string, message: string) => void) => {
   const [reminders, setReminders] = useState<Reminder[]>(() => {
@@ -16,7 +17,7 @@ export const useReminders = (isAuthReady: boolean, addAppNotification: (title: s
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    localStorage.setItem('cache_reminders', JSON.stringify(reminders));
+    localStorage.setItem('cache_reminders', safeStringify(reminders));
   }, [reminders]);
 
   const checkForDueReminders = (data: Reminder[]) => {
@@ -58,8 +59,8 @@ export const useReminders = (isAuthReady: boolean, addAppNotification: (title: s
       setReminders(data);
       checkForDueReminders(data);
     }, (err: any) => {
-      const isQuota = err.message.toLowerCase().includes('quota') || err.message.toLowerCase().includes('resource-exhausted');
-      if (!isQuota) console.error("Reminders sync error:", err);
+      const isQuota = extractErrorMessage(err).toLowerCase().includes('quota') || extractErrorMessage(err).toLowerCase().includes('resource-exhausted');
+      if (!isQuota) console.error("Reminders sync error:", extractErrorMessage(err));
     });
 
     return () => unsubscribe();

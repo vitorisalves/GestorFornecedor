@@ -7,7 +7,7 @@ import { useState, useEffect } from 'react';
 import { db } from '../firebase';
 import { collection, onSnapshot, doc, setDoc, deleteDoc, getDocs, query, where } from 'firebase/firestore';
 import { Supplier, Product } from '../types';
-import { generateId } from '../utils';
+import { generateId, extractErrorMessage, safeStringify } from '../utils';
 
 export const useSuppliers = (isAuthReady: boolean, isLoggedIn: boolean) => {
   const [suppliers, setSuppliers] = useState<Supplier[]>(() => {
@@ -32,13 +32,13 @@ export const useSuppliers = (isAuthReady: boolean, isLoggedIn: boolean) => {
     const unsubSuppliers = onSnapshot(suppliersCollection, (snapshot) => {
       const suppliersData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Supplier));
       setSuppliers(suppliersData);
-      localStorage.setItem('cache_suppliers', JSON.stringify(suppliersData));
+      localStorage.setItem('cache_suppliers', safeStringify(suppliersData));
       setIsLoading(false);
       setError(null);
     }, (err: any) => {
       const isQuota = err.message.toLowerCase().includes('quota') || err.message.toLowerCase().includes('resource-exhausted');
-      if (!isQuota) console.error("Suppliers sync error:", err);
-      setError(err.message);
+      if (!isQuota) console.error("Suppliers sync error:", extractErrorMessage(err));
+      setError(extractErrorMessage(err));
       setIsLoading(false);
     });
 
@@ -47,7 +47,7 @@ export const useSuppliers = (isAuthReady: boolean, isLoggedIn: boolean) => {
       if (!snapshot.empty) {
         const categoriesData = snapshot.docs.map(doc => doc.data().name as string);
         setCategories(categoriesData);
-        localStorage.setItem('cache_categories', JSON.stringify(categoriesData));
+        localStorage.setItem('cache_categories', safeStringify(categoriesData));
       }
     });
 
@@ -72,7 +72,7 @@ export const useSuppliers = (isAuthReady: boolean, isLoggedIn: boolean) => {
       } else {
         next.push(supplier);
       }
-      localStorage.setItem('cache_suppliers', JSON.stringify(next));
+      localStorage.setItem('cache_suppliers', safeStringify(next));
       return next;
     });
 
@@ -88,7 +88,7 @@ export const useSuppliers = (isAuthReady: boolean, isLoggedIn: boolean) => {
     // Optimistic update
     setSuppliers(prev => {
       const next = prev.filter(s => s.id !== id);
-      localStorage.setItem('cache_suppliers', JSON.stringify(next));
+      localStorage.setItem('cache_suppliers', safeStringify(next));
       return next;
     });
 
@@ -106,7 +106,7 @@ export const useSuppliers = (isAuthReady: boolean, isLoggedIn: boolean) => {
         const name = (s.name || '').trim().toUpperCase();
         return name === 'MERCADO' || name === 'MATERIAIS';
       });
-      localStorage.setItem('cache_suppliers', JSON.stringify(next));
+      localStorage.setItem('cache_suppliers', safeStringify(next));
       return next;
     });
 
@@ -131,7 +131,7 @@ export const useSuppliers = (isAuthReady: boolean, isLoggedIn: boolean) => {
     // Optimistic update
     setCategories(prev => {
       const next = [...prev, name];
-      localStorage.setItem('cache_categories', JSON.stringify(next));
+      localStorage.setItem('cache_categories', safeStringify(next));
       return next;
     });
 
@@ -147,7 +147,7 @@ export const useSuppliers = (isAuthReady: boolean, isLoggedIn: boolean) => {
     // Optimistic update
     setCategories(prev => {
       const next = prev.filter(c => c !== name);
-      localStorage.setItem('cache_categories', JSON.stringify(next));
+      localStorage.setItem('cache_categories', safeStringify(next));
       return next;
     });
 

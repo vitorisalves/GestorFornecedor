@@ -61,31 +61,31 @@ export const useNotifications = () => {
       read: false
     };
 
-    // Notificação Nativa do Navegador (Sistema/Celular)
+// Notificação Nativa do Navegador (Sistema/Celular)
     if (typeof window !== 'undefined' && 'Notification' in window) {
       if (Notification.permission === 'granted') {
-        try {
-          if ('vibrate' in navigator) {
-            navigator.vibrate([200, 100, 200]);
-          }
-          
-          const notif = new Notification(title, { 
-            body: message,
-            icon: 'https://img.icons8.com/color/192/shopping-cart.png',
-            tag: title.replace(/\s+/g, '-').toLowerCase(), // Evita duplicatas do mesmo tipo
-            requireInteraction: true // Mantém a notificação até que o usuário interaja (bom para lembretes)
-          });
+        const options: any = {
+          body: message,
+          icon: 'https://img.icons8.com/color/192/shopping-cart.png',
+          badge: 'https://img.icons8.com/color/48/shopping-cart.png',
+          tag: title.replace(/\s+/g, '-').toLowerCase(),
+          requireInteraction: true,
+          vibrate: [200, 100, 200]
+        };
 
-          notif.onclick = () => {
-            window.focus();
-            notif.close();
-          };
+        try {
+          // Tentativa usando Service Worker (Melhor para celular/bloqueio)
+          if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.ready.then(registration => {
+              registration.showNotification(title, options);
+            });
+          } else {
+            // Fallback para notificação simples
+            new Notification(title, options);
+          }
         } catch (e) {
-          console.warn('Erro ao enviar notificação nativa:', e);
+          console.warn('Erro ao enviar notificação:', e);
         }
-      } else if (Notification.permission === 'default') {
-        // Se ainda não perguntou, tentamos pedir na primeira vez que uma notificação de app ocorre
-        console.log('Permissão de notificação padrão, não enviando nativa.');
       }
     }
 

@@ -1,45 +1,121 @@
-import express from "express";
-import axios from "axios";
+import express, { Request, Response, NextFunction } from "express";
+import axios, { AxiosInstance } from "axios";
+
+/**
+ * Interface para configuração da API externa
+ */
+interface ApiConfig {
+  baseUrl: string;
+}
 
 const app = express();
 
-// Aumenta o tempo limite global do axios (30 segundos para suportar cold starts da Render.com)
-const api = axios.create({
+/**
+ * Aumenta o tempo limite global do axios (30 segundos para suportar cold starts da Render.com)
+ * validateStatus: () => true evita que o axios lance erro para status != 2xx,
+ * permitindo tratamento manual de respostas de erro da API.
+ */
+const api: AxiosInstance = axios.create({
   timeout: 30000,
-  validateStatus: () => true, // Não lança erro automaticamente no catch para status != 200
+  validateStatus: () => true,
 });
 
-// Axios específico para ping (timeout curto)
-const pingApi = axios.create({
+/**
+ * Axios específico para health check/ping com tempo de espera curto.
+ */
+const pingApi: AxiosInstance = axios.create({
   timeout: 5000,
   validateStatus: () => true,
 });
 
 app.use(express.json());
 
-const sanitizeEnv = (val: string | undefined, fallback: string) => {
+/**
+ * Limpa variáveis de ambiente removendo aspas e espaços extras.
+ */
+const sanitizeEnv = (val: string | undefined, fallback: string): string => {
   if (!val) return fallback;
   return val.trim().replace(/^["']|["']$/g, '');
 };
 
-const EXTERNAL_API_CONFIG = {
-  base_url: sanitizeEnv(process.env.EXTERNAL_API_URL, "https://production-manager-api.onrender.com/v1").replace(/\/$/, "")
+const EXTERNAL_API_CONFIG: ApiConfig = {
+  baseUrl: sanitizeEnv(process.env.EXTERNAL_API_URL, "https://production-manager-api.onrender.com/v1").replace(/\/$/, "")
 };
 
-// Wrapper para rotas async capturarem erros no Express 4
-const asyncHandler = (fn: Function) => (req: any, res: any, next: any) => {
+/**
+ * Wrapper para rotas assíncronas capturarem erros no Express 4 e encaminharem para o middleware de erro.
+ */
+const asyncHandler = (fn: Function) => (req: Request, res: Response, next: NextFunction) => {
   Promise.resolve(fn(req, res, next)).catch(next);
 };
 
+/**
+ * Helper para construir URLs com parâmetros de busca sem repetição de lógica.
+ */
+const buildUrl = (endpoint: string, params?: Record<string, string | number>): string => {
+  const url = `${EXTERNAL_API_CONFIG.baseUrl}${endpoint}`;
+  if (!params) return url;
+  
+  const searchParams = new URLSearchParams();
+  Object.entries(params).forEach(([key, value]) => searchParams.set(key, String(value)));
+  
+  const separator = endpoint.includes('?') ? '&' : '?';
+  return `${url}${separator}${searchParams.toString()}`;
+};
+
+/**
+ * Busca recursiva/paginada para coleções da API externa.
+ * Implementa paralelismo limitado para performance sem estourar rate limits.
+ */
+const fetchAllPages = async (endpoint: string): Promise<any[]> => {
+  const pageSize = 100;
+  const firstUrl = buildUrl(endpoint, { page: 1, pageSize });
+  
+  const firstRes = await api.get(firstUrl);
+  if (firstRes.status >= 400) return [];
+  
+  const { data: firstData } = firstRes;
+  const results = Array.isArray(firstData) ? [...firstData] : [...(firstData.data || [])];
+  
+  const { total = 0, pageSize: actualSize = pageSize } = firstData.meta || {};
+
+  if (total > actualSize) {
+    const totalPages = Math.ceil(total / actualSize);
+    const pageNumbers = Array.from({ length: totalPages - 1 }, (_, i) => i + 2);
+    
+    // Processamento em lotes (batching) para performance balanceada
+    const batchSize = 5;
+    for (let i = 0; i < pageNumbers.length; i += batchSize) {
+      const batch = pageNumbers.slice(i, i + batchSize);
+      const batchResults = await Promise.all(batch.map(async (page) => {
+        try {
+          const pageRes = await api.get(buildUrl(endpoint, { page, pageSize: actualSize }));
+          if (pageRes.status < 400) {
+            const d = pageRes.data;
+            return Array.isArray(d) ? d : (d.data || []);
+          }
+        } catch (e) {
+          console.error(`[FetchBatchError] Falha na página ${page} de ${endpoint}`);
+        }
+        return [];
+      }));
+      batchResults.forEach(list => results.push(...list));
+    }
+  }
+  return results;
+};
+
 // --- ROTAS DE API ---
-// O health check agora tenta dar um "ping" na API externa para acordá-la (Render.com sleep)
-app.get(["/api/health", "/health"], asyncHandler(async (req: any, res: any) => {
-  const baseUrl = EXTERNAL_API_CONFIG.base_url;
+
+/**
+ * Health Check: Verifica status do servidor e tenta acordar a API externa enviando um ping.
+ */
+app.get(["/api/health", "/health"], asyncHandler(async (req: Request, res: Response) => {
+  const { baseUrl } = EXTERNAL_API_CONFIG;
   let externalStatus = "unknown";
   
   try {
-    // Tenta uma chamada ultra-rápida (HEAD ou GET /) apenas para ver se o server responde
-    const ping = await pingApi.get(baseUrl + "/");
+    const ping = await pingApi.get(`${baseUrl}/`);
     externalStatus = ping.status < 500 ? "online" : "error";
   } catch (e: any) {
     externalStatus = e.code === 'ECONNABORTED' ? "waking_up" : "offline";
@@ -53,53 +129,11 @@ app.get(["/api/health", "/health"], asyncHandler(async (req: any, res: any) => {
   });
 }));
 
-app.get("/api/omie-direct/products", asyncHandler(async (req: any, res: any) => {
-  const baseUrl = EXTERNAL_API_CONFIG.base_url;
-  
-  const fetchAllPages = async (endpoint: string) => {
-    // Usamos pageSize 100 para minimizar o número de requests
-    const firstUrl = `${baseUrl}${endpoint}${endpoint.includes('?') ? '&' : '?'}page=1&pageSize=100`;
-    const firstRes = await api.get(firstUrl);
-    
-    if (firstRes.status >= 400) return [];
-    
-    const firstData = firstRes.data;
-    const results = Array.isArray(firstData) ? [...firstData] : [...(firstData.data || [])];
-    
-    const meta = firstData.meta || {};
-    const total = meta.total || 0;
-    const pageSize = meta.pageSize || 100;
-
-    if (total > pageSize) {
-      const totalPages = Math.ceil(total / pageSize);
-      const pageNumbers = [];
-      // Pegamos apenas as páginas restantes
-      for (let i = 2; i <= totalPages; i++) pageNumbers.push(i);
-      
-      // Parallel fetch para ganhar velocidade (mas limitado para não estourar rate limit)
-      // Vercel Hobby tem CPU limitada, 5 por vez é seguro
-      const batchSize = 5;
-      for (let i = 0; i < pageNumbers.length; i += batchSize) {
-        const batch = pageNumbers.slice(i, i + batchSize);
-        const batchResults = await Promise.all(batch.map(async (page) => {
-          try {
-            const res = await api.get(`${baseUrl}${endpoint}${endpoint.includes('?') ? '&' : '?'}page=${page}&pageSize=${pageSize}`);
-            if (res.status < 400) {
-              const d = res.data;
-              return Array.isArray(d) ? d : (d.data || []);
-            }
-          } catch (e) {
-            console.error(`Erro na página ${page} de ${endpoint}`);
-          }
-          return [];
-        }));
-        batchResults.forEach(list => results.push(...list));
-      }
-    }
-    return results;
-  };
-
-  // 1. Inicia busca de produtos e estoque em paralelo para economizar tempo
+/**
+ * Proxy Omie Direct: Consolida produtos ativos com seus respectivos saldos de estoque.
+ */
+app.get("/api/omie-direct/products", asyncHandler(async (req: Request, res: Response) => {
+  // Busca produtos e estoque em paralelo
   const [rawProductList, stockList] = await Promise.all([
     fetchAllPages('/products'),
     fetchAllPages('/products/stockQuantity')
@@ -108,6 +142,7 @@ app.get("/api/omie-direct/products", asyncHandler(async (req: any, res: any) => 
   const productList = rawProductList.filter((p: any) => p.active === true);
   const stockMap = new Map<string, number>();
   
+  // Otimização: Mapeamento de estoque para busca O(1)
   stockList.forEach((s: any) => {
     const code = String(s.productId || s.product_id || s.id || s.codigo || "");
     const qty = Number(s.quantity || s.stock || s.stockQuantity || 0);
@@ -116,11 +151,11 @@ app.get("/api/omie-direct/products", asyncHandler(async (req: any, res: any) => 
 
   const mergedProducts = productList.map((p: any) => {
     const prodId = String(p.id || p.productId || p.codigo_produto || "").trim();
-    let stock = stockMap.has(prodId) ? stockMap.get(prodId)! : -1;
-    if (stock === -1) {
-      stock = Number(p.stockQuantity || p.quantity || p.stock || p.estoque || 0);
-    }
+    const stock = stockMap.has(prodId) 
+      ? stockMap.get(prodId)! 
+      : Number(p.stockQuantity || p.quantity || p.stock || p.estoque || 0);
 
+    // Normalização dos campos para o frontend
     return {
       id: p.id,
       codigo_produto: p.id || p.codigo_produto,
@@ -138,16 +173,21 @@ app.get("/api/omie-direct/products", asyncHandler(async (req: any, res: any) => 
   res.json({ data: mergedProducts });
 }));
 
-app.all("/api/v1/*", asyncHandler(async (req: any, res: any) => {
-  const subPath = req.params[0];
-  const method = req.method;
-  const baseUrl = EXTERNAL_API_CONFIG.base_url;
-  const apiUrl = `${baseUrl}/${subPath}${req.url.includes('?') ? req.url.substring(req.url.indexOf('?')) : ''}`;
+/**
+ * Proxy Genérico para v1: Encaminha qualquer requisição /api/v1/* para a API manager.
+ */
+app.all("/api/v1/*", asyncHandler(async (req: Request, res: Response) => {
+  const subPath = (req.params as any)[0];
+  const { method, body, url: reqUrl } = req;
+  const { baseUrl } = EXTERNAL_API_CONFIG;
+  
+  const queryString = reqUrl.includes('?') ? reqUrl.substring(reqUrl.indexOf('?')) : '';
+  const apiUrl = `${baseUrl}/${subPath}${queryString}`;
 
   const response = await api({
     method,
     url: apiUrl,
-    data: req.body,
+    data: body,
     headers: { 'Content-Type': 'application/json' }
   });
   
@@ -158,9 +198,11 @@ app.all("/api/v1/*", asyncHandler(async (req: any, res: any) => {
   res.status(response.status).send(response.data);
 }));
 
-// Middleware de tratamento de erros global (para evitar que o Vercel mostre página HTML de erro)
-app.use((err: any, req: any, res: any, next: any) => {
-  console.error('ERRO GLOBAL NO BACKEND:', err);
+/**
+ * Middleware de tratamento de erros global: Garante respostas em JSON consistentemente.
+ */
+app.use((err: any, req: Request, res: Response, next: NextFunction) => {
+  console.error('[GlobalErrorHandler]', err);
   res.status(500).json({ 
     error: 'A server error occurred (Global Handler)',
     message: err.message || 'Erro desconhecido',

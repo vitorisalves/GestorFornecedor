@@ -27,9 +27,14 @@ import { OmieView } from './components/OmieView';
 import { RemindersView } from './components/RemindersView';
 import { Modals } from './components/Modals';
 import { Header } from './components/Header';
+import { AppLayout } from './components/AppLayout';
+import { QuotaBanner } from './components/QuotaBanner';
+import { ActiveTargetBanner } from './components/ActiveTargetBanner';
+import { PermissionBanner } from './components/PermissionBanner';
 
 // Types
 import { Product, Supplier } from './types';
+import { extractErrorMessage } from './utils';
 
 export default function App() {
   // --- CUSTOM HOOKS ---
@@ -115,14 +120,14 @@ export default function App() {
       refreshReminders();
       addNotification("Reconectando...", 1, 'info');
     } catch (e) {
-      console.error("Reconnection failed:", e);
+      console.error("Reconnection failed:", extractErrorMessage(e));
     }
   }, [refreshSuppliers, refreshLists, refreshReminders, addNotification]);
 
   useEffect(() => {
     if (isQuotaExceeded) {
       import('./firebase').then(({ db, disableNetwork }) => {
-        disableNetwork(db).catch(console.error);
+        disableNetwork(db).catch(err => console.error(extractErrorMessage(err)));
       });
     }
   }, [isQuotaExceeded]);
@@ -190,10 +195,20 @@ export default function App() {
   const [listName, setListName] = useState('');
   const [editingListId, setEditingListId] = useState<string | null>(null);
   const [editingSupplierId, setEditingSupplierId] = useState<string | null>(null);
-  const [supplierToDelete, setSupplierToDelete] = useState<string | null>(null);
-  const [listToDelete, setListToDelete] = useState<string | null>(null);
-  const [reminderToDelete, setReminderToDelete] = useState<string | null>(null);
-  const [categoryToDelete, setCategoryToDelete] = useState<string | null>(null);
+  
+  // Grouped Delete States
+  const [deletions, setDeletions] = useState<{
+    supplier: string | null;
+    list: string | null;
+    reminder: string | null;
+    category: string | null;
+  }>({
+    supplier: null,
+    list: null,
+    reminder: null,
+    category: null
+  });
+
   const [searchTerm, setSearchTerm] = useState('');
   const [shoppingQuantities, setShoppingQuantities] = useState<Record<string, number | string>>({});
   const [newCategoryName, setNewCategoryName] = useState('');
@@ -203,11 +218,13 @@ export default function App() {
   const [reminderDate, setReminderDate] = useState('');
   
   // Form state for adding/editing suppliers
-  const [newName, setNewName] = useState('');
-  const [newPhone, setNewPhone] = useState('');
-  const [newProductName, setNewProductName] = useState('');
-  const [newProductPrice, setNewProductPrice] = useState('');
-  const [newProductCategory, setNewProductCategory] = useState('');
+  const [formState, setFormState] = useState({
+    name: '',
+    phone: '',
+    productName: '',
+    productPrice: '',
+    productCategory: '',
+  });
   const [productList, setProductList] = useState<Product[]>([]);
   const [editingProductIndex, setEditingProductIndex] = useState<number | null>(null);
   const productNameRef = useRef<HTMLInputElement>(null);
@@ -259,11 +276,13 @@ export default function App() {
   }, [setCart]);
 
   const resetForm = React.useCallback(() => {
-    setNewName('');
-    setNewPhone('');
-    setNewProductName('');
-    setNewProductPrice('');
-    setNewProductCategory('');
+    setFormState({
+      name: '',
+      phone: '',
+      productName: '',
+      productPrice: '',
+      productCategory: '',
+    });
     setProductList([]);
     setEditingProductIndex(null);
     setEditingSupplierId(null);
@@ -273,11 +292,11 @@ export default function App() {
     e.preventDefault();
     
     let finalProductList = [...productList];
-    if (newProductName.trim()) {
+    if (formState.productName.trim()) {
       const product: Product = {
-        name: newProductName.trim(),
-        price: parseFloat(newProductPrice || '0'),
-        category: newProductCategory.trim() || 'Outros'
+        name: formState.productName.trim(),
+        price: parseFloat(formState.productPrice || '0'),
+        category: formState.productCategory.trim() || 'Outros'
       };
       
       if (editingProductIndex !== null) {
@@ -287,34 +306,39 @@ export default function App() {
       }
     }
 
-    if (!newName || !newPhone || finalProductList.length === 0) return;
+    if (!formState.name || !formState.phone || finalProductList.length === 0) return;
     
     const supplierId = editingSupplierId || Math.random().toString(36).substring(2, 11);
     await saveSupplier({
       id: supplierId,
-      name: newName,
-      phone: newPhone,
+      name: formState.name,
+      phone: formState.phone,
       products: finalProductList
     });
     
     resetForm();
     setIsAdding(false);
-  }, [productList, newProductName, newProductPrice, newProductCategory, editingProductIndex, newName, newPhone, editingSupplierId, saveSupplier, resetForm]);
+  }, [productList, formState, editingProductIndex, editingSupplierId, saveSupplier, resetForm]);
 
   const onEditSupplier = React.useCallback((supplier: Supplier) => {
     setEditingSupplierId(supplier.id);
-    setNewName(supplier.name);
-    setNewPhone(supplier.phone);
+    setFormState({
+      name: supplier.name,
+      phone: supplier.phone,
+      productName: '',
+      productPrice: '',
+      productCategory: '',
+    });
     setProductList(supplier.products);
     setIsAdding(true);
   }, []);
 
   const addProduct = React.useCallback(() => {
-    if (newProductName.trim()) {
+    if (formState.productName.trim()) {
       const product: Product = {
-        name: newProductName.trim(),
-        price: parseFloat(newProductPrice || '0'),
-        category: newProductCategory.trim() || 'Outros'
+        name: formState.productName.trim(),
+        price: parseFloat(formState.productPrice || '0'),
+        category: formState.productCategory.trim() || 'Outros'
       };
       
       if (editingProductIndex !== null) {
@@ -326,12 +350,15 @@ export default function App() {
         setProductList([...productList, product]);
       }
       
-      setNewProductName('');
-      setNewProductPrice('');
-      setNewProductCategory('');
+      setFormState(prev => ({
+        ...prev,
+        productName: '',
+        productPrice: '',
+        productCategory: '',
+      }));
       productNameRef.current?.focus();
     }
-  }, [newProductName, newProductPrice, newProductCategory, editingProductIndex, productList]);
+  }, [formState, editingProductIndex, productList]);
 
   const onAddCategory = React.useCallback(() => {
     if (newCategoryName.trim()) {
@@ -428,252 +455,150 @@ export default function App() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 flex">
-      <Sidebar 
-        currentPage={currentPage} 
-        setCurrentPage={setCurrentPage} 
-        isAdmin={isAdmin}
-        setIsSettingsOpen={setIsSettingsOpen}
-        handleLogout={handleLogout}
-        loggedName={loggedName}
-        isOpen={isSidebarOpen}
-        onClose={() => setIsSidebarOpen(false)}
+    <AppLayout
+      currentPage={currentPage}
+      setCurrentPage={setCurrentPage}
+      isAdmin={isAdmin}
+      setIsSettingsOpen={setIsSettingsOpen}
+      handleLogout={handleLogout}
+      loggedName={loggedName}
+      isSidebarOpen={isSidebarOpen}
+      setIsSidebarOpen={setIsSidebarOpen}
+      requestPermission={requestPermission}
+      notifications={notifications}
+      appNotifications={appNotifications}
+      isNotificationsOpen={isNotificationsOpen}
+      setIsNotificationsOpen={setIsNotificationsOpen}
+      markAllAsRead={markAllAsRead}
+      clearNotifications={clearNotifications}
+      cart={cart}
+      setIsCartOpen={setIsCartOpen}
+      isOffline={isQuotaExceeded}
+      onReconnect={handleReconnect}
+    >
+      <PermissionBanner 
+        show={showNativePermissionBanner}
+        onDismiss={() => setShowNativePermissionBanner(false)}
+        onRequest={handleRequestNativePermission}
       />
 
-      <main className="flex-1 lg:ml-64 p-4 md:p-8 lg:p-12 w-full overflow-x-hidden min-h-screen transition-all">
-        <div className="max-w-6xl mx-auto px-4 md:px-0">
-          {showNativePermissionBanner && (
-            <motion.div 
-              initial={{ opacity: 0, y: -20 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="mb-8 p-6 bg-indigo-600 rounded-[2rem] text-white flex flex-col md:flex-row items-center justify-between gap-6 shadow-xl shadow-indigo-100"
-            >
-              <div className="flex items-center gap-5">
-                <div className="w-14 h-14 bg-white/20 rounded-2xl flex items-center justify-center shrink-0 border border-white/20">
-                  <BellRing className="w-7 h-7 text-white" />
-                </div>
-                <div>
-                  <h3 className="font-bold text-base">Ative Notificações no Celular</h3>
-                  <p className="text-sm text-indigo-100 font-medium">Receba alertas de lembretes e novas listas de compras direto no seu dispositivo.</p>
-                  <p className="text-[10px] text-indigo-200 mt-1 italic font-bold">Dica iPhone: Escolha "Compartilhar" &gt; "Adicionar à Tela de Início" para o app funcionar 100%.</p>
-                </div>
-              </div>
-              <div className="flex items-center gap-3 w-full md:w-auto">
-                <button 
-                  onClick={handleRequestNativePermission}
-                  className="flex-1 md:flex-none px-8 py-3 bg-white text-indigo-600 font-black text-xs rounded-xl hover:bg-indigo-50 transition-colors shadow-lg uppercase tracking-widest"
-                >
-                  ATIVAR AGORA
-                </button>
-                <button 
-                  onClick={() => setShowNativePermissionBanner(false)}
-                  className="p-3 hover:bg-white/10 rounded-xl transition-colors border border-white/10"
-                >
-                  <X className="w-6 h-6" />
-                </button>
-              </div>
-            </motion.div>
-          )}
-          <Header
-            requestPermission={requestPermission} 
-            notifications={notifications}
-            appNotifications={appNotifications}
-            isNotificationsOpen={isNotificationsOpen}
-            setIsNotificationsOpen={setIsNotificationsOpen}
-            markAllAsRead={markAllAsRead}
-            clearNotifications={clearNotifications}
-            cart={cart}
-            setIsCartOpen={setIsCartOpen}
-            onMenuToggle={() => setIsSidebarOpen(true)}
-            isOffline={isQuotaExceeded}
-            onReconnect={handleReconnect}
+      <QuotaBanner 
+        error={suppliersError}
+        isQuotaExceeded={isQuotaExceeded}
+        onReconnect={handleReconnect}
+      />
+
+      <ActiveTargetBanner 
+        name={activeTargetListName}
+        onClear={() => onSetActiveTargetList(null, null)}
+      />
+
+      <AnimatePresence mode="wait">
+        {(currentPage === 'suppliers' || currentPage === 'mercado' || currentPage === 'materiais') && (
+          <SuppliersView 
+            key={currentPage}
+            suppliers={mainSuppliers}
+            allSuppliers={suppliers}
+            isLoading={isSuppliersLoading}
+            onRefresh={refreshSuppliers}
+            searchTerm={searchTerm}
+            setSearchTerm={setSearchTerm}
+            setIsAdding={setIsAdding}
+            handleEditSupplier={onEditSupplier}
+            setSupplierToDelete={(id) => setDeletions(prev => ({ ...prev, supplier: id }))}
+            addToCart={handleAddToCart}
+            handleExportExcel={handleExportExcel}
+            handleImportExcel={onImportExcel}
+            activeTab={currentPage === 'suppliers' ? 'fornecedores' : currentPage as any}
+            onTabChange={(tab) => setCurrentPage(tab === 'fornecedores' ? 'suppliers' : tab)}
           />
-
-        {suppliersError && (
-          <motion.div 
-            initial={{ opacity: 0, y: -20 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="mb-8 overflow-hidden bg-white border border-slate-200 rounded-2xl shadow-sm"
-          >
-            <div className="flex items-center gap-3 px-6 py-3 bg-slate-900 text-white">
-              <RefreshCcw className="w-4 h-4 animate-spin-slow" />
-              <div className="flex flex-col">
-                <span className={smallLabelStyle}>Status de Conexão</span>
-                <span className="text-sm font-bold tracking-tight">Sincronização Limitada (Modo Offline)</span>
-              </div>
-            </div>
-            
-            <div className="p-6">
-              <p className="text-slate-600 font-medium text-sm leading-relaxed mb-4">
-                {isQuotaExceeded 
-                  ? (
-                    <>
-                      O limite diário de leitura do banco de dados foi atingido. O sistema está operando em <span className="font-bold text-slate-900 underline decoration-indigo-500/30 underline-offset-4">modo de alta disponibilidade local</span>.
-                      <br /><br />
-                      Você pode continuar usando o app normalmente. Suas alterações serão salvas localmente e sincronizadas assim que a cota for restaurada (meia-noite de hoje).
-                    </>
-                  )
-                  : `Ocorreu um erro técnico: ${suppliersError}`}
-              </p>
-              
-              <div className="flex items-center justify-between pt-4 border-t border-slate-100">
-                <div className="flex items-center gap-2 text-[10px] font-bold text-slate-400">
-                  <span className="w-2 h-2 rounded-full bg-orange-400 shadow-[0_0_8px_rgba(251,146,60,0.5)]" />
-                  <span>DADOS CARREGADOS DO CACHE (BROWSER)</span>
-                </div>
-                
-                <div className="flex items-center gap-4">
-                  <a 
-                    href="https://firebase.google.com/pricing#cloud-firestore" 
-                    target="_blank" 
-                    rel="noopener noreferrer"
-                    className="text-[10px] font-black text-slate-400 uppercase tracking-widest hover:text-indigo-600 transition-colors"
-                  >
-                    Documentação de Cota →
-                  </a>
-
-                  <button 
-                    onClick={handleReconnect}
-                    className="text-[10px] font-black text-white bg-indigo-600 px-4 py-2 rounded-xl uppercase tracking-tighter hover:bg-indigo-700 transition-all flex items-center gap-2"
-                  >
-                    <RefreshCcw className="w-3 h-3" />
-                    Tentar Reconectar Agora
-                  </button>
-                </div>
-              </div>
-            </div>
-          </motion.div>
         )}
-
-        {activeTargetListId && (
-          <motion.div 
-            initial={{ scale: 0.9, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            className="mb-8 p-6 bg-indigo-600 rounded-[2.5rem] border-2 border-slate-900 shadow-xl shadow-indigo-100 flex items-center justify-between"
-          >
-            <div className="flex items-center gap-6">
-              <div className="w-16 h-16 bg-white/20 backdrop-blur-md rounded-2xl flex items-center justify-center border border-white/30">
-                <PlusCircle className="w-8 h-8 text-white" />
-              </div>
-              <div>
-                <p className="text-[10px] font-black text-indigo-100 uppercase tracking-widest mb-1">Você está adicionando itens à:</p>
-                <h3 className="text-2xl font-black text-white uppercase tracking-tighter">{activeTargetListName}</h3>
-              </div>
-            </div>
-            <button 
-              onClick={() => onSetActiveTargetList(null, null)}
-              className="px-6 py-3 bg-white text-indigo-600 rounded-xl font-black uppercase text-xs tracking-widest hover:bg-slate-100 transition-all active:scale-95 shadow-lg border-b-4 border-slate-200 active:border-b-0"
-            >
-              Concluir Edição
-            </button>
-          </motion.div>
+        {currentPage === 'shopping' && (
+          <ShoppingView 
+            key="shopping"
+            suppliers={suppliers}
+            searchTerm={searchTerm}
+            setSearchTerm={setSearchTerm}
+            shoppingQuantities={shoppingQuantities}
+            setShoppingQuantities={setShoppingQuantities}
+            addToCart={handleAddToCart}
+          />
         )}
-
-        <AnimatePresence mode="wait">
-          {(currentPage === 'suppliers' || currentPage === 'mercado' || currentPage === 'materiais') && (
-            <SuppliersView 
-              key={currentPage}
-              suppliers={mainSuppliers}
-              allSuppliers={suppliers}
-              isLoading={isSuppliersLoading}
-              onRefresh={refreshSuppliers}
-              searchTerm={searchTerm}
-              setSearchTerm={setSearchTerm}
-              setIsAdding={setIsAdding}
-              handleEditSupplier={onEditSupplier}
-              setSupplierToDelete={setSupplierToDelete}
-              addToCart={handleAddToCart}
-              handleExportExcel={handleExportExcel}
-              handleImportExcel={onImportExcel}
-              activeTab={currentPage === 'suppliers' ? 'fornecedores' : currentPage as any}
-              onTabChange={(tab) => setCurrentPage(tab === 'fornecedores' ? 'suppliers' : tab)}
-            />
-          )}
-          {currentPage === 'shopping' && (
-            <ShoppingView 
-              key="shopping"
-              suppliers={suppliers}
-              searchTerm={searchTerm}
-              setSearchTerm={setSearchTerm}
-              shoppingQuantities={shoppingQuantities}
-              setShoppingQuantities={setShoppingQuantities}
-              addToCart={handleAddToCart}
-            />
-          )}
-          {currentPage === 'history' && (
-            <HistoryView 
-              key="history"
-              savedLists={savedLists}
-              isLoading={isLoadingLists}
-              onRefresh={refreshLists}
-              editSavedList={onEditSavedList}
-              deleteSavedList={setListToDelete}
-              toggleSavedListItemBought={toggleSavedListItemBought}
-              setActiveTargetList={onSetActiveTargetList}
-            />
-          )}
-          {currentPage === 'omie' && (
-            <OmieView 
-              key="omie"
-              externalProducts={externalProducts}
-              externalSearchTerm={externalSearchTerm}
-              setExternalSearchTerm={setExternalSearchTerm}
-              isSyncingExternal={isSyncingExternal}
-              isTriggeringSync={isTriggeringSync}
-              triggerOmieSync={() => triggerOmieSync(addNotification)}
-              fetchExternalProducts={() => fetchExternalProducts(addNotification)}
-              apiHealth={apiHealth}
-              isCheckingHealth={isCheckingHealth}
-              isWakingUp={isWakingUp}
-              wakeUpMessage={wakeUpMessage}
-              checkApiHealth={checkApiHealth}
-              addToCart={handleAddToCart}
-              externalCurrentPage={externalCurrentPage}
-              setExternalCurrentPage={setExternalCurrentPage}
-              externalItemsPerPage={10}
-            />
-          )}
-          {currentPage === 'reminders' && (
-            <RemindersView 
-              key="reminders"
-              reminders={reminders}
-              onRefresh={refreshReminders}
-              reminderProductName={reminderProductName}
-              setReminderProductName={setReminderProductName}
-              reminderDate={reminderDate}
-              setReminderDate={setReminderDate}
-              addReminder={onScheduleReminder}
-              deleteReminder={setReminderToDelete}
-            />
-          )}
-        </AnimatePresence>
-      </div>
-    </main>
+        {currentPage === 'history' && (
+          <HistoryView 
+            key="history"
+            savedLists={savedLists}
+            isLoading={isLoadingLists}
+            onRefresh={refreshLists}
+            editSavedList={onEditSavedList}
+            deleteSavedList={(id) => setDeletions(prev => ({ ...prev, list: id }))}
+            toggleSavedListItemBought={toggleSavedListItemBought}
+            setActiveTargetList={onSetActiveTargetList}
+          />
+        )}
+        {currentPage === 'omie' && (
+          <OmieView 
+            key="omie"
+            externalProducts={externalProducts}
+            externalSearchTerm={externalSearchTerm}
+            setExternalSearchTerm={setExternalSearchTerm}
+            isSyncingExternal={isSyncingExternal}
+            isTriggeringSync={isTriggeringSync}
+            triggerOmieSync={() => triggerOmieSync(addNotification)}
+            fetchExternalProducts={() => fetchExternalProducts(addNotification)}
+            apiHealth={apiHealth}
+            isCheckingHealth={isCheckingHealth}
+            isWakingUp={isWakingUp}
+            wakeUpMessage={wakeUpMessage}
+            checkApiHealth={checkApiHealth}
+            addToCart={handleAddToCart}
+            externalCurrentPage={externalCurrentPage}
+            setExternalCurrentPage={setExternalCurrentPage}
+            externalItemsPerPage={10}
+          />
+        )}
+        {currentPage === 'reminders' && (
+          <RemindersView 
+            key="reminders"
+            reminders={reminders}
+            onRefresh={refreshReminders}
+            reminderProductName={reminderProductName}
+            setReminderProductName={setReminderProductName}
+            reminderDate={reminderDate}
+            setReminderDate={setReminderDate}
+            addReminder={onScheduleReminder}
+            deleteReminder={(id) => setDeletions(prev => ({ ...prev, reminder: id }))}
+          />
+        )}
+      </AnimatePresence>
 
       <Modals 
         isAdding={isAdding}
         setIsAdding={setIsAdding}
         editingSupplierId={editingSupplierId}
-        newName={newName}
-        setNewName={setNewName}
-        newPhone={newPhone}
-        setNewPhone={setNewPhone}
+        newName={formState.name}
+        setNewName={(name) => setFormState(prev => ({ ...prev, name }))}
+        newPhone={formState.phone}
+        setNewPhone={(phone) => setFormState(prev => ({ ...prev, phone }))}
         productList={productList}
-        newProductName={newProductName}
-        setNewProductName={setNewProductName}
-        newProductPrice={newProductPrice}
-        setNewProductPrice={setNewProductPrice}
-        newProductCategory={newProductCategory}
-        setNewProductCategory={setNewProductCategory}
+        newProductName={formState.productName}
+        setNewProductName={(productName) => setFormState(prev => ({ ...prev, productName }))}
+        newProductPrice={formState.productPrice}
+        setNewProductPrice={(productPrice) => setFormState(prev => ({ ...prev, productPrice }))}
+        newProductCategory={formState.productCategory}
+        setNewProductCategory={(productCategory) => setFormState(prev => ({ ...prev, productCategory }))}
         categories={categories}
         editingProductIndex={editingProductIndex}
         productNameRef={productNameRef}
         addProduct={addProduct}
         handleEditProduct={(i) => {
           const p = productList[i];
-          setNewProductName(p.name);
-          setNewProductPrice(p.price.toString());
-          setNewProductCategory(p.category);
+          setFormState(prev => ({
+            ...prev,
+            productName: p.name,
+            productPrice: p.price.toString(),
+            productCategory: p.category
+          }));
           setEditingProductIndex(i);
         }}
         removeProduct={(i) => setProductList(productList.filter((_, idx) => idx !== i))}
@@ -697,23 +622,23 @@ export default function App() {
         authorizedUsers={authorizedUsers}
         updateUserStatus={updateUserStatus}
         removeUserRequest={removeUserRequest}
-        supplierToDelete={supplierToDelete}
-        setSupplierToDelete={setSupplierToDelete}
-        confirmDelete={() => { if (supplierToDelete) { deleteSupplier(supplierToDelete); setSupplierToDelete(null); } }}
-        listToDelete={listToDelete}
-        setListToDelete={setListToDelete}
-        confirmDeleteList={() => { if (listToDelete) { deleteSavedList(listToDelete); setListToDelete(null); } }}
-        reminderToDelete={reminderToDelete}
-        setReminderToDelete={setReminderToDelete}
-        confirmDeleteReminder={() => { if (reminderToDelete) { deleteReminder(reminderToDelete); setReminderToDelete(null); } }}
-        categoryToDelete={categoryToDelete}
-        setCategoryToDelete={setCategoryToDelete}
-        confirmDeleteCategory={() => { if (categoryToDelete) { deleteCategory(categoryToDelete); setCategoryToDelete(null); } }}
+        supplierToDelete={deletions.supplier}
+        setSupplierToDelete={(id) => setDeletions(prev => ({ ...prev, supplier: id }))}
+        confirmDelete={() => { if (deletions.supplier) { deleteSupplier(deletions.supplier); setDeletions(prev => ({ ...prev, supplier: null })); } }}
+        listToDelete={deletions.list}
+        setListToDelete={(id) => setDeletions(prev => ({ ...prev, list: id }))}
+        confirmDeleteList={() => { if (deletions.list) { deleteSavedList(deletions.list); setDeletions(prev => ({ ...prev, list: null })); } }}
+        reminderToDelete={deletions.reminder}
+        setReminderToDelete={(id) => setDeletions(prev => ({ ...prev, reminder: id }))}
+        confirmDeleteReminder={() => { if (deletions.reminder) { deleteReminder(deletions.reminder); setDeletions(prev => ({ ...prev, reminder: null })); } }}
+        categoryToDelete={deletions.category}
+        setCategoryToDelete={(id) => setDeletions(prev => ({ ...prev, category: id }))}
+        confirmDeleteCategory={() => { if (deletions.category) { deleteCategory(deletions.category); setDeletions(prev => ({ ...prev, category: null })); } }}
         pendingImportData={pendingImportData}
         setPendingImportData={setPendingImportData}
         handlePerformImport={onPerformImport}
         isImporting={isImporting}
       />
-    </div>
+    </AppLayout>
   );
 }

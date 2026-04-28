@@ -7,6 +7,7 @@ import { useState, useEffect } from 'react';
 import { auth, signInAnonymously, onAuthStateChanged, db } from '../firebase';
 import { collection, onSnapshot, doc, setDoc, updateDoc, deleteDoc, getDoc, getDocs } from 'firebase/firestore';
 import { AuthorizedUser } from '../types';
+import { extractErrorMessage, safeStringify } from '../utils';
 
 export const useAuth = () => {
   const [isLoggedIn, setIsLoggedIn] = useState(() => localStorage.getItem('cache_isLoggedIn') === 'true');
@@ -52,7 +53,7 @@ export const useAuth = () => {
            const snapshot = await getDocs(collection(db, 'authorized_users'));
            const data = snapshot.docs.map(doc => doc.data() as AuthorizedUser);
            setAuthorizedUsers(data);
-           localStorage.setItem('cache_authorizedUsers', JSON.stringify(data));
+           localStorage.setItem('cache_authorizedUsers', safeStringify(data));
          } catch (error: any) {
            if (error.message.toLowerCase().includes('quota') || error.message.toLowerCase().includes('resource-exhausted')) {
              setAuthError(error.message);
@@ -93,8 +94,8 @@ export const useAuth = () => {
         }
       }
     }, (error) => {
-      if (error.message.toLowerCase().includes('quota') || error.message.toLowerCase().includes('resource-exhausted')) {
-        setAuthError(error.message);
+      if (extractErrorMessage(error).toLowerCase().includes('quota') || extractErrorMessage(error).toLowerCase().includes('resource-exhausted')) {
+        setAuthError(extractErrorMessage(error));
       }
     });
 

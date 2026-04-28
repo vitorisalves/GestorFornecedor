@@ -7,6 +7,7 @@ import { useState, useEffect } from 'react';
 import { db } from '../firebase';
 import { collection, onSnapshot, addDoc, query, orderBy, deleteDoc, doc, updateDoc, limit } from 'firebase/firestore';
 import { Product, SavedList } from '../types';
+import { extractErrorMessage, safeStringify } from '../utils';
 
 export const useCart = (
   isAuthReady: boolean, 
@@ -25,11 +26,11 @@ export const useCart = (
   const [isLoadingLists, setIsLoadingLists] = useState(false);
 
   useEffect(() => {
-    localStorage.setItem('cache_cart', JSON.stringify(cart));
+    localStorage.setItem('cache_cart', safeStringify(cart));
   }, [cart]);
 
   useEffect(() => {
-    localStorage.setItem('cache_savedLists', JSON.stringify(savedLists));
+    localStorage.setItem('cache_savedLists', safeStringify(savedLists));
   }, [savedLists]);
 
   useEffect(() => {
@@ -66,8 +67,8 @@ export const useCart = (
       setSavedLists(lists);
       setIsLoadingLists(false);
     }, (error: any) => {
-      const isQuota = error.message.toLowerCase().includes('quota') || error.message.toLowerCase().includes('resource-exhausted');
-      if (!isQuota) console.error("Shopping lists sync error:", error);
+      const isQuota = extractErrorMessage(error).toLowerCase().includes('quota') || extractErrorMessage(error).toLowerCase().includes('resource-exhausted');
+      if (!isQuota) console.error("Shopping lists sync error:", extractErrorMessage(error));
       setIsLoadingLists(false);
     });
 
