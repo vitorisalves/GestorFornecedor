@@ -48,11 +48,24 @@ export const useExcel = (suppliers: Supplier[], saveSupplier: (s: Supplier) => P
         const newSuppliersMap: Record<string, Supplier> = {};
 
         rawData.forEach((row: any) => {
-          const sName = row['Empresa Razão Social'] || row['Fornecedor'] || row['Empresa'];
-          const sPhone = row['Telefone'] || row['WhatsApp'] || '';
-          const pName = row['Produto'] || row['Nome'];
-          const pPrice = parseFloat(row['Preço'] || row['Valor'] || '0');
-          const pCat = row['Categoria'] || 'Outros';
+          const sName = row['Empresa Razão Social'] || row['Fornecedor'] || row['Empresa'] || row['Razão Social'] || row['Nome da Empresa'];
+          const sPhone = row['Telefone'] || row['WhatsApp'] || row['Celular'] || '';
+          const pName = row['Produto'] || row['Nome'] || row['Nome do Produto'] || row['Descrição'];
+          
+          let pPrice = 0;
+          const rawPrice = row['Preço'] || row['Valor'] || row['Valor Unitário'] || row['Preço Unitário'] || row['Preço de Custo'];
+          if (typeof rawPrice === 'number') {
+            pPrice = rawPrice;
+          } else if (rawPrice) {
+            const strPrice = rawPrice.toString().trim();
+            if (strPrice.includes(',')) {
+              pPrice = parseFloat(strPrice.replace(/\./g, '').replace(',', '.'));
+            } else {
+              pPrice = parseFloat(strPrice);
+            }
+          }
+          
+          const pCat = row['Categoria'] || row['Grupo'] || 'Outros';
 
           if (sName && pName) {
             const trimmedName = sName.toString().trim().toUpperCase();
