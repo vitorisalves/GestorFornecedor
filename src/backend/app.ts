@@ -1,5 +1,17 @@
 import express, { Request, Response, NextFunction } from "express";
 import axios, { AxiosInstance } from "axios";
+import webPush from "web-push";
+
+// Configuração Web Push
+const vapidKeys = webPush.generateVAPIDKeys();
+webPush.setVapidDetails(
+  'mailto:vitorisalves1@gmail.com',
+  vapidKeys.publicKey,
+  vapidKeys.privateKey
+);
+
+// Armazenamento temporário de assinaturas (Em produção, use um Banco de Dados)
+let subscriptions: any[] = [];
 
 /**
  * Interface para configuração da API externa
@@ -9,6 +21,63 @@ interface ApiConfig {
 }
 
 const app = express();
+app.use(express.json());
+
+/**
+ * Wrapper para rotas assíncronas capturarem erros no Express 4 e encaminharem para o middleware de erro.
+ */
+const asyncHandler = (fn: Function) => (req: Request, res: Response, next: NextFunction) => {
+  Promise.resolve(fn(req, res, next)).catch(next);
+};
+
+// --- ROTAS DE NOTIFICAÇÃO PUSH ---
+
+/**
+ * Retorna a chave pública VAPID para o frontend se inscrever.
+ */
+app.get("/api/notifications/vapid-key", (req, res) => {
+  res.json({ publicKey: vapidKeys.publicKey });
+});
+
+/**
+ * Salva uma nova assinatura de Push.
+ */
+app.post("/api/notifications/subscribe", (req, res) => {
+  const subscription = req.body;
+  
+  // Evita duplicatas simples
+  if (!subscriptions.find(s => s.endpoint === subscription.endpoint)) {
+    subscriptions.push(subscription);
+  }
+  
+  res.status(201).json({ status: "subscribed" });
+});
+
+/**
+ * Endpoint para disparar notificações para todos os dispositivos inscritos (teste/uso interno).
+ */
+app.post("/api/notifications/broadcast", asyncHandler(async (req: Request, res: Response) => {
+  const { title, message, url } = req.body;
+  
+  const payload = JSON.stringify({
+    title: title || "Gestor Fornecedores",
+    body: message || "Nova atualização!",
+    url: url || "/"
+  });
+
+  const promises = subscriptions.map(sub => 
+    webPush.sendNotification(sub, payload).catch(err => {
+      if (err.statusCode === 404 || err.statusCode === 410) {
+        // Remove assinaturas expiradas/inválidas
+        subscriptions = subscriptions.filter(s => s.endpoint !== sub.endpoint);
+      }
+      console.error("Erro ao enviar push:", err);
+    })
+  );
+
+  await Promise.all(promises);
+  res.json({ sent_to: subscriptions.length });
+}));
 
 /**
  * Aumenta o tempo limite global do axios (30 segundos para suportar cold starts da Render.com)
@@ -28,8 +97,6 @@ const pingApi: AxiosInstance = axios.create({
   validateStatus: () => true,
 });
 
-app.use(express.json());
-
 /**
  * Limpa variáveis de ambiente removendo aspas e espaços extras.
  */
@@ -42,16 +109,7 @@ const EXTERNAL_API_CONFIG: ApiConfig = {
   baseUrl: sanitizeEnv(process.env.EXTERNAL_API_URL, "https://production-manager-api.onrender.com/v1").replace(/\/$/, "")
 };
 
-/**
- * Wrapper para rotas assíncronas capturarem erros no Express 4 e encaminharem para o middleware de erro.
- */
-const asyncHandler = (fn: Function) => (req: Request, res: Response, next: NextFunction) => {
-  Promise.resolve(fn(req, res, next)).catch(next);
-};
-
-/**
- * Helper para construir URLs com parâmetros de busca sem repetição de lógica.
- */
+// Sanitiza environment
 const buildUrl = (endpoint: string, params?: Record<string, string | number>): string => {
   const url = `${EXTERNAL_API_CONFIG.baseUrl}${endpoint}`;
   if (!params) return url;

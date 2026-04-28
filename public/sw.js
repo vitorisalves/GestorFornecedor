@@ -85,17 +85,33 @@ self.addEventListener('fetch', (event) => {
  * Evento Push: Processa notificações em segundo plano enviadas via servidor.
  */
 self.addEventListener('push', (event) => {
-  const data = event.data ? event.data.json() : {};
+  let data = {};
+  
+  if (event.data) {
+    try {
+      data = event.data.json();
+    } catch (e) {
+      data = { title: 'Gestor Fornecedores', body: event.data.text() };
+    }
+  }
   
   const title = data.title || 'Gestor Fornecedores';
   const options = {
-    body: data.message || data.body || 'Nova atualização disponível.',
+    body: data.body || data.message || 'Nova atualização disponível.',
     icon: '/favicon.ico',
     badge: '/favicon.ico',
-    vibrate: [200, 100, 200],
-    tag: 'gestor-update',
+    vibrate: [200, 100, 200, 100, 200],
+    tag: data.tag || 'gestor-update',
     renotify: true,
-    data: { url: '/' }
+    data: { 
+      url: data.url || '/',
+      id: data.id || Date.now()
+    },
+    // Parâmetros críticos para Android/iOS exibirem na tela de bloqueio
+    actions: [
+      { action: 'open', title: 'Abrir App' },
+      { action: 'close', title: 'Fechar' }
+    ]
   };
 
   event.waitUntil(self.registration.showNotification(title, options));
@@ -105,22 +121,26 @@ self.addEventListener('push', (event) => {
  * Evento NotificationClick: Gerencia o foco e navegação quando o usuário interage.
  */
 self.addEventListener('notificationclick', (event) => {
-  const { notification } = event;
+  const { notification, action } = event;
   notification.close();
+
+  if (action === 'close') return;
 
   event.waitUntil((async () => {
     const allClients = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
     
-    // Tenta focar em uma aba existente para evitar múltiplas instâncias
-    const chatClient = allClients.find(client => client.url === '/' && 'focus' in client);
-
-    if (chatClient) {
-      return chatClient.focus();
+    const targetUrl = notification.data?.url || '/';
+    
+    // Tenta focar em uma aba existente
+    for (const client of allClients) {
+      if (client.url.includes(targetUrl) && 'focus' in client) {
+        return client.focus();
+      }
     }
 
-    // Se nenhuma aba compatível estiver aberta, abre uma nova
+    // Se nenhuma aba estiver aberta, abre uma nova
     if (self.clients.openWindow) {
-      return self.clients.openWindow('/');
+      return self.clients.openWindow(targetUrl);
     }
   })());
 });

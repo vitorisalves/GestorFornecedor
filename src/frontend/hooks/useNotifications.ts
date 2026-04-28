@@ -11,6 +11,50 @@ export const useNotifications = () => {
   const [appNotifications, setAppNotifications] = useState<AppNotification[]>([]);
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
 
+  const urlBase64ToUint8Array = (base64String: string) => {
+    const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
+    const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+    const rawData = window.atob(base64);
+    const outputArray = new Uint8Array(rawData.length);
+    for (let i = 0; i < rawData.length; ++i) {
+      outputArray[i] = rawData.charCodeAt(i);
+    }
+    return outputArray;
+  };
+
+  const subscribeToPush = async () => {
+    if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+      console.warn('Push não suportado neste navegador.');
+      return;
+    }
+
+    try {
+      const registration = await navigator.serviceWorker.ready;
+      
+      // Busca a chave pública do servidor
+      const response = await fetch('/api/notifications/vapid-key');
+      const { publicKey } = await response.json();
+
+      if (!publicKey) return;
+
+      const subscription = await registration.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(publicKey)
+      });
+
+      // Envia a assinatura para o backend
+      await fetch('/api/notifications/subscribe', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(subscription)
+      });
+
+      console.log('Inscrito no Web Push com sucesso!');
+    } catch (err) {
+      console.error('Falha ao inscrever no Push:', err);
+    }
+  };
+
   const requestPermission = async () => {
     if (!('Notification' in window)) {
       alert('Seu navegador não suporta notificações nativas.');
@@ -24,10 +68,13 @@ export const useNotifications = () => {
         if ('vibrate' in navigator) {
           navigator.vibrate([100, 50, 100]);
         }
+        
+        // Ativa o Web Push após a permissão ser concedida
+        await subscribeToPush();
+
         new Notification('Notificações Ativadas!', {
           body: 'Você agora receberá alertas de lembretes e listas neste dispositivo.',
-          icon: 'https://img.icons8.com/color/192/shopping-cart.png',
-          tag: 'welcome-notif'
+          icon: 'https://img.icons8.com/color/192/shopping-cart.png'
         });
       } else if (permission === 'denied') {
         alert('Permissão negada. Ative as notificações nas configurações do navegador/celular para receber lembretes.');
@@ -61,7 +108,7 @@ export const useNotifications = () => {
       read: false
     };
 
-// Notificação Nativa do Navegador (Sistema/Celular)
+    // Notificação Nativa do Navegador (Sistema/Celular)
     if (typeof window !== 'undefined' && 'Notification' in window) {
       if (Notification.permission === 'granted') {
         const options: any = {
@@ -70,19 +117,27 @@ export const useNotifications = () => {
           badge: 'https://img.icons8.com/color/48/shopping-cart.png',
           tag: title.replace(/\s+/g, '-').toLowerCase(),
           requireInteraction: true,
-          vibrate: [200, 100, 200]
+          vibrate: [200, 100, 200, 100, 200],
+          actions: [
+            { action: 'open', title: 'Ver Agora' }
+          ]
         };
 
         try {
-          // Tentativa usando Service Worker (Melhor para celular/bloqueio)
+          // 1. Notificação Local via Service Worker (Imediato)
           if ('serviceWorker' in navigator) {
             navigator.serviceWorker.ready.then(registration => {
               registration.showNotification(title, options);
             });
-          } else {
-            // Fallback para notificação simples
-            new Notification(title, options);
           }
+
+          // 2. Notificação via Push API (Para outros dispositivos e segundo plano real)
+          fetch('/api/notifications/broadcast', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ title, message })
+          }).catch(err => console.warn('Falha no broadcast push:', err));
+
         } catch (e) {
           console.warn('Erro ao enviar notificação:', e);
         }
@@ -95,6 +150,15 @@ export const useNotifications = () => {
   const markAllAsRead = () => {
     setAppNotifications(prev => prev.map(n => ({ ...n, read: true })));
   };
+
+  // Tenta re-inscrever automaticamente se a permissão já existir
+  useState(() => {
+    if (typeof window !== 'undefined' && 'Notification' in window) {
+      if (Notification.permission === 'granted') {
+        subscribeToPush();
+      }
+    }
+  });
 
   const clearNotifications = () => {
     setAppNotifications([]);
