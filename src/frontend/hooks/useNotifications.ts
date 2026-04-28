@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { UINotification, AppNotification } from '../types';
 
 export const useNotifications = () => {
@@ -151,14 +151,15 @@ export const useNotifications = () => {
     setAppNotifications(prev => prev.map(n => ({ ...n, read: true })));
   };
 
-  // Tenta re-inscrever automaticamente se a permissão já existir
-  useState(() => {
+  // Tenta re-inscrever automaticamente se a permissão já estiver concedida
+  // Isso garante que o servidor sempre tenha o token mais atualizado
+  useEffect(() => {
     if (typeof window !== 'undefined' && 'Notification' in window) {
       if (Notification.permission === 'granted') {
         subscribeToPush();
       }
     }
-  });
+  }, []);
 
   const clearNotifications = () => {
     setAppNotifications([]);

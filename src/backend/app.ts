@@ -1,17 +1,29 @@
 import express, { Request, Response, NextFunction } from "express";
 import axios, { AxiosInstance } from "axios";
 import webPush from "web-push";
+import { getFirestore } from 'firebase-admin/firestore';
+import { getApps, initializeApp } from 'firebase-admin/app';
 
-// Configuração Web Push
-const vapidKeys = webPush.generateVAPIDKeys();
+// Inicialização segura do Firebase Admin
+if (getApps().length === 0) {
+  initializeApp();
+}
+
+// Configuração Web Push (Chaves fixas geradas para consistência entre reinícios de servidor)
+const VAPID_KEY_PUBLIC = process.env.VAPID_PUBLIC_KEY || 'BLzFX530XvDT4SYRB5rtIyrBEXIwdIBZ_PdBppRdlHPrOx-iwJtKy1uek7Ah6MmS4dvfilxpt109ILtA0X4N_Ek';
+const VAPID_KEY_PRIVATE = process.env.VAPID_PRIVATE_KEY || 'Xa8catoJrTvxLPgT5nmnS3l2tYh9RWL7-hHYV0M36WE';
+
+// Utilizamos as chaves fixas para que o navegador se mantenha autenticado mesmo se o servidor reiniciar
+const finalVapidKeys = { publicKey: VAPID_KEY_PUBLIC, privateKey: VAPID_KEY_PRIVATE };
+
 webPush.setVapidDetails(
   'mailto:vitorisalves1@gmail.com',
-  vapidKeys.publicKey,
-  vapidKeys.privateKey
+  finalVapidKeys.publicKey,
+  finalVapidKeys.privateKey
 );
 
-// Armazenamento temporário de assinaturas (Em produção, use um Banco de Dados)
-let subscriptions: any[] = [];
+// Obter instância do Firestore
+const getDb = () => (getApps().length > 0) ? getFirestore() : null;
 
 /**
  * Interface para configuração da API externa
@@ -36,47 +48,63 @@ const asyncHandler = (fn: Function) => (req: Request, res: Response, next: NextF
  * Retorna a chave pública VAPID para o frontend se inscrever.
  */
 app.get("/api/notifications/vapid-key", (req, res) => {
-  res.json({ publicKey: vapidKeys.publicKey });
+  res.json({ publicKey: finalVapidKeys.publicKey });
 });
 
 /**
- * Salva uma nova assinatura de Push.
+ * Salva uma nova assinatura de Push no Firestore para persistência.
  */
-app.post("/api/notifications/subscribe", (req, res) => {
+app.post("/api/notifications/subscribe", asyncHandler(async (req: Request, res: Response) => {
   const subscription = req.body;
+  const db = getDb();
   
-  // Evita duplicatas simples
-  if (!subscriptions.find(s => s.endpoint === subscription.endpoint)) {
-    subscriptions.push(subscription);
+  if (db) {
+    const subsCol = db.collection('push_subscriptions');
+    // Sanitiza o endpoint para usar como ID (base64)
+    const docId = Buffer.from(subscription.endpoint).toString('base64').substring(0, 50);
+    await subsCol.doc(docId).set({
+      ...subscription,
+      updatedAt: new Date().toISOString()
+    });
   }
   
   res.status(201).json({ status: "subscribed" });
-});
+}));
 
 /**
- * Endpoint para disparar notificações para todos os dispositivos inscritos (teste/uso interno).
+ * Dispara notificações para todos os dispositivos inscritos salvos no Banco.
  */
 app.post("/api/notifications/broadcast", asyncHandler(async (req: Request, res: Response) => {
   const { title, message, url } = req.body;
+  const db = getDb();
+  
+  let targetSubscriptions: any[] = [];
+  if (db) {
+    const snapshot = await db.collection('push_subscriptions').get();
+    targetSubscriptions = snapshot.docs.map(doc => doc.data());
+  }
   
   const payload = JSON.stringify({
     title: title || "Gestor Fornecedores",
     body: message || "Nova atualização!",
-    url: url || "/"
+    url: url || "/",
+    tag: 'gestor-update-' + Date.now()
   });
 
-  const promises = subscriptions.map(sub => 
-    webPush.sendNotification(sub, payload).catch(err => {
+  const promises = targetSubscriptions.map(sub => 
+    webPush.sendNotification(sub, payload).catch(async err => {
       if (err.statusCode === 404 || err.statusCode === 410) {
-        // Remove assinaturas expiradas/inválidas
-        subscriptions = subscriptions.filter(s => s.endpoint !== sub.endpoint);
+        if (db) {
+          const docId = Buffer.from(sub.endpoint).toString('base64').substring(0, 50);
+          await db.collection('push_subscriptions').doc(docId).delete();
+        }
       }
       console.error("Erro ao enviar push:", err);
     })
   );
 
   await Promise.all(promises);
-  res.json({ sent_to: subscriptions.length });
+  res.json({ sent_to: targetSubscriptions.length });
 }));
 
 /**
