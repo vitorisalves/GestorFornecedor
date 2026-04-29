@@ -74,7 +74,7 @@ export const useNotifications = () => {
 
         new Notification('Notificações Ativadas!', {
           body: 'Você agora receberá alertas de lembretes e listas neste dispositivo.',
-          icon: 'https://img.icons8.com/color/192/shopping-cart.png'
+          icon: 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTF8VmLyweYpbSL_D3D1F-hsvmGwm9EHcPi5A&s'
         });
       } else if (permission === 'denied') {
         alert('Permissão negada. Ative as notificações nas configurações do navegador/celular para receber lembretes.');
@@ -113,8 +113,8 @@ export const useNotifications = () => {
       if (Notification.permission === 'granted') {
         const options: any = {
           body: message,
-          icon: 'https://img.icons8.com/color/192/shopping-cart.png',
-          badge: 'https://img.icons8.com/color/48/shopping-cart.png',
+          icon: 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTF8VmLyweYpbSL_D3D1F-hsvmGwm9EHcPi5A&s',
+          badge: 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTF8VmLyweYpbSL_D3D1F-hsvmGwm9EHcPi5A&s',
           tag: title.replace(/\s+/g, '-').toLowerCase(),
           requireInteraction: true,
           vibrate: [200, 100, 200, 100, 200],

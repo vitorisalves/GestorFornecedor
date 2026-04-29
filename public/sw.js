@@ -98,8 +98,8 @@ self.addEventListener('push', (event) => {
   const title = data.title || 'Gestor Fornecedores';
   const options = {
     body: data.body || data.message || 'Nova atualização disponível.',
-    icon: '/favicon.ico',
-    badge: '/favicon.ico',
+    icon: 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTF8VmLyweYpbSL_D3D1F-hsvmGwm9EHcPi5A&s',
+    badge: 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTF8VmLyweYpbSL_D3D1F-hsvmGwm9EHcPi5A&s',
     vibrate: [200, 100, 200, 100, 200],
     tag: data.tag || 'gestor-update',
     renotify: true,
