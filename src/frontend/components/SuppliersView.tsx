@@ -94,10 +94,20 @@ export const SuppliersView: React.FC<SuppliersViewProps> = ({
     }
   };
 
+  const adjustQuantity = (key: string, delta: number) => {
+    setQuantities(prev => {
+      const val = prev[key];
+      const current = (val && !isNaN(parseInt(val))) ? parseInt(val) : 1;
+      const newVal = Math.max(1, current + delta);
+      return { ...prev, [key]: newVal.toString() };
+    });
+  };
+
   const onAddToCart = (product: any, supplierName: string, key: string) => {
-    const qty = parseInt(quantities[key] || '1');
+    const val = quantities[key] || '1';
+    const qty = parseInt(val);
+    if (isNaN(qty) || qty < 1) return;
     addToCart(product, supplierName, qty);
-    // Mantém o valor em 1 para a próxima adição
     setQuantities(prev => ({ ...prev, [key]: '1' }));
   };
 
@@ -257,44 +267,74 @@ export const SuppliersView: React.FC<SuppliersViewProps> = ({
                           p.category.toLowerCase().includes(searchTerm.toLowerCase()) ||
                           supplier.name.toLowerCase().includes(searchTerm.toLowerCase())
                         )
-                        .map((product, idx) => (
-                        <div key={idx} className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm flex flex-col justify-between group hover:border-indigo-200 transition-all">
-                          <div>
-                            <div className="flex justify-between items-start mb-3">
-                              <span className="px-3 py-1 bg-slate-100 text-slate-500 rounded-full text-[10px] font-black uppercase tracking-wider">
-                                {product.category}
-                              </span>
-                              <span className="text-xl font-black text-indigo-600">
-                                {formatCurrency(product.price)}
-                              </span>
+                        .map((product, idx) => {
+                          const qKey = `${supplier.id}-${product.name}`;
+                          return (
+                            <div key={idx} className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm flex flex-col justify-between group hover:border-indigo-200 transition-all">
+                              <div>
+                                <div className="flex justify-between items-start mb-3">
+                                  <span className="px-3 py-1 bg-slate-100 text-slate-500 rounded-full text-[10px] font-black uppercase tracking-wider">
+                                    {product.category}
+                                  </span>
+                                  <span className="text-xl font-black text-indigo-600">
+                                    {formatCurrency(product.price)}
+                                  </span>
+                                </div>
+                                <h4 className="font-bold text-slate-900 mb-4">{product.name}</h4>
+                              </div>
+                              <div className="flex flex-col sm:flex-row gap-2 mt-auto">
+                                <div className="flex items-center bg-slate-100 rounded-xl border-2 border-transparent focus-within:border-indigo-600 transition-all overflow-hidden shrink-0 h-11">
+                                  <button 
+                                    id={`dec-${qKey}`}
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.preventDefault();
+                                      e.stopPropagation();
+                                      adjustQuantity(qKey, -1);
+                                    }}
+                                    className="w-9 h-full text-slate-400 hover:text-indigo-600 hover:bg-slate-200 transition-all active:scale-90 flex items-center justify-center"
+                                  >
+                                    <ChevronDown className="w-4 h-4 font-black" />
+                                  </button>
+                                  <input
+                                    id={`qty-${qKey}`}
+                                    type="text"
+                                    value={quantities[qKey] ?? '1'}
+                                    onChange={(e) => handleQuantityChange(qKey, e.target.value)}
+                                    onBlur={() => handleQuantityBlur(qKey)}
+                                    onKeyDown={(e) => {
+                                      if (e.key === 'Enter') {
+                                        e.preventDefault();
+                                        onAddToCart(product, supplier.name, qKey);
+                                      }
+                                    }}
+                                    className="w-10 h-full bg-transparent text-center font-bold text-slate-900 outline-none text-sm"
+                                    placeholder="Qtd"
+                                  />
+                                  <button 
+                                    id={`inc-${qKey}`}
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.preventDefault();
+                                      e.stopPropagation();
+                                      adjustQuantity(qKey, 1);
+                                    }}
+                                    className="w-9 h-full text-slate-400 hover:text-indigo-600 hover:bg-slate-200 transition-all active:scale-90 flex items-center justify-center"
+                                  >
+                                    <ChevronUp className="w-4 h-4 font-black" />
+                                  </button>
+                                </div>
+                                <button
+                                  id={`add-${qKey}`}
+                                  onClick={() => onAddToCart(product, supplier.name, qKey)}
+                                  className="flex-1 h-11 bg-slate-900 text-white rounded-xl font-bold text-[10px] sm:text-xs hover:bg-indigo-600 transition-all active:scale-95"
+                                >
+                                  Adicionar
+                                </button>
+                              </div>
                             </div>
-                            <h4 className="font-bold text-slate-900 mb-4">{product.name}</h4>
-                          </div>
-                          <div className="flex gap-2">
-                            <div className="flex-none">
-                              <input
-                                type="text"
-                                value={quantities[`${supplier.id}-${idx}`] ?? '1'}
-                                onChange={(e) => handleQuantityChange(`${supplier.id}-${idx}`, e.target.value)}
-                                onBlur={() => handleQuantityBlur(`${supplier.id}-${idx}`)}
-                                onKeyDown={(e) => {
-                                  if (e.key === 'Enter') {
-                                    onAddToCart(product, supplier.name, `${supplier.id}-${idx}`);
-                                  }
-                                }}
-                                className="w-16 px-2 py-3 bg-slate-100 border-2 border-transparent focus:border-indigo-600 rounded-xl text-center font-bold text-slate-900 outline-none transition-all"
-                                placeholder="Qtd"
-                              />
-                            </div>
-                            <button
-                              onClick={() => onAddToCart(product, supplier.name, `${supplier.id}-${idx}`)}
-                              className="flex-1 py-3 bg-slate-900 text-white rounded-xl font-bold text-sm hover:bg-indigo-600 transition-all active:scale-95"
-                            >
-                              Adicionar
-                            </button>
-                          </div>
-                        </div>
-                      ))}
+                          );
+                        })}
                     </div>
                   </div>
                 </motion.div>
@@ -340,48 +380,74 @@ export const SuppliersView: React.FC<SuppliersViewProps> = ({
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
               {marketSupplier.products
                 .filter(p => p.name.toLowerCase().includes(searchTerm.toLowerCase()) || p.category.toLowerCase().includes(searchTerm.toLowerCase()))
-                .map((product, idx) => (
-                <div key={idx} className="bg-white p-8 rounded-[2.5rem] border-2 border-slate-900 shadow-xl shadow-slate-100 flex flex-col justify-between group hover:border-indigo-200 transition-all">
-                  <div>
-                    <div className="flex justify-between items-start mb-4">
-                      <span className="px-4 py-1.5 bg-slate-100 text-slate-500 rounded-full text-xs font-black uppercase tracking-wider">
-                        {product.category}
-                      </span>
-                      <span className="text-2xl font-black text-indigo-600">
-                        {formatCurrency(product.price)}
-                      </span>
+                .map((product, idx) => {
+                  const qKey = `MERCADO-${product.name}`;
+                  return (
+                    <div key={idx} className="bg-white p-8 rounded-[2.5rem] border-2 border-slate-900 shadow-xl shadow-slate-100 flex flex-col justify-between group hover:border-indigo-200 transition-all">
+                      <div>
+                        <div className="flex justify-between items-start mb-4">
+                          <span className="px-4 py-1.5 bg-slate-100 text-slate-500 rounded-full text-xs font-black uppercase tracking-wider">
+                            {product.category}
+                          </span>
+                          <span className="text-2xl font-black text-indigo-600">
+                            {formatCurrency(product.price)}
+                          </span>
+                        </div>
+                        <h4 className="text-xl font-black text-slate-900 mb-6 uppercase tracking-tight">{product.name}</h4>
+                      </div>
+                        <div className="flex flex-col sm:flex-row gap-2 mt-auto">
+                          <div className="flex items-center bg-slate-100 rounded-2xl border-2 border-transparent focus-within:border-indigo-600 transition-all overflow-hidden h-12 shrink-0">
+                            <button 
+                              id={`dec-mercado-${idx}`}
+                              type="button"
+                              onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                adjustQuantity(qKey, -1);
+                              }}
+                              className="w-10 h-full text-slate-400 hover:text-indigo-600 hover:bg-slate-200 transition-all active:scale-95 flex items-center justify-center"
+                            >
+                              <ChevronDown className="w-5 h-5" />
+                            </button>
+                            <input
+                              id={`qty-mercado-${idx}`}
+                              type="text"
+                              value={quantities[qKey] ?? '1'}
+                              onChange={(e) => handleQuantityChange(qKey, e.target.value)}
+                              onBlur={() => handleQuantityBlur(qKey)}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') {
+                                  e.preventDefault();
+                                  onAddToCart(product, 'MERCADO', qKey);
+                                }
+                              }}
+                              className="w-10 h-full bg-transparent text-center font-black text-slate-900 outline-none text-base"
+                              placeholder="Qtd"
+                            />
+                            <button 
+                              id={`inc-mercado-${idx}`}
+                              type="button"
+                              onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                adjustQuantity(qKey, 1);
+                              }}
+                              className="w-10 h-full text-slate-400 hover:text-indigo-600 hover:bg-slate-200 transition-all active:scale-95 flex items-center justify-center"
+                            >
+                              <ChevronUp className="w-5 h-5" />
+                            </button>
+                          </div>
+                          <button
+                            id={`add-mercado-${idx}`}
+                            onClick={() => onAddToCart(product, 'MERCADO', qKey)}
+                            className="flex-1 h-12 bg-slate-900 text-white rounded-2xl font-black uppercase text-[10px] sm:text-xs tracking-widest hover:bg-indigo-600 transition-all active:scale-95 border-b-4 border-slate-700 active:border-b-0"
+                          >
+                            Adicionar
+                          </button>
+                        </div>
                     </div>
-                    <h4 className="text-xl font-black text-slate-900 mb-6 uppercase tracking-tight">{product.name}</h4>
-                  </div>
-                  <div className="flex gap-3">
-                    <div className="flex-none">
-                      <input
-                        type="text"
-                        value={quantities[`MERCADO-${idx}`] ?? '1'}
-                        onChange={(e) => handleQuantityChange(`MERCADO-${idx}`, e.target.value)}
-                        onBlur={() => handleQuantityBlur(`MERCADO-${idx}`)}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter') {
-                            addToCart(product, 'MERCADO', Number(quantities[`MERCADO-${idx}`] ?? '1'));
-                            setQuantities(prev => ({ ...prev, [`MERCADO-${idx}`]: '1' }));
-                          }
-                        }}
-                        className="w-16 px-2 py-4 bg-slate-100 border-2 border-transparent focus:border-indigo-600 rounded-2xl text-center font-black text-slate-900 outline-none transition-all"
-                        placeholder="Qtd"
-                      />
-                    </div>
-                    <button
-                      onClick={() => {
-                        addToCart(product, 'MERCADO', Number(quantities[`MERCADO-${idx}`] ?? '1'));
-                        setQuantities(prev => ({ ...prev, [`MERCADO-${idx}`]: '1' }));
-                      }}
-                      className="flex-1 py-4 bg-slate-900 text-white rounded-2xl font-black uppercase text-xs tracking-widest hover:bg-indigo-600 transition-all active:scale-95 border-b-4 border-slate-700 active:border-b-0"
-                    >
-                      Adicionar
-                    </button>
-                  </div>
-                </div>
-              ))}
+                  );
+                })}
             </div>
           )}
         </div>
@@ -423,48 +489,74 @@ export const SuppliersView: React.FC<SuppliersViewProps> = ({
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
               {materialsSupplier.products
                 .filter(p => p.name.toLowerCase().includes(searchTerm.toLowerCase()) || p.category.toLowerCase().includes(searchTerm.toLowerCase()))
-                .map((product, idx) => (
-                <div key={idx} className="bg-white p-8 rounded-[2.5rem] border-2 border-slate-900 shadow-xl shadow-slate-100 flex flex-col justify-between group hover:border-indigo-200 transition-all">
-                  <div>
-                    <div className="flex justify-between items-start mb-4">
-                      <span className="px-4 py-1.5 bg-slate-100 text-slate-500 rounded-full text-xs font-black uppercase tracking-wider">
-                        {product.category}
-                      </span>
-                      <span className="text-2xl font-black text-indigo-600">
-                        {formatCurrency(product.price)}
-                      </span>
+                .map((product, idx) => {
+                  const qKey = `MATERIAIS-${product.name}`;
+                  return (
+                    <div key={idx} className="bg-white p-8 rounded-[2.5rem] border-2 border-slate-900 shadow-xl shadow-slate-100 flex flex-col justify-between group hover:border-indigo-200 transition-all">
+                      <div>
+                        <div className="flex justify-between items-start mb-4">
+                          <span className="px-4 py-1.5 bg-slate-100 text-slate-500 rounded-full text-xs font-black uppercase tracking-wider">
+                            {product.category}
+                          </span>
+                          <span className="text-2xl font-black text-indigo-600">
+                            {formatCurrency(product.price)}
+                          </span>
+                        </div>
+                        <h4 className="text-xl font-black text-slate-900 mb-6 uppercase tracking-tight">{product.name}</h4>
+                      </div>
+                        <div className="flex flex-col sm:flex-row gap-2 mt-auto">
+                          <div className="flex items-center bg-slate-100 rounded-2xl border-2 border-transparent focus-within:border-indigo-600 transition-all overflow-hidden h-12 shrink-0">
+                            <button 
+                              id={`dec-materiais-${idx}`}
+                              type="button"
+                              onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                adjustQuantity(qKey, -1);
+                              }}
+                              className="w-10 h-full text-slate-400 hover:text-indigo-600 hover:bg-slate-200 transition-all active:scale-95 flex items-center justify-center"
+                            >
+                              <ChevronDown className="w-5 h-5" />
+                            </button>
+                            <input
+                              id={`qty-materiais-${idx}`}
+                              type="text"
+                              value={quantities[qKey] ?? '1'}
+                              onChange={(e) => handleQuantityChange(qKey, e.target.value)}
+                              onBlur={() => handleQuantityBlur(qKey)}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') {
+                                  e.preventDefault();
+                                  onAddToCart(product, 'MATERIAIS', qKey);
+                                }
+                              }}
+                              className="w-10 h-full bg-transparent text-center font-black text-slate-900 outline-none text-base"
+                              placeholder="Qtd"
+                            />
+                            <button 
+                              id={`inc-materiais-${idx}`}
+                              type="button"
+                              onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                adjustQuantity(qKey, 1);
+                              }}
+                              className="w-10 h-full text-slate-400 hover:text-indigo-600 hover:bg-slate-200 transition-all active:scale-95 flex items-center justify-center"
+                            >
+                              <ChevronUp className="w-5 h-5" />
+                            </button>
+                          </div>
+                          <button
+                            id={`add-materiais-${idx}`}
+                            onClick={() => onAddToCart(product, 'MATERIAIS', qKey)}
+                            className="flex-1 h-12 bg-slate-900 text-white rounded-2xl font-black uppercase text-[10px] sm:text-xs tracking-widest hover:bg-indigo-600 transition-all active:scale-95 border-b-4 border-slate-700 active:border-b-0"
+                          >
+                            Adicionar
+                          </button>
+                        </div>
                     </div>
-                    <h4 className="text-xl font-black text-slate-900 mb-6 uppercase tracking-tight">{product.name}</h4>
-                  </div>
-                  <div className="flex gap-3">
-                    <div className="flex-none">
-                      <input
-                        type="text"
-                        value={quantities[`MATERIAIS-${idx}`] ?? '1'}
-                        onChange={(e) => handleQuantityChange(`MATERIAIS-${idx}`, e.target.value)}
-                        onBlur={() => handleQuantityBlur(`MATERIAIS-${idx}`)}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter') {
-                            addToCart(product, 'MATERIAIS', Number(quantities[`MATERIAIS-${idx}`] ?? '1'));
-                            setQuantities(prev => ({ ...prev, [`MATERIAIS-${idx}`]: '1' }));
-                          }
-                        }}
-                        className="w-16 px-2 py-4 bg-slate-100 border-2 border-transparent focus:border-indigo-600 rounded-2xl text-center font-black text-slate-900 outline-none transition-all"
-                        placeholder="Qtd"
-                      />
-                    </div>
-                    <button
-                      onClick={() => {
-                        addToCart(product, 'MATERIAIS', Number(quantities[`MATERIAIS-${idx}`] ?? '1'));
-                        setQuantities(prev => ({ ...prev, [`MATERIAIS-${idx}`]: '1' }));
-                      }}
-                      className="flex-1 py-4 bg-slate-900 text-white rounded-2xl font-black uppercase text-xs tracking-widest hover:bg-indigo-600 transition-all active:scale-95 border-b-4 border-slate-700 active:border-b-0"
-                    >
-                      Adicionar
-                    </button>
-                  </div>
-                </div>
-              ))}
+                  );
+                })}
             </div>
           )}
         </div>

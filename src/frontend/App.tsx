@@ -592,6 +592,16 @@ export default function App() {
         productNameRef={productNameRef}
         addProduct={addProduct}
         handleEditProduct={(i) => {
+          if (i === null || i < 0) {
+            setEditingProductIndex(null);
+            setFormState(prev => ({
+              ...prev,
+              productName: '',
+              productPrice: '',
+              productCategory: ''
+            }));
+            return;
+          }
           const p = productList[i];
           setFormState(prev => ({
             ...prev,

@@ -31,20 +31,30 @@ export const formatDate = (dateString: string) => {
 };
 
 export const safeStringify = (obj: any): string => {
+  if (obj === undefined) return 'undefined';
+  if (obj === null) return 'null';
+  
   try {
     return JSON.stringify(obj);
   } catch (err) {
-    console.warn("Circular structure detected during stringify, using fallback approach");
     const cache = new Set();
-    return JSON.stringify(obj, (key, value) => {
-      if (typeof value === 'object' && value !== null) {
-        if (cache.has(value)) {
-          return '[Circular]';
+    try {
+      return JSON.stringify(obj, (key, value) => {
+        if (typeof value === 'object' && value !== null) {
+          if (cache.has(value)) {
+            return '[Circular]';
+          }
+          cache.add(value);
+          
+          // Se for uma instância de classe complexa (como as do Firebase), 
+          // ela pode ter um toJSON que falha ou causa problemas.
+          // Mas o JSON.stringify chama toJSON antes do replacer...
         }
-        cache.add(value);
-      }
-      return value;
-    });
+        return value;
+      });
+    } catch (innerErr) {
+      return `[Error stringifying object: ${innerErr instanceof Error ? innerErr.message : 'Unknown'}]`;
+    }
   }
 };
 
@@ -69,30 +79,15 @@ export const extractErrorMessage = (error: any, fallback: string = 'Ocorreu um e
       return error.detail.map((d: any) => {
         if (typeof d === 'string') return d;
         if (d && d.msg) return d.msg;
-        try {
-          return JSON.stringify(d);
-        } catch (e) {
-          return '[Objeto complexo]';
-        }
+        return safeStringify(d);
       }).join(', ');
     }
   }
 
-  // Tentar stringificar o objeto se nada mais funcionar, mas evitando o padrão [object Object]
-  try {
-    // Se for um objeto muito grande ou complexo (como instâncias de classes do Firebase),
-    // JSON.stringify pode falhar com erro de estrutura circular.
-    const stringified = JSON.stringify(error);
-    if (stringified && stringified !== '{}' && stringified !== 'null') {
-      return stringified;
-    }
-  } catch (e) {
-    // Se falhar a stringificação, usamos a versão robusta com detecção de ciclo
-    try {
-      return safeStringify(error);
-    } catch (finalError) {
-      if (error.code) return `Erro ${error.code}: ${fallback}`;
-    }
+  // Tentar stringificar o objeto se nada mais funcionar
+  const stringified = safeStringify(error);
+  if (stringified && stringified !== '{}' && stringified !== 'null' && !stringified.startsWith('[Error')) {
+    return stringified;
   }
 
   return fallback;

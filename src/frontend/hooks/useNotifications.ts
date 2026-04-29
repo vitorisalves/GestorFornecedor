@@ -46,7 +46,7 @@ export const useNotifications = () => {
       await fetch('/api/notifications/subscribe', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(subscription)
+        body: JSON.stringify(subscription.toJSON())
       });
 
       console.log('Inscrito no Web Push com sucesso!');

@@ -23,7 +23,7 @@ interface SupplierModalProps {
   editingProductIndex: number | null;
   productNameRef: React.RefObject<HTMLInputElement>;
   onAddProduct: () => void;
-  onEditProduct: (index: number) => void;
+  onEditProduct: (index: number | null) => void;
   onRemoveProduct: (index: number) => void;
   onSave: (e: React.FormEvent) => void;
 }
@@ -155,34 +155,68 @@ export const SupplierModal: React.FC<SupplierModalProps> = ({
                   {productList.map((p, i) => {
                     const isEditingThis = editingProductIndex === i;
                     return (
-                      <div key={i} className={`flex items-center justify-between p-4 bg-white border-2 rounded-2xl group transition-all ${isEditingThis ? 'border-indigo-500 shadow-lg shadow-indigo-50' : 'border-slate-100 hover:border-indigo-200'}`}>
-                        <div className="flex-1">
-                          <p className="font-bold text-slate-900">{p.name}</p>
-                          <div className="flex items-center gap-3">
+                      <div 
+                        key={i} 
+                        className={`flex items-center justify-between p-4 bg-white border-2 rounded-2xl group transition-all relative ${isEditingThis ? 'border-indigo-500 shadow-lg shadow-indigo-50' : 'border-slate-100 hover:border-indigo-200'}`}
+                      >
+                        {isEditingThis && (
+                          <div 
+                            className="fixed inset-0 z-[210]" 
+                            onClick={() => onEditProduct(null)} 
+                          />
+                        )}
+                        <div className={`flex-1 ${isEditingThis ? 'relative z-[220]' : ''}`}>
+                          <div className="flex flex-col gap-1">
                             {isEditingThis ? (
-                              <div className="flex items-center gap-2 mt-1">
-                                <span className="text-xs font-black text-indigo-600">R$</span>
+                              <>
                                 <input
-                                  type="number"
-                                  className="w-24 px-2 py-1 bg-indigo-50 border border-indigo-200 rounded-lg text-sm font-black text-indigo-700 outline-none focus:ring-2 focus:ring-indigo-500"
-                                  value={productPrice}
-                                  onChange={(e) => setProductPrice(e.target.value)}
-                                  autoFocus
+                                  type="text"
+                                  className="w-full px-3 py-2 bg-indigo-50 border border-indigo-200 rounded-lg text-sm font-bold text-slate-900 outline-none focus:ring-2 focus:ring-indigo-500 mb-2"
+                                  value={productName}
+                                  onChange={(e) => setProductName(e.target.value)}
+                                  placeholder="Nome do produto"
                                   onKeyDown={(e) => {
                                     if (e.key === 'Enter') onAddProduct();
+                                    if (e.key === 'Escape') onEditProduct(null);
                                   }}
                                 />
-                                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{p.category}</span>
-                              </div>
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-xs font-black text-indigo-600">R$</span>
+                                    <input
+                                      type="number"
+                                      className="w-24 px-2 py-1 bg-indigo-50 border border-indigo-200 rounded-lg text-sm font-black text-indigo-700 outline-none focus:ring-2 focus:ring-indigo-500"
+                                      value={productPrice}
+                                      onChange={(e) => setProductPrice(e.target.value)}
+                                      onKeyDown={(e) => {
+                                        if (e.key === 'Enter') onAddProduct();
+                                        if (e.key === 'Escape') onEditProduct(null);
+                                      }}
+                                    />
+                                  </div>
+                                  <select
+                                    className="px-2 py-1 bg-indigo-50 border border-indigo-200 rounded-lg text-xs font-black text-indigo-600 outline-none focus:ring-2 focus:ring-indigo-500"
+                                    value={productCategory}
+                                    onChange={(e) => setProductCategory(e.target.value)}
+                                  >
+                                    {categories.map(cat => (
+                                      <option key={cat} value={cat}>{cat}</option>
+                                    ))}
+                                  </select>
+                                </div>
+                              </>
                             ) : (
                               <>
-                                <span className="text-xs font-black text-indigo-600">{formatCurrency(p.price)}</span>
-                                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{p.category}</span>
+                                <p className="font-bold text-slate-900">{p.name}</p>
+                                <div className="flex items-center gap-3">
+                                  <span className="text-xs font-black text-indigo-600">{formatCurrency(p.price)}</span>
+                                  <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{p.category}</span>
+                                </div>
                               </>
                             )}
                           </div>
                         </div>
-                        <div className={`flex items-center gap-1 ${isEditingThis ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'} transition-all`}>
+                        <div className={`flex items-center gap-1 ${isEditingThis ? 'opacity-100 relative z-[220]' : 'opacity-0 group-hover:opacity-100'} transition-all`}>
                           {isEditingThis ? (
                             <button 
                               onClick={onAddProduct}

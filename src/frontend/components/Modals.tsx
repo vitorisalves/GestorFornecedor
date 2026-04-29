@@ -31,7 +31,7 @@ interface ModalsProps {
   editingProductIndex: number | null;
   productNameRef: React.RefObject<HTMLInputElement>;
   addProduct: () => void;
-  handleEditProduct: (index: number) => void;
+  handleEditProduct: (index: number | null) => void;
   removeProduct: (index: number) => void;
   handleAddSupplier: (e: React.FormEvent) => void;
   resetForm: () => void;
