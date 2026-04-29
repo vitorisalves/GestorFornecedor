@@ -3,17 +3,12 @@
   "name": "Gestor de Produção e Compras",
   "icons": [
     {
-      "src": "favicon.ico",
-      "sizes": "64x64 32x32 24x24 16x16",
-      "type": "image/x-icon"
+      "src": "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTF8VmLyweYpbSL_D3D1F-hsvmGwm9EHcPi5A&s",
+      "sizes": "192x192",
+      "type": "image/png"
     },
     {
-        "src": "https://img.icons8.com/color/192/shopping-cart.png",
-        "type": "image/png",
-        "sizes": "192x192"
-    },
-    {
-        "src": "https://img.icons8.com/color/512/shopping-cart.png",
+        "src": "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTF8VmLyweYpbSL_D3D1F-hsvmGwm9EHcPi5A&s",
         "type": "image/png",
         "sizes": "512x512"
     }
