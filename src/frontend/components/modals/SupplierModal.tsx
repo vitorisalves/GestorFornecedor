@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Package, Pencil, Plus, Trash2 } from 'lucide-react';
+import { X, Package, Pencil, Plus, Trash2, Search } from 'lucide-react';
 import { Product } from '../../types';
 import { formatCurrency } from '../../utils';
 
@@ -51,6 +51,24 @@ export const SupplierModal: React.FC<SupplierModalProps> = ({
   onRemoveProduct,
   onSave
 }) => {
+  const [localSearch, setLocalSearch] = React.useState('');
+
+  React.useEffect(() => {
+    if (!isOpen) {
+      setLocalSearch('');
+    }
+  }, [isOpen, editingSupplierId]);
+
+  const filteredProducts = React.useMemo(() => {
+    if (!localSearch.trim()) return productList;
+    const lower = localSearch.toLowerCase();
+    return productList.map((p, originalIndex) => ({ ...p, originalIndex }))
+      .filter(p => 
+        p.name.toLowerCase().includes(lower) || 
+        p.category.toLowerCase().includes(lower)
+      );
+  }, [productList, localSearch]);
+
   return (
     <AnimatePresence>
       {isOpen && (
@@ -104,14 +122,26 @@ export const SupplierModal: React.FC<SupplierModalProps> = ({
 
               {/* Seção de Produtos */}
               <div className="space-y-6">
-                <div className="flex items-center justify-between">
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                   <h3 className="text-xl font-black text-slate-900 flex items-center gap-3">
                     <Package className="w-6 h-6 text-indigo-600" />
                     Catálogo de Produtos
                   </h3>
-                  <span className="px-4 py-1 bg-indigo-50 text-indigo-600 rounded-full text-xs font-black uppercase tracking-widest">
-                    {productList.length} itens
-                  </span>
+                  <div className="flex items-center gap-4">
+                    <div className="relative">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                      <input 
+                        type="text"
+                        placeholder="Buscar item..."
+                        className="pl-9 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-indigo-500 transition-all font-bold text-xs"
+                        value={localSearch}
+                        onChange={(e) => setLocalSearch(e.target.value)}
+                      />
+                    </div>
+                    <span className="px-4 py-1 bg-indigo-50 text-indigo-600 rounded-full text-xs font-black uppercase tracking-widest whitespace-nowrap">
+                      {productList.length} itens {localSearch && `(${filteredProducts.length} filtrados)`}
+                    </span>
+                  </div>
                 </div>
 
                 <div className="bg-slate-50 p-6 rounded-[2rem] border-2 border-slate-100/50 space-y-4">
@@ -152,7 +182,8 @@ export const SupplierModal: React.FC<SupplierModalProps> = ({
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  {productList.map((p, i) => {
+                  {filteredProducts.map((p) => {
+                    const i = (p as any).originalIndex ?? productList.indexOf(p);
                     const isEditingThis = editingProductIndex === i;
                     return (
                       <div 
