@@ -65,7 +65,7 @@ export const useExcel = (suppliers: Supplier[], saveSupplier: (s: Supplier) => P
             }
           }
           
-          const pCat = row['Categoria'] || row['Grupo'] || 'Outros';
+          const pCat = row['Categoria'] || row['Grupo'] || 'Fornecedor';
 
           if (sName && pName) {
             const trimmedName = sName.toString().trim().toUpperCase();

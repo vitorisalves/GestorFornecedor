@@ -46,7 +46,6 @@ export const useReminders = (isAuthReady: boolean, addAppNotification: (title: s
 
     const q = query(
       collection(db, 'reminders'), 
-      where('notified', '==', false),
       orderBy('date', 'asc')
     );
 

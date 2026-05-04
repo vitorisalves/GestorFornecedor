@@ -16,7 +16,7 @@ export const useSuppliers = (isAuthReady: boolean, isLoggedIn: boolean) => {
   });
   const [categories, setCategories] = useState<string[]>(() => {
     const cached = localStorage.getItem('cache_categories');
-    return cached ? JSON.parse(cached) : ['Embalagens', 'Ingredientes', 'Limpeza', 'Escritório', 'Outros'];
+    return cached ? JSON.parse(cached) : ['Embalagens', 'Ingredientes', 'Limpeza', 'Escritório', 'Fornecedor'];
   });
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);

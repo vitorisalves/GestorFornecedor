@@ -5,7 +5,7 @@
 
 import React from 'react';
 import { motion } from 'framer-motion';
-import { BellRing, Calendar, Plus, Clock, Trash2, RefreshCcw } from 'lucide-react';
+import { BellRing, Calendar, Plus, Clock, Trash2, RefreshCcw, Check } from 'lucide-react';
 import { Reminder } from '../types';
 import { formatDate } from '../utils';
 
@@ -116,7 +116,12 @@ export const RemindersView: React.FC<RemindersViewProps> = ({
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {reminders.map((reminder) => (
+            {[...reminders].sort((a, b) => {
+              if (a.notified === b.notified) {
+                return new Date(a.date).getTime() - new Date(b.date).getTime();
+              }
+              return a.notified ? 1 : -1;
+            }).map((reminder) => (
               <motion.div
                 key={reminder.id}
                 initial={{ opacity: 0, y: 10 }}
@@ -147,9 +152,12 @@ export const RemindersView: React.FC<RemindersViewProps> = ({
                       <Trash2 className="w-5 h-5" />
                     </button>
                     {reminder.notified && (
-                      <span className="px-3 py-1 bg-slate-200 text-slate-500 text-[9px] font-black rounded-full uppercase tracking-widest">
-                        Notificado
-                      </span>
+                      <div className="flex items-center gap-1.5 px-3 py-1 bg-green-100 text-green-600 rounded-full">
+                        <Check className="w-3 h-3 stroke-[3]" />
+                        <span className="text-[9px] font-black uppercase tracking-widest leading-none">
+                          Concluído
+                        </span>
+                      </div>
                     )}
                   </div>
                 </div>

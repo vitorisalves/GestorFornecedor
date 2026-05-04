@@ -296,7 +296,7 @@ export default function App() {
       const product: Product = {
         name: formState.productName.trim(),
         price: parseFloat(formState.productPrice || '0'),
-        category: formState.productCategory.trim() || 'Outros'
+        category: formState.productCategory.trim() || 'Fornecedor'
       };
       
       if (editingProductIndex !== null) {
@@ -338,7 +338,7 @@ export default function App() {
       const product: Product = {
         name: formState.productName.trim(),
         price: parseFloat(formState.productPrice || '0'),
-        category: formState.productCategory.trim() || 'Outros'
+        category: formState.productCategory.trim() || 'Fornecedor'
       };
       
       if (editingProductIndex !== null) {
