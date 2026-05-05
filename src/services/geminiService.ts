@@ -1,6 +1,17 @@
 import { GoogleGenAI, Type } from "@google/genai";
 
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+let genAI: GoogleGenAI | null = null;
+
+const getAI = () => {
+  if (!genAI) {
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (!apiKey) {
+      throw new Error("GEMINI_API_KEY is not defined in the environment.");
+    }
+    genAI = new GoogleGenAI({ apiKey });
+  }
+  return genAI;
+};
 
 export interface ExtractedProduct {
   name: string;
@@ -16,6 +27,7 @@ export const processDocumentWithAI = async (
   prompt?: string,
   existingProductNames?: string[]
 ): Promise<ExtractedProduct[]> => {
+  const ai = getAI();
   const model = "gemini-3-flash-preview";
   
   const productsContext = existingProductNames && existingProductNames.length > 0 
