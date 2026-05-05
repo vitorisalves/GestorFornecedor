@@ -64,40 +64,51 @@ export const processDocumentWithAI = async (
   }
 
   try {
+    const genConfig = {
+      systemInstruction,
+      responseMimeType: "application/json",
+      responseSchema: {
+        type: Type.OBJECT,
+        properties: {
+          products: {
+            type: Type.ARRAY,
+            items: {
+              type: Type.OBJECT,
+              properties: {
+                name: { type: Type.STRING },
+                rawName: { type: Type.STRING },
+                price: { type: Type.NUMBER },
+                quantity: { type: Type.NUMBER },
+                category: { type: Type.STRING },
+                supplierName: { type: Type.STRING }
+              },
+              required: ["name", "rawName", "price"]
+            }
+          }
+        },
+        required: ["products"]
+      }
+    };
+
     const response = await ai.models.generateContent({
       model,
       contents: { parts },
-      config: {
-        systemInstruction,
-        responseMimeType: "application/json",
-        responseSchema: {
-          type: Type.OBJECT,
-          properties: {
-            products: {
-              type: Type.ARRAY,
-              items: {
-                type: Type.OBJECT,
-                properties: {
-                  name: { type: Type.STRING },
-                  rawName: { type: Type.STRING },
-                  price: { type: Type.NUMBER },
-                  quantity: { type: Type.NUMBER },
-                  category: { type: Type.STRING },
-                  supplierName: { type: Type.STRING }
-                },
-                required: ["name", "rawName", "price"]
-              }
-            }
-          },
-          required: ["products"]
-        }
-      }
+      config: genConfig
     });
 
-    const result = JSON.parse(response.text || '{"products": []}');
-    return result.products;
+    const text = response.text;
+    if (!text) {
+      throw new Error("O modelo não retornou nenhum texto.");
+    }
+
+    const result = JSON.parse(text.trim());
+    return result.products || [];
   } catch (error: any) {
-    console.error("AI Processing Error:", error);
-    throw error;
+    // Log safe message instead of whole object if possible
+    const msg = error?.message || String(error);
+    console.error("AI Processing Error:", msg);
+    
+    // Throw a simple error to avoid circular structure issues in UI
+    throw new Error(msg);
   }
 };

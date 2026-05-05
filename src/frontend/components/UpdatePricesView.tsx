@@ -23,7 +23,7 @@ import {
   Search
 } from 'lucide-react';
 import { Product, Supplier } from '../types';
-import { formatCurrency } from '../utils';
+import { formatCurrency, extractErrorMessage } from '../utils';
 import { processDocumentWithAI, ExtractedProduct } from '../../services/geminiService';
 
 // Simple fuzzy matching helper
@@ -74,6 +74,7 @@ export const UpdatePricesView: React.FC<UpdatePricesViewProps> = ({
   const [prompt, setPrompt] = useState('');
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [quotaError, setQuotaError] = useState(false);
   const [matchResults, setMatchResults] = useState<MatchResult[]>([]);
   const [showConfirm, setShowConfirm] = useState(false);
   const [searchProductQuery, setSearchProductQuery] = useState('');
@@ -95,6 +96,7 @@ export const UpdatePricesView: React.FC<UpdatePricesViewProps> = ({
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       setSelectedFile(e.target.files[0]);
+      setQuotaError(false);
     }
   };
 
@@ -112,6 +114,7 @@ export const UpdatePricesView: React.FC<UpdatePricesViewProps> = ({
 
   const processAI = async () => {
     setIsProcessing(true);
+    setQuotaError(false);
     try {
       let fileData;
       if (selectedFile) {
@@ -170,9 +173,19 @@ export const UpdatePricesView: React.FC<UpdatePricesViewProps> = ({
       });
 
       setMatchResults(results);
+      // Limpar campos após processamento bem sucedido
+      setPrompt('');
+      setSelectedFile(null);
     } catch (error) {
-      console.error("Erro no processamento AI:", error);
-      addNotification("Erro ao processar com IA", 0, 'info');
+      const errorMsg = extractErrorMessage(error);
+      console.error("Erro no processamento AI:", errorMsg);
+      
+      if (errorMsg.toLowerCase().includes('quota') || errorMsg.toLowerCase().includes('429') || errorMsg.toLowerCase().includes('limit')) {
+        setQuotaError(true);
+        addNotification("Limite da IA atingido. Tente novamente mais tarde.", 0, 'info');
+      } else {
+        addNotification(`Erro: ${errorMsg}`, 0, 'info');
+      }
     } finally {
       setIsProcessing(false);
     }
@@ -277,7 +290,30 @@ export const UpdatePricesView: React.FC<UpdatePricesViewProps> = ({
       </div>
 
       {!matchResults.length ? (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        <div className="space-y-8">
+          {quotaError && (
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className="bg-amber-50 border-4 border-amber-500 p-8 rounded-[3rem] shadow-[8px_8px_0px_0px_rgba(245,158,11,1)] flex flex-col md:flex-row items-center gap-6"
+            >
+              <div className="w-16 h-16 bg-amber-500 text-white rounded-3xl flex items-center justify-center shrink-0">
+                <AlertCircle className="w-10 h-10" />
+              </div>
+              <div className="text-center md:text-left flex-1">
+                <h3 className="text-xl font-black text-amber-900 uppercase tracking-tight">Limite de IA Atingido</h3>
+                <p className="text-amber-700 font-bold">O Google liberou o uso gratuito, mas há um limite de requisições por minuto. Por favor, aguarde alguns instantes e tente novamente.</p>
+              </div>
+              <button 
+                onClick={() => setQuotaError(false)}
+                className="px-6 py-3 bg-amber-500 text-white font-black rounded-2xl uppercase tracking-widest text-xs hover:bg-amber-600 transition-colors"
+              >
+                Entendi
+              </button>
+            </motion.div>
+          )}
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
           <div className="space-y-6">
             <div className="bg-white p-8 rounded-[3rem] border-4 border-slate-900 shadow-[8px_8px_0px_0px_rgba(15,23,42,1)]">
               <h3 className="text-xl font-black text-slate-900 mb-6 flex items-center gap-3">
@@ -369,6 +405,7 @@ export const UpdatePricesView: React.FC<UpdatePricesViewProps> = ({
             </div>
           </div>
         </div>
+      </div>
       ) : (
         <div className="space-y-8">
           <div className="flex items-center justify-between">
