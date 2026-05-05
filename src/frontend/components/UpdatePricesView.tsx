@@ -176,6 +176,9 @@ export const UpdatePricesView: React.FC<UpdatePricesViewProps> = ({
       // Limpar campos após processamento bem sucedido
       setPrompt('');
       setSelectedFile(null);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
     } catch (error) {
       const errorMsg = extractErrorMessage(error);
       console.error("Erro no processamento AI:", errorMsg);
@@ -253,6 +256,9 @@ export const UpdatePricesView: React.FC<UpdatePricesViewProps> = ({
     setMatchResults([]);
     setPrompt('');
     setSelectedFile(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
   };
 
   const updateItemConfig = (index: number, updates: Partial<MatchResult>) => {
@@ -291,27 +297,32 @@ export const UpdatePricesView: React.FC<UpdatePricesViewProps> = ({
 
       {!matchResults.length ? (
         <div className="space-y-8">
-          {quotaError && (
-            <motion.div 
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              className="bg-amber-50 border-4 border-amber-500 p-8 rounded-[3rem] shadow-[8px_8px_0px_0px_rgba(245,158,11,1)] flex flex-col md:flex-row items-center gap-6"
-            >
-              <div className="w-16 h-16 bg-amber-500 text-white rounded-3xl flex items-center justify-center shrink-0">
-                <AlertCircle className="w-10 h-10" />
-              </div>
-              <div className="text-center md:text-left flex-1">
-                <h3 className="text-xl font-black text-amber-900 uppercase tracking-tight">Limite de IA Atingido</h3>
-                <p className="text-amber-700 font-bold">O Google liberou o uso gratuito, mas há um limite de requisições por minuto. Por favor, aguarde alguns instantes e tente novamente.</p>
-              </div>
-              <button 
-                onClick={() => setQuotaError(false)}
-                className="px-6 py-3 bg-amber-500 text-white font-black rounded-2xl uppercase tracking-widest text-xs hover:bg-amber-600 transition-colors"
+          <AnimatePresence>
+            {quotaError && (
+              <motion.div 
+                initial={{ opacity: 0, height: 0, marginBottom: 0 }}
+                animate={{ opacity: 1, height: 'auto', marginBottom: 32 }}
+                exit={{ opacity: 0, height: 0, marginBottom: 0 }}
+                className="overflow-hidden"
               >
-                Entendi
-              </button>
-            </motion.div>
-          )}
+                <div className="bg-amber-50 border-4 border-amber-500 p-8 rounded-[3rem] shadow-[8px_8px_0px_0px_rgba(245,158,11,1)] flex flex-col md:flex-row items-center gap-6">
+                  <div className="w-16 h-16 bg-amber-500 text-white rounded-3xl flex items-center justify-center shrink-0">
+                    <AlertCircle className="w-10 h-10" />
+                  </div>
+                  <div className="text-center md:text-left flex-1">
+                    <h3 className="text-xl font-black text-amber-900 uppercase tracking-tight">Limite de IA Atingido</h3>
+                    <p className="text-amber-700 font-bold">O Google liberou o uso gratuito, mas há um limite de requisições por minuto. Por favor, aguarde alguns instantes e tente novamente.</p>
+                  </div>
+                  <button 
+                    onClick={() => setQuotaError(false)}
+                    className="px-6 py-3 bg-amber-500 text-white font-black rounded-2xl uppercase tracking-widest text-xs hover:bg-amber-600 transition-colors"
+                  >
+                    Entendi
+                  </button>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
           <div className="space-y-6">
