@@ -3,7 +3,6 @@ import axios, { AxiosInstance } from "axios";
 import webPush from "web-push";
 import { getFirestore } from 'firebase-admin/firestore';
 import { getApps, initializeApp } from 'firebase-admin/app';
-import { processDocumentWithAILogic } from "./aiService";
 
 // Inicialização segura do Firebase Admin
 if (getApps().length === 0) {
@@ -260,25 +259,7 @@ app.get("/api/omie-direct/products", asyncHandler(async (req: Request, res: Resp
   res.json({ data: mergedProducts });
 }));
 
-/**
- * Rota para processamento de documentos com Gemini AI (Server-side)
- */
-app.post("/api/ai/process-document", asyncHandler(async (req: Request, res: Response) => {
-  const { fileData, prompt, existingProductNames } = req.body;
-  
-  if (!fileData && !prompt) {
-    return res.status(400).json({ error: "No file or prompt provided" });
-  }
-
-  try {
-    const products = await processDocumentWithAILogic(fileData, prompt, existingProductNames);
-    res.json({ products });
-  } catch (error: any) {
-    console.error("AI Route Error:", error);
-    res.status(500).json({ error: error.message || "Internal server error during AI processing" });
-  }
-}));
-
+// --- ROTAS DE API ---
 /**
  * Proxy Genérico para v1: Encaminha qualquer requisição /api/v1/* para a API manager.
  */
