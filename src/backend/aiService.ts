@@ -4,9 +4,9 @@ let genAI: GoogleGenAI | null = null;
 
 const getAI = () => {
   if (!genAI) {
-    const apiKey = process.env.GEMINI_API_KEY;
+    const apiKey = process.env.G_API_KEY || process.env.GEMINI_API_KEY;
     if (!apiKey) {
-      throw new Error("GEMINI_API_KEY is not defined in the environment.");
+      throw new Error("G_API_KEY is not defined in the environment.");
     }
     genAI = new GoogleGenAI({ apiKey });
   }
