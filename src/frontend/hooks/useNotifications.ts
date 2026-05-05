@@ -5,6 +5,7 @@
 
 import { useState, useCallback, useEffect } from 'react';
 import { UINotification, AppNotification } from '../types';
+import { extractErrorMessage } from '../utils';
 
 export const useNotifications = () => {
   const [notifications, setNotifications] = useState<UINotification[]>([]);
@@ -51,7 +52,7 @@ export const useNotifications = () => {
 
       console.log('Inscrito no Web Push com sucesso!');
     } catch (err) {
-      console.error('Falha ao inscrever no Push:', err);
+      console.error('Falha ao inscrever no Push:', extractErrorMessage(err));
     }
   };
 
@@ -80,7 +81,7 @@ export const useNotifications = () => {
         alert('Permissão negada. Ative as notificações nas configurações do navegador/celular para receber lembretes.');
       }
     } catch (error) {
-      console.error('Erro ao solicitar permissão:', error);
+      console.error('Erro ao solicitar permissão:', extractErrorMessage(error));
     }
   };
 

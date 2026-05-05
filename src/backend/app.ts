@@ -99,7 +99,7 @@ app.post("/api/notifications/broadcast", asyncHandler(async (req: Request, res: 
           await db.collection('push_subscriptions').doc(docId).delete();
         }
       }
-      console.error("Erro ao enviar push:", err);
+      console.error("Erro ao enviar push:", err instanceof Error ? err.message : String(err));
     })
   );
 
@@ -181,7 +181,7 @@ const fetchAllPages = async (endpoint: string): Promise<any[]> => {
             return Array.isArray(d) ? d : (d.data || []);
           }
         } catch (e) {
-          console.error(`[FetchBatchError] Falha na página ${page} de ${endpoint}`);
+          console.error(`[FetchBatchError] Falha na página ${page} de ${endpoint}:`, e instanceof Error ? e.message : String(e));
         }
         return [];
       }));
@@ -288,7 +288,7 @@ app.all("/api/v1/*", asyncHandler(async (req: Request, res: Response) => {
  * Middleware de tratamento de erros global: Garante respostas em JSON consistentemente.
  */
 app.use((err: any, req: Request, res: Response, next: NextFunction) => {
-  console.error('[GlobalErrorHandler]', err);
+  console.error('[GlobalErrorHandler]', err instanceof Error ? err.message : String(err));
   res.status(500).json({ 
     error: 'A server error occurred (Global Handler)',
     message: err.message || 'Erro desconhecido',

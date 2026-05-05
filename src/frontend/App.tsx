@@ -25,6 +25,7 @@ import { ShoppingView } from './components/ShoppingView';
 import { HistoryView } from './components/HistoryView';
 import { OmieView } from './components/OmieView';
 import { RemindersView } from './components/RemindersView';
+import { UpdatePricesView } from './components/UpdatePricesView';
 import { Modals } from './components/Modals';
 import { Header } from './components/Header';
 import { AppLayout } from './components/AppLayout';
@@ -145,7 +146,7 @@ export default function App() {
     }
   }, [activeTargetListId, activeTargetListName, addItemToList, addNotification, addToCart]);
 
-  const [currentPage, setCurrentPage] = useState<'suppliers' | 'mercado' | 'materiais' | 'shopping' | 'history' | 'omie' | 'reminders'>('suppliers');
+  const [currentPage, setCurrentPage] = useState<'suppliers' | 'mercado' | 'materiais' | 'shopping' | 'history' | 'omie' | 'reminders' | 'update-prices'>('suppliers');
   
   const {
     externalProducts,
@@ -568,6 +569,15 @@ export default function App() {
             setReminderDate={setReminderDate}
             addReminder={onScheduleReminder}
             deleteReminder={(id) => setDeletions(prev => ({ ...prev, reminder: id }))}
+          />
+        )}
+        {currentPage === 'update-prices' && (
+          <UpdatePricesView 
+            key="update-prices"
+            suppliers={suppliers}
+            categories={categories}
+            saveSupplier={saveSupplier}
+            addNotification={addNotification}
           />
         )}
       </AnimatePresence>

@@ -30,28 +30,50 @@ export const formatDate = (dateString: string) => {
   return new Intl.DateTimeFormat('pt-BR', options).format(date);
 };
 
-export const safeStringify = (obj: any): string => {
+export const safeStringify = (obj: any, maxDepth: number = 3): string => {
   if (obj === undefined) return 'undefined';
   if (obj === null) return 'null';
+  if (typeof obj !== 'object') return String(obj);
   
   try {
     return JSON.stringify(obj);
   } catch (err) {
     const cache = new Set();
-    try {
-      return JSON.stringify(obj, (key, value) => {
-        if (typeof value === 'object' && value !== null) {
-          if (cache.has(value)) {
-            return '[Circular]';
-          }
-          cache.add(value);
-          
-          // Se for uma instância de classe complexa (como as do Firebase), 
-          // ela pode ter um toJSON que falha ou causa problemas.
-          // Mas o JSON.stringify chama toJSON antes do replacer...
+    const handleValue = (val: any, depth: number): any => {
+      if (depth > maxDepth) return '[Max Depth Reached]';
+      if (typeof val !== 'object' || val === null) return val;
+      
+      if (cache.has(val)) return '[Circular]';
+      cache.add(val);
+
+      if (Array.isArray(val)) {
+        return val.map(item => handleValue(item, depth + 1));
+      }
+
+      const jsonObj: any = {};
+      // Se tiver toJSON, tentamos usar, mas com cuidado
+      if (typeof val.toJSON === 'function') {
+        try {
+          const jsonValue = val.toJSON();
+          if (typeof jsonValue !== 'object' || jsonValue === null) return jsonValue;
+          // Se toJSON retornou um objeto, processamos ele de forma recursiva e segura
+          // Mas remover da cache primeiro para permitir que toJSON retorne uma nova estrutura
+          cache.delete(val); 
+          return handleValue(jsonValue, depth + 1);
+        } catch (e) {
+          return `[Error in toJSON: ${e instanceof Error ? e.message : 'Unknown'}]`;
         }
-        return value;
-      });
+      }
+
+      for (const [key, value] of Object.entries(val)) {
+        jsonObj[key] = handleValue(value, depth + 1);
+      }
+      return jsonObj;
+    };
+
+    try {
+      const safeObj = handleValue(obj, 0);
+      return JSON.stringify(safeObj);
     } catch (innerErr) {
       return `[Error stringifying object: ${innerErr instanceof Error ? innerErr.message : 'Unknown'}]`;
     }

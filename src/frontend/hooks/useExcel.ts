@@ -6,7 +6,7 @@
 import React from 'react';
 import * as XLSX from 'xlsx';
 import { Supplier, Product } from '../types';
-import { generateId } from '../utils';
+import { generateId, extractErrorMessage } from '../utils';
 
 export const useExcel = (suppliers: Supplier[], saveSupplier: (s: Supplier) => Promise<void>, addNotification: any) => {
   const handleExportExcel = () => {
@@ -93,7 +93,7 @@ export const useExcel = (suppliers: Supplier[], saveSupplier: (s: Supplier) => P
         // Clear input value so same file can be selected again
         e.target.value = '';
       } catch (err) {
-        console.error('Erro na importação:', err);
+        console.error('Erro na importação:', extractErrorMessage(err));
         addNotification('Erro ao processar arquivo Excel', 0);
       }
     };
@@ -125,7 +125,7 @@ export const useExcel = (suppliers: Supplier[], saveSupplier: (s: Supplier) => P
         addNotification(replace ? 'Lista substituída com sucesso!' : 'Importação concluída com sucesso!', addedCount);
       }
     } catch (err) {
-      console.error('Erro na execução da importação:', err);
+      console.error('Erro na execução da importação:', extractErrorMessage(err));
       addNotification('Erro ao salvar dados importados', 0);
     }
   };

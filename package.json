@@ -13,6 +13,7 @@
     "lint": "tsc --noEmit"
   },
   "dependencies": {
+    "@google/genai": "^1.52.0",
     "axios": "^1.15.2",
     "express": "^4.18.2",
     "firebase": "11.2.0",

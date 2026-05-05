@@ -14,6 +14,7 @@ import {
   Settings,
   Store,
   Hammer,
+  Sparkles,
   X
 } from 'lucide-react';
 
@@ -46,6 +47,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     { id: 'history', label: 'Minhas Listas', icon: ListChecks },
     { id: 'omie', label: 'Produtos Externos', icon: Globe },
     { id: 'reminders', label: 'Lembretes', icon: Bell },
+    { id: 'update-prices', label: 'Atualizar Preços', icon: Sparkles },
   ];
 
   return (

@@ -122,7 +122,7 @@ export const useOmie = (currentPage: string) => {
       addNotification('Sincronização disparada! Aguarde o processamento...', 0);
       setTimeout(fetchExternalProducts, 5000);
     } catch (error) {
-      console.error('Erro ao disparar sync:', error);
+      console.error('Erro ao disparar sync:', extractErrorMessage(error));
       addNotification(extractErrorMessage(error, 'Erro ao disparar sync'), 0);
     } finally {
       setIsTriggeringSync(false);
@@ -175,7 +175,7 @@ export const useOmie = (currentPage: string) => {
         }
       }
     } catch (error) {
-      console.error('Erro CRÍTICO no fetchExternalProducts:', error);
+      console.error('Erro CRÍTICO no fetchExternalProducts:', extractErrorMessage(error));
       if (addNotification) {
         addNotification(extractErrorMessage(error, 'Erro fatal ao buscar produtos'), 0);
       }

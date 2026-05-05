@@ -170,7 +170,7 @@ export const useCart = (
         await updateDoc(doc(db, 'shopping_lists', listId), { items: updatedItems });
       }
     } catch (e) {
-      console.error("Error toggling bought status:", e);
+      console.error("Error toggling bought status:", extractErrorMessage(e));
     }
   };
 

@@ -27,7 +27,7 @@ export const useAuth = () => {
         setIsAuthReady(true);
       } else {
         signInAnonymously(auth).catch(err => {
-          console.error("Auth error:", err);
+          console.error("Auth error:", extractErrorMessage(err));
           if (err.message.toLowerCase().includes('quota') || err.message.toLowerCase().includes('resource-exhausted')) {
             setAuthError(err.message);
           }
