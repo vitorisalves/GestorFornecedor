@@ -4,7 +4,7 @@ import path from "path";
 import app from "./app";
 
 async function startServer() {
-  const PORT = process.env.PORT || 3000;
+  const PORT = Number(process.env.PORT || 3000);
 
   // --- MIDDLEWARE VITE / SERVIDO DE ARQUIVOS ESTÁTICOS ---
   // Configura o Vite para desenvolvimento ou serve a pasta 'dist' em produção.
