@@ -20,7 +20,8 @@ import {
   Pencil,
   Link as LinkIcon,
   Link2Off,
-  Search
+  Search,
+  Trash2
 } from 'lucide-react';
 import { Product, Supplier } from '../types';
 import { formatCurrency, extractErrorMessage } from '../utils';
@@ -73,6 +74,7 @@ export const UpdatePricesView: React.FC<UpdatePricesViewProps> = ({
 }) => {
   const [prompt, setPrompt] = useState('');
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [quotaError, setQuotaError] = useState(false);
   const [matchResults, setMatchResults] = useState<MatchResult[]>([]);
@@ -97,6 +99,36 @@ export const UpdatePricesView: React.FC<UpdatePricesViewProps> = ({
     if (e.target.files && e.target.files[0]) {
       setSelectedFile(e.target.files[0]);
       setQuotaError(false);
+    }
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+    
+    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+      const file = e.dataTransfer.files[0];
+      const validTypes = ['image/jpeg', 'image/png', 'application/pdf', 'text/xml', 'application/xml'];
+      
+      if (validTypes.includes(file.type) || file.name.endsWith('.xml')) {
+        setSelectedFile(file);
+        setQuotaError(false);
+      } else {
+        addNotification("Formato de arquivo não suportado", 0, 'info');
+      }
     }
   };
 
@@ -279,6 +311,12 @@ export const UpdatePricesView: React.FC<UpdatePricesViewProps> = ({
     }));
   };
 
+  const removeItem = (index: number) => {
+    if (window.confirm("Deseja realmente remover este produto da extração?")) {
+      setMatchResults(prev => prev.filter((_, i) => i !== index));
+    }
+  };
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
@@ -363,7 +401,12 @@ export const UpdatePricesView: React.FC<UpdatePricesViewProps> = ({
           <div className="space-y-6">
             <div 
               onClick={() => fileInputRef.current?.click()}
-              className="bg-white p-8 h-full rounded-[3rem] border-4 border-dashed border-slate-300 hover:border-slate-900 transition-all cursor-pointer group flex flex-col items-center justify-center text-center space-y-4"
+              onDragOver={handleDragOver}
+              onDragLeave={handleDragLeave}
+              onDrop={handleDrop}
+              className={`bg-white p-8 h-full rounded-[3rem] border-4 border-dashed transition-all cursor-pointer group flex flex-col items-center justify-center text-center space-y-4 ${
+                isDragging ? 'border-indigo-600 bg-indigo-50 shadow-[8px_8px_0px_0px_rgba(79,70,229,0.3)]' : 'border-slate-300 hover:border-slate-900'
+              }`}
             >
               <input 
                 type="file" 
@@ -378,8 +421,8 @@ export const UpdatePricesView: React.FC<UpdatePricesViewProps> = ({
                   <div className="w-20 h-20 bg-indigo-50 text-indigo-600 rounded-3xl flex items-center justify-center mx-auto">
                     {selectedFile.type.includes('image') ? <Camera className="w-10 h-10" /> : <FileCode className="w-10 h-10" />}
                   </div>
-                  <div>
-                    <p className="font-black text-slate-900 text-lg">{selectedFile.name}</p>
+                  <div className="w-full px-4 overflow-hidden">
+                    <p className="font-black text-slate-900 text-lg break-all">{selectedFile.name}</p>
                     <p className="text-slate-400 font-bold uppercase tracking-widest text-[10px]">
                       {(selectedFile.size / 1024).toFixed(1)} KB
                     </p>
@@ -442,67 +485,73 @@ export const UpdatePricesView: React.FC<UpdatePricesViewProps> = ({
             {matchResults.map((res, i) => (
               <div 
                 key={i}
-                className={`bg-white p-6 rounded-[2.5rem] border-4 flex flex-col md:flex-row items-start md:items-center justify-between gap-6 transition-all ${
+                className={`bg-white p-6 rounded-[2.5rem] border-4 flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6 transition-all ${
                   res.isNew ? 'border-indigo-400' : 'border-emerald-400'
                 } shadow-[6px_6px_0px_0px_rgba(15,23,42,1)]`}
               >
-                <div className="flex gap-4 items-center">
+                {/* Left: Product Info */}
+                <div className="flex gap-4 items-center flex-1 w-full min-w-0">
                   <div className={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 ${
                     res.isNew ? 'bg-indigo-50 text-indigo-600' : 'bg-emerald-50 text-emerald-600'
                   }`}>
                     {res.isNew ? <Plus className="w-6 h-6" /> : <Check className="w-6 h-6" />}
                   </div>
-                  <div>
-                    <div className="flex items-center gap-2 group/name">
+                  
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 group/name max-w-full">
                       <input 
                         type="text"
-                        className="font-black text-slate-900 text-lg uppercase tracking-tight bg-transparent border-b-2 border-transparent hover:border-slate-200 focus:border-indigo-500 outline-none w-full max-w-[300px] transition-all"
+                        className="font-black text-slate-900 text-lg uppercase tracking-tight bg-transparent border-b-2 border-transparent hover:border-slate-200 focus:border-indigo-500 outline-none w-full transition-all"
                         value={res.extracted.name}
                         onChange={(e) => updateItemConfig(i, { extracted: { ...res.extracted, name: e.target.value } })}
                       />
                       <Pencil className="w-4 h-4 text-slate-300 group-hover/name:text-indigo-400 transition-colors shrink-0" />
                     </div>
-                    <div className="flex items-center gap-3 mt-1">
+                    
+                    <div className="flex flex-wrap items-center gap-3 mt-1">
                        {res.isNew ? (
                          <span className="text-[10px] font-black text-indigo-600 uppercase tracking-widest px-2 py-0.5 bg-indigo-50 rounded">Novo Produto</span>
                        ) : (
                          <span className="text-[10px] font-black text-emerald-600 uppercase tracking-widest px-2 py-0.5 bg-emerald-50 rounded">Sugestão de Vínculo</span>
                        )}
-                       {res.supplier && <span className="text-slate-400 font-bold text-xs">· {res.supplier.name}</span>}
+                       {res.supplier && <span className="text-slate-400 font-bold text-xs shrink-0">· {res.supplier.name}</span>}
                        
-                       <button 
-                        onClick={() => {
-                          setLinkingIndex(i);
-                          setSearchProductQuery('');
-                        }}
-                        className="text-[10px] font-black text-indigo-600 uppercase tracking-widest flex items-center gap-1 hover:underline ml-2"
-                       >
-                         <LinkIcon className="w-3 h-3" />
-                         {res.existingProduct ? 'Trocar Vínculo' : 'Vincular Existente'}
-                       </button>
-
-                       {!res.isNew && (
+                       <div className="flex gap-4">
                          <button 
-                           onClick={() => {
-                             updateItemConfig(i, {
-                               existingProduct: undefined,
-                               supplier: undefined,
-                               isNew: true,
-                               extracted: { ...res.extracted, name: res.originalReadName }
-                             });
-                           }}
-                           className="text-[10px] font-black text-red-500 uppercase tracking-widest flex items-center gap-1 hover:underline ml-2"
+                          onClick={() => {
+                            setLinkingIndex(i);
+                            setSearchProductQuery('');
+                          }}
+                          className="text-[10px] font-black text-indigo-600 uppercase tracking-widest flex items-center gap-1 hover:underline whitespace-nowrap"
                          >
-                           <Link2Off className="w-3 h-3" />
-                           Remover Vínculo
+                           <LinkIcon className="w-3 h-3" />
+                           {res.existingProduct ? 'Trocar Vínculo' : 'Vincular Existente'}
                          </button>
-                       )}
+
+                         {!res.isNew && (
+                           <button 
+                             onClick={() => {
+                               updateItemConfig(i, {
+                                 existingProduct: undefined,
+                                 supplier: undefined,
+                                 isNew: true,
+                                 extracted: { ...res.extracted, name: res.originalReadName }
+                               });
+                             }}
+                             className="text-[10px] font-black text-red-500 uppercase tracking-widest flex items-center gap-1 hover:underline whitespace-nowrap"
+                           >
+                             <Link2Off className="w-3 h-3" />
+                             Remover Vínculo
+                           </button>
+                         )}
+                       </div>
                     </div>
                   </div>
                 </div>
 
-                <div className="flex items-center gap-8 w-full md:w-auto overflow-x-auto pb-4 md:pb-0">
-                  <div className="flex items-center gap-4 bg-slate-50 px-6 py-3 rounded-2xl border-2 border-slate-100">
+                {/* Right: Price and Config */}
+                <div className="flex flex-col sm:flex-row items-center gap-4 md:gap-8 w-full lg:w-auto shrink-0">
+                  <div className="flex items-center gap-4 bg-slate-50 px-6 py-3 rounded-2xl border-2 border-slate-100 shrink-0 w-full sm:w-auto">
                     {!res.isNew && res.existingProduct && (
                       <>
                         <div className="text-right">
@@ -512,15 +561,15 @@ export const UpdatePricesView: React.FC<UpdatePricesViewProps> = ({
                         <ArrowRight className="w-4 h-4 text-slate-300" />
                       </>
                     )}
-                    <div className="text-right">
+                    <div className="text-right flex-1 sm:flex-initial">
                       <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Novo</p>
                       <p className="text-xl font-black text-slate-900">{formatCurrency(res.extracted.price)}</p>
                     </div>
                   </div>
 
-                  <div className="flex flex-col gap-2 min-w-[250px]">
+                  <div className="flex flex-col sm:flex-row lg:flex-col gap-2 w-full sm:w-auto min-w-0 sm:min-w-[250px] shrink-0">
                     <div className="flex items-center gap-2 bg-white border-2 border-slate-200 p-2 rounded-xl">
-                      <ListChecks className="w-4 h-4 text-slate-400" />
+                      <ListChecks className="w-4 h-4 text-slate-400 shrink-0" />
                       <select 
                         className="text-xs font-black uppercase tracking-tight outline-none w-full bg-transparent"
                         value={res.selectedContext}
@@ -534,7 +583,7 @@ export const UpdatePricesView: React.FC<UpdatePricesViewProps> = ({
 
                     {res.selectedContext === 'suppliers' && (
                       <div className="flex items-center gap-2 bg-white border-2 border-slate-200 p-2 rounded-xl animate-in fade-in slide-in-from-top-1">
-                        <Building2 className="w-4 h-4 text-slate-400" />
+                        <Building2 className="w-4 h-4 text-slate-400 shrink-0" />
                         <select 
                           className="text-xs font-black uppercase tracking-tight outline-none w-full bg-transparent"
                           value={res.selectedSupplierId || ''}
@@ -549,7 +598,7 @@ export const UpdatePricesView: React.FC<UpdatePricesViewProps> = ({
                     )}
 
                     <div className="flex items-center gap-2 bg-white border-2 border-slate-200 p-2 rounded-xl">
-                      <Tag className="w-4 h-4 text-slate-400" />
+                      <Tag className="w-4 h-4 text-slate-400 shrink-0" />
                       <select 
                         className="text-xs font-black uppercase tracking-tight outline-none w-full bg-transparent"
                         value={res.selectedCategory || ''}
@@ -560,6 +609,14 @@ export const UpdatePricesView: React.FC<UpdatePricesViewProps> = ({
                       </select>
                     </div>
                   </div>
+
+                  <button 
+                    onClick={() => removeItem(i)}
+                    className="p-4 bg-red-50 text-red-500 rounded-2xl border-2 border-red-100 hover:bg-red-500 hover:text-white hover:border-red-600 transition-all shrink-0 w-full sm:w-auto flex items-center justify-center"
+                    title="Remover produto da extração"
+                  >
+                    <Trash2 className="w-6 h-6" />
+                  </button>
                 </div>
               </div>
             ))}
