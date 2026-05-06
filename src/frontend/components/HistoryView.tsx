@@ -110,19 +110,19 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
         <button
           onClick={onRefresh}
           disabled={isLoading}
-          className={`p-4 rounded-3xl transition-all ${isLoading ? 'bg-indigo-100 text-indigo-400' : 'bg-indigo-50 text-indigo-600 hover:bg-indigo-100 active:scale-95 shadow-sm'}`}
+          className={`p-3 rounded-2xl transition-all ${isLoading ? 'bg-indigo-100 text-indigo-400' : 'bg-indigo-50 text-indigo-600 hover:bg-indigo-100 active:scale-95 shadow-sm'}`}
           title="Sincronizar listas"
         >
-          <RefreshCcw className={`w-8 h-8 ${isLoading ? 'animate-spin' : ''}`} />
+          <RefreshCcw className={`w-6 h-6 ${isLoading ? 'animate-spin' : ''}`} />
         </button>
       </div>
 
-      <div className="grid grid-cols-1 gap-6">
+      <div className="grid grid-cols-1 gap-4">
         {savedLists.length === 0 ? (
-          <div className="bg-white rounded-[2.5rem] p-20 border-4 border-dashed border-slate-200 flex flex-col items-center justify-center text-slate-400">
-            <ListChecks className="w-20 h-20 mb-6 opacity-20" />
-            <p className="text-xl font-black uppercase tracking-tighter">Nenhuma lista encontrada</p>
-            <p className="font-bold text-slate-500">Suas listas finalizadas aparecerão aqui.</p>
+          <div className="bg-white rounded-2xl p-20 border border-dashed border-slate-200 flex flex-col items-center justify-center text-slate-400">
+            <ListChecks className="w-16 h-16 mb-4 opacity-20" />
+            <p className="text-lg font-bold uppercase tracking-tight">Nenhuma lista encontrada</p>
+            <p className="text-sm text-slate-400">Suas listas finalizadas aparecerão aqui.</p>
           </div>
         ) : (
           savedLists.map((list) => {
@@ -132,46 +132,46 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
               <motion.div
                 layout
                 key={list.id}
-                className={`bg-white rounded-[2.5rem] border-2 shadow-xl overflow-hidden transition-all ${
-                  isCompleted ? 'border-green-600 shadow-green-100/20' : 'border-slate-900 shadow-slate-200/50'
+                className={`bg-white rounded-2xl border shadow-sm overflow-hidden transition-all ${
+                  isCompleted ? 'border-green-100' : 'border-slate-100'
                 }`}
               >
                 <div 
                   onClick={() => setExpandedList(expandedList === list.id ? null : list.id)}
-                  className={`p-8 flex flex-col md:flex-row md:items-center justify-between gap-6 cursor-pointer transition-colors ${
-                    isCompleted ? 'bg-green-50/40 hover:bg-green-100/40' : 'hover:bg-slate-50'
+                  className={`p-6 flex flex-col md:flex-row md:items-center justify-between gap-6 cursor-pointer transition-colors ${
+                    isCompleted ? 'bg-green-50/20 hover:bg-green-50/40' : 'hover:bg-slate-50/50'
                   }`}
                 >
-                  <div className="flex items-center gap-6">
-                    <div className={`w-16 h-16 rounded-3xl flex items-center justify-center transition-colors border-2 ${
-                      isCompleted ? 'bg-green-600 border-green-700' : 'bg-slate-900 border-slate-900'
+                  <div className="flex items-center gap-5">
+                    <div className={`w-12 h-12 md:w-14 md:h-14 rounded-xl flex items-center justify-center transition-colors border ${
+                      isCompleted ? 'bg-green-600 border-green-700' : 'bg-slate-900 border-slate-800'
                     }`}>
                       {isCompleted ? (
-                        <Check className="w-8 h-8 text-white" />
+                        <Check className="w-6 h-6 text-white" />
                       ) : (
-                        <Calendar className="w-8 h-8 text-white" />
+                        <Calendar className="w-6 h-6 text-white" />
                       )}
                     </div>
                     <div>
                       <div className="flex items-center gap-3 mb-1">
-                        <h3 className="text-2xl font-black text-slate-900 tracking-tighter uppercase">{list.name}</h3>
+                        <h3 className="text-xl font-bold text-slate-800 tracking-tight uppercase">{list.name}</h3>
                         {isCompleted && (
-                          <span className="px-3 py-1 bg-green-600 text-white rounded-full text-[10px] font-black uppercase tracking-widest flex items-center gap-1 border border-green-700">
-                            <Check className="w-3 h-3" />
-                            Concluída
+                          <span className="px-2 py-0.5 bg-green-600 text-white rounded-md text-[9px] font-bold uppercase tracking-widest flex items-center gap-1 border border-green-700 shadow-sm">
+                            <Check className="w-2.5 h-2.5" />
+                            OK
                           </span>
                         )}
                       </div>
-                      <div className="flex flex-wrap items-center gap-4 text-slate-900 font-black text-xs uppercase tracking-tight">
-                        <span className="flex items-center gap-1.5 px-2 py-1 bg-slate-100 rounded-lg">
-                          <Calendar className="w-4 h-4 text-slate-900" />
+                      <div className="flex flex-wrap items-center gap-3 text-slate-400 font-bold text-[10px] uppercase tracking-tight">
+                        <span className="flex items-center gap-1">
+                          <Calendar className="w-3.5 h-3.5" />
                           {formatDate(list.date)}
                         </span>
-                        <span className="flex items-center gap-1.5 px-2 py-1 bg-slate-100 rounded-lg">
-                          <User className="w-4 h-4 text-slate-900" />
+                        <span className="flex items-center gap-1">
+                          <User className="w-3.5 h-3.5" />
                           {list.createdBy || 'Sistema'}
                         </span>
-                        <span className="px-3 py-1 bg-slate-900 text-white rounded-full text-[10px] font-black uppercase tracking-widest">
+                        <span className="px-2 py-0.5 bg-slate-900 text-white rounded text-[9px]">
                           {list.items.length} itens
                         </span>
                       </div>
@@ -180,34 +180,34 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
 
                   <div className="flex items-center gap-4">
                     <div className="text-right mr-4">
-                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Total da Lista</p>
-                      <p className="text-3xl font-black text-slate-900 tabular-nums tracking-tighter">{formatCurrency(list.total)}</p>
+                      <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1">Total</p>
+                      <p className="text-2xl font-black text-slate-800 tabular-nums tracking-tighter">{formatCurrency(list.total)}</p>
                     </div>
-                    <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+                    <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
                       <button
                         onClick={() => exportToPDF(list)}
-                        className="p-4 text-indigo-600 hover:text-white hover:bg-indigo-600 rounded-2xl transition-all border-2 border-transparent hover:border-indigo-600"
+                        className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all"
                         title="Exportar PDF"
                       >
-                        <FileText className="w-6 h-6" />
+                        <FileText className="w-5 h-5" />
                       </button>
                       <button
                         onClick={() => editSavedList(list)}
-                        className="p-4 text-slate-900 hover:text-white hover:bg-slate-900 rounded-2xl transition-all border-2 border-transparent hover:border-slate-900"
+                        className="p-2 text-slate-400 hover:text-slate-800 hover:bg-slate-100 rounded-lg transition-all"
                       >
-                        <Pencil className="w-6 h-6" />
+                        <Pencil className="w-5 h-5" />
                       </button>
                       <button
                         onClick={() => deleteSavedList(list.id)}
-                        className="p-4 text-slate-900 hover:text-white hover:bg-red-600 rounded-2xl transition-all border-2 border-transparent hover:border-red-600"
+                        className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
                       >
-                        <Trash2 className="w-6 h-6" />
+                        <Trash2 className="w-5 h-5" />
                       </button>
                       <button
                         onClick={() => setExpandedList(expandedList === list.id ? null : list.id)}
-                        className="p-4 text-slate-900 hover:text-white hover:bg-slate-900 rounded-2xl transition-all border-2 border-transparent hover:border-slate-900"
+                        className="p-2 text-slate-400 hover:text-slate-800 hover:bg-slate-100 rounded-lg transition-all"
                       >
-                        {expandedList === list.id ? <ChevronUp className="w-6 h-6" /> : <ChevronDown className="w-6 h-6" />}
+                        {expandedList === list.id ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
                       </button>
                     </div>
                   </div>
@@ -219,56 +219,56 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
                       initial={{ height: 0 }}
                       animate={{ height: 'auto' }}
                       exit={{ height: 0 }}
-                      className="overflow-hidden bg-slate-50 border-t-2 border-slate-900"
+                      className="overflow-hidden bg-slate-50/20 border-t border-slate-100"
                     >
-                      <div className="p-8">
+                      <div className="p-6">
                         <div className="flex items-center justify-between mb-6">
-                            <h4 className="text-xl font-black text-slate-900 uppercase tracking-tighter">Itens da Lista</h4>
+                            <h4 className="text-lg font-bold text-slate-800 uppercase tracking-tight">Itens da Lista</h4>
                             <button
                               onClick={() => setActiveTargetList(list.id, list.name)}
-                              className="flex items-center gap-2 px-6 py-3 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-100 active:scale-95 text-xs uppercase tracking-widest"
+                              className="flex items-center gap-2 px-5 py-2.5 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700 transition-all shadow-md text-[10px] uppercase tracking-widest"
                             >
                               <PlusCircle className="w-4 h-4" />
                               Adicionar Produtos
                             </button>
                         </div>
-                        <div className="bg-white rounded-3xl border-2 border-slate-900 overflow-hidden shadow-inner">
+                        <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm">
                           <table className="w-full text-left">
                             <thead>
-                              <tr className="bg-slate-900 border-b-2 border-slate-900">
-                                <th className="px-6 py-4 text-[10px] font-black text-white uppercase tracking-widest">Status</th>
-                                <th className="px-6 py-4 text-[10px] font-black text-white uppercase tracking-widest">Produto</th>
-                                <th className="px-6 py-4 text-[10px] font-black text-white uppercase tracking-widest">Fornecedor</th>
-                                <th className="px-6 py-4 text-[10px] font-black text-white uppercase tracking-widest text-center">Qtd</th>
-                                <th className="px-6 py-4 text-[10px] font-black text-white uppercase tracking-widest text-right">Subtotal</th>
+                              <tr className="bg-slate-900">
+                                <th className="px-6 py-4 text-[9px] font-bold text-white uppercase tracking-widest">Status</th>
+                                <th className="px-6 py-4 text-[9px] font-bold text-white uppercase tracking-widest">Produto</th>
+                                <th className="px-6 py-4 text-[9px] font-bold text-white uppercase tracking-widest">Fornecedor</th>
+                                <th className="px-6 py-4 text-[9px] font-bold text-white uppercase tracking-widest text-center">Qtd</th>
+                                <th className="px-6 py-4 text-[9px] font-bold text-white uppercase tracking-widest text-right">Subtotal</th>
                               </tr>
                             </thead>
-                            <tbody className="divide-y-2 divide-slate-100">
+                            <tbody className="divide-y divide-slate-100">
                               {list.items.map((item, idx) => (
                                 <tr key={idx} className={`group hover:bg-slate-50 transition-colors ${item.bought ? 'bg-slate-50/50' : ''}`}>
                                   <td className="px-6 py-4">
                                     <button
                                       onClick={() => toggleSavedListItemBought(list.id, item.name, item.supplierName)}
-                                      className={`w-8 h-8 rounded-xl border-2 flex items-center justify-center transition-all ${
+                                      className={`w-7 h-7 rounded-lg border flex items-center justify-center transition-all ${
                                         item.bought 
-                                          ? 'bg-green-600 border-green-700 text-white' 
-                                          : 'border-slate-900 hover:bg-slate-900 hover:text-white'
+                                          ? 'bg-green-600 border-green-700 text-white shadow-sm' 
+                                          : 'border-slate-300 hover:border-slate-900'
                                       }`}
                                     >
-                                      {item.bought && <Check className="w-5 h-5" />}
+                                      {item.bought && <Check className="w-4 h-4" />}
                                     </button>
                                   </td>
                                   <td className="px-6 py-4">
-                                    <p className={`text-lg font-black text-slate-900 tracking-tight ${item.bought ? 'line-through opacity-40 text-slate-400' : ''}`}>{item.name}</p>
-                                    <p className="text-[10px] text-slate-500 font-black uppercase tracking-widest">{item.category}</p>
+                                    <p className={`text-sm font-bold text-slate-700 tracking-tight ${item.bought ? 'line-through opacity-40 text-slate-400' : ''}`}>{item.name}</p>
+                                    <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest">{item.category}</p>
                                   </td>
                                   <td className="px-6 py-4">
-                                    <span className="text-[11px] font-black text-slate-600 uppercase tracking-widest block leading-tight">
+                                    <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">
                                       {item.supplierName}
                                     </span>
                                   </td>
-                                  <td className="px-6 py-4 text-center font-black text-slate-900 text-lg tabular-nums">{item.quantity}</td>
-                                  <td className="px-6 py-4 text-right font-black text-slate-900 text-lg tabular-nums">
+                                  <td className="px-6 py-4 text-center font-bold text-slate-700 text-base tabular-nums">{item.quantity}</td>
+                                  <td className="px-6 py-4 text-right font-black text-slate-800 text-base tabular-nums">
                                     {formatCurrency(item.price * item.quantity)}
                                   </td>
                                 </tr>

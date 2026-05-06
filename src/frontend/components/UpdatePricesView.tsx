@@ -323,14 +323,16 @@ export const UpdatePricesView: React.FC<UpdatePricesViewProps> = ({
       animate={{ opacity: 1, y: 0 }}
       className="space-y-8 pb-20"
     >
-      <div>
-        <h1 className="text-3xl md:text-5xl font-black text-slate-900 tracking-tight flex items-center gap-4">
-          <Sparkles className="w-8 h-8 md:w-12 md:h-12 text-indigo-600" />
-          Atualizar Preços
-        </h1>
-        <p className="text-slate-500 font-bold uppercase tracking-widest text-xs mt-2">
-          Inteligência Artificial para atualização automática de catálogo
-        </p>
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+        <div>
+          <h1 className="text-4xl font-black text-slate-900 tracking-tight mb-2">Atualizar Preços</h1>
+          <p className="text-slate-500 font-bold uppercase tracking-widest text-xs">
+            Inteligência Artificial para atualização automática de catálogo
+          </p>
+        </div>
+        <div className="w-16 h-16 bg-indigo-50 rounded-2xl flex items-center justify-center shrink-0">
+          <Sparkles className="w-8 h-8 text-indigo-600" />
+        </div>
       </div>
 
       {!matchResults.length ? (
@@ -343,17 +345,17 @@ export const UpdatePricesView: React.FC<UpdatePricesViewProps> = ({
                 exit={{ opacity: 0, height: 0, marginBottom: 0 }}
                 className="overflow-hidden"
               >
-                <div className="bg-amber-50 border-4 border-amber-500 p-8 rounded-[3rem] shadow-[8px_8px_0px_0px_rgba(245,158,11,1)] flex flex-col md:flex-row items-center gap-6">
-                  <div className="w-16 h-16 bg-amber-500 text-white rounded-3xl flex items-center justify-center shrink-0">
-                    <AlertCircle className="w-10 h-10" />
+                <div className="bg-amber-50 border border-amber-200 p-6 rounded-2xl flex flex-col md:flex-row items-center gap-6 shadow-sm">
+                  <div className="w-12 h-12 bg-amber-500 text-white rounded-xl flex items-center justify-center shrink-0">
+                    <AlertCircle className="w-6 h-6" />
                   </div>
                   <div className="text-center md:text-left flex-1">
-                    <h3 className="text-xl font-black text-amber-900 uppercase tracking-tight">Limite de IA Atingido</h3>
-                    <p className="text-amber-700 font-bold">O Google liberou o uso gratuito, mas há um limite de requisições por minuto. Por favor, aguarde alguns instantes e tente novamente.</p>
+                    <h3 className="text-lg font-bold text-amber-900 uppercase tracking-tight">Limite de IA Atingido</h3>
+                    <p className="text-amber-700 text-sm">O Google liberou o uso gratuito, mas há um limite de requisições por minuto. Por favor, aguarde alguns instantes e tente novamente.</p>
                   </div>
                   <button 
                     onClick={() => setQuotaError(false)}
-                    className="px-6 py-3 bg-amber-500 text-white font-black rounded-2xl uppercase tracking-widest text-xs hover:bg-amber-600 transition-colors"
+                    className="px-4 py-2 bg-amber-500 text-white font-bold rounded-xl uppercase tracking-widest text-[10px] hover:bg-amber-600 transition-colors"
                   >
                     Entendi
                   </button>
@@ -362,16 +364,16 @@ export const UpdatePricesView: React.FC<UpdatePricesViewProps> = ({
             )}
           </AnimatePresence>
 
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <div className="space-y-6">
-            <div className="bg-white p-8 rounded-[3rem] border-4 border-slate-900 shadow-[8px_8px_0px_0px_rgba(15,23,42,1)]">
-              <h3 className="text-xl font-black text-slate-900 mb-6 flex items-center gap-3">
-                <FileText className="w-6 h-6 text-indigo-600" />
+            <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
+              <h3 className="text-lg font-bold text-slate-800 mb-6 flex items-center gap-3">
+                <FileText className="w-5 h-5 text-indigo-600" />
                 Prompt ou Contexto
               </h3>
               <textarea
                 placeholder="Ex: Atualize o preço da Farinha de Trigo para R$ 5,50 e adicione um novo produto 'Fermento Seco' por R$ 2,00 do fornecedor Atacadão."
-                className="w-full h-48 p-6 bg-slate-50 border-2 border-slate-200 rounded-3xl outline-none focus:border-slate-900 transition-all font-bold text-slate-900 resize-none"
+                className="w-full h-40 p-4 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-indigo-500 transition-all font-medium text-slate-700 resize-none text-sm"
                 value={prompt}
                 onChange={(e) => setPrompt(e.target.value)}
               />
@@ -380,18 +382,18 @@ export const UpdatePricesView: React.FC<UpdatePricesViewProps> = ({
             <button
               onClick={processAI}
               disabled={isProcessing || (!prompt && !selectedFile)}
-              className={`w-full py-6 rounded-[2rem] font-black text-xl uppercase tracking-widest flex items-center justify-center gap-4 transition-all shadow-[6px_6px_0px_0px_rgba(15,23,42,1)] border-4 border-slate-900 active:shadow-none active:translate-y-1 ${
+              className={`w-full py-4 rounded-xl font-bold text-lg uppercase tracking-widest flex items-center justify-center gap-4 transition-all shadow-md active:translate-y-0.5 ${
                 isProcessing ? 'bg-slate-100 text-slate-400' : 'bg-indigo-600 text-white hover:bg-indigo-700'
               }`}
             >
               {isProcessing ? (
                 <>
-                  <Loader2 className="w-8 h-8 animate-spin" />
+                  <Loader2 className="w-6 h-6 animate-spin" />
                   Processando...
                 </>
               ) : (
                 <>
-                  <Sparkles className="w-8 h-8" />
+                  <Sparkles className="w-6 h-6" />
                   Atualizar
                 </>
               )}
@@ -404,8 +406,8 @@ export const UpdatePricesView: React.FC<UpdatePricesViewProps> = ({
               onDragOver={handleDragOver}
               onDragLeave={handleDragLeave}
               onDrop={handleDrop}
-              className={`bg-white p-8 h-full rounded-[3rem] border-4 border-dashed transition-all cursor-pointer group flex flex-col items-center justify-center text-center space-y-4 ${
-                isDragging ? 'border-indigo-600 bg-indigo-50 shadow-[8px_8px_0px_0px_rgba(79,70,229,0.3)]' : 'border-slate-300 hover:border-slate-900'
+              className={`bg-white p-8 h-full rounded-2xl border-2 border-dashed transition-all cursor-pointer group flex flex-col items-center justify-center text-center space-y-4 ${
+                isDragging ? 'border-indigo-600 bg-indigo-50' : 'border-slate-200 hover:border-indigo-400'
               }`}
             >
               <input 
@@ -467,13 +469,13 @@ export const UpdatePricesView: React.FC<UpdatePricesViewProps> = ({
             <div className="flex gap-4">
               <button 
                 onClick={() => setMatchResults([])}
-                className="px-6 py-3 bg-white border-4 border-slate-900 font-black uppercase tracking-widest text-xs rounded-2xl active:translate-y-1 transition-all"
+                className="px-5 py-2.5 bg-white border border-slate-200 font-bold uppercase tracking-widest text-[10px] rounded-xl hover:bg-slate-50 transition-all"
               >
                 Cancelar
               </button>
               <button 
                 onClick={handleUpdate}
-                className="px-6 py-3 bg-indigo-600 text-white border-4 border-slate-900 font-black uppercase tracking-widest text-xs rounded-2xl shadow-[4px_4px_0px_0px_rgba(15,23,42,1)] active:shadow-none active:translate-y-1 transition-all flex items-center gap-2"
+                className="px-5 py-2.5 bg-indigo-600 text-white font-bold uppercase tracking-widest text-[10px] rounded-xl shadow-md hover:bg-indigo-700 transition-all flex items-center gap-2"
               >
                 <Save className="w-4 h-4" />
                 Confirmar Tudo
@@ -485,9 +487,9 @@ export const UpdatePricesView: React.FC<UpdatePricesViewProps> = ({
             {matchResults.map((res, i) => (
               <div 
                 key={i}
-                className={`bg-white p-6 rounded-[2.5rem] border-4 flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6 transition-all ${
-                  res.isNew ? 'border-indigo-400' : 'border-emerald-400'
-                } shadow-[6px_6px_0px_0px_rgba(15,23,42,1)]`}
+                className={`bg-white p-5 rounded-2xl border flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6 transition-all ${
+                  res.isNew ? 'border-indigo-100' : 'border-emerald-100'
+                } shadow-sm hover:shadow-md`}
               >
                 {/* Left: Product Info */}
                 <div className="flex gap-4 items-center flex-1 w-full min-w-0">
@@ -637,36 +639,36 @@ export const UpdatePricesView: React.FC<UpdatePricesViewProps> = ({
             />
             
             <motion.div 
-              initial={{ opacity: 0, scale: 0.9, y: 20 }}
+              initial={{ opacity: 0, scale: 0.95, y: 10 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.9, y: 20 }}
-              className="relative w-full max-w-2xl bg-white border-4 border-slate-900 rounded-[3rem] shadow-[20px_20px_0px_0px_rgba(15,23,42,1)] overflow-hidden flex flex-col max-h-[80vh]"
+              exit={{ opacity: 0, scale: 0.95, y: 10 }}
+              className="relative w-full max-w-2xl bg-white border border-slate-200 rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[80vh]"
             >
-              <div className="p-8 border-b-4 border-slate-100">
-                <div className="flex items-center justify-between mb-6">
-                  <h3 className="text-2xl font-black text-slate-900 flex items-center gap-3">
-                    <LinkIcon className="w-7 h-7 text-indigo-600" />
+              <div className="p-6 border-b border-slate-100">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-xl font-bold text-slate-800 flex items-center gap-3">
+                    <LinkIcon className="w-6 h-6 text-indigo-600" />
                     Vincular Produto Existente
                   </h3>
-                  <button onClick={() => setLinkingIndex(null)} className="p-2 hover:bg-slate-100 rounded-full transition-colors">
-                    <X className="w-6 h-6" />
+                  <button onClick={() => setLinkingIndex(null)} className="p-1.5 hover:bg-slate-100 rounded-full transition-colors">
+                    <X className="w-5 h-5 text-slate-400" />
                   </button>
                 </div>
 
                 <div className="relative">
-                  <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-6 h-6 text-slate-400" />
+                  <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
                   <input 
                     autoFocus
                     type="text"
                     placeholder="Pesquisar por nome, marca ou fornecedor..."
-                    className="w-full pl-14 pr-6 py-4 bg-slate-50 border-4 border-slate-200 rounded-3xl outline-none focus:border-indigo-500 transition-all font-bold text-lg"
+                    className="w-full pl-12 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-indigo-500 transition-all font-medium text-slate-700"
                     value={searchProductQuery}
                     onChange={(e) => setSearchProductQuery(e.target.value)}
                   />
                 </div>
               </div>
 
-              <div className="flex-1 overflow-y-auto p-6 space-y-3 custom-scrollbar">
+              <div className="flex-1 overflow-y-auto p-4 space-y-2 custom-scrollbar">
                 {filteredSearchProducts.length > 0 ? (
                   filteredSearchProducts.map((p, pIdx) => (
                     <button
@@ -686,52 +688,52 @@ export const UpdatePricesView: React.FC<UpdatePricesViewProps> = ({
                           setLinkingIndex(null);
                         }
                       }}
-                      className="w-full flex items-center justify-between p-5 hover:bg-indigo-50 rounded-3xl transition-all border-4 border-transparent hover:border-indigo-200 text-left group"
+                      className="w-full flex items-center justify-between p-4 hover:bg-indigo-50 rounded-xl transition-all border border-transparent hover:border-indigo-100 text-left group"
                     >
-                      <div className="flex items-center gap-4">
-                        <div className="w-12 h-12 bg-white border-2 border-slate-100 rounded-2xl flex items-center justify-center text-slate-400 group-hover:text-indigo-600 group-hover:border-indigo-100 transition-all">
-                          <Check className="w-6 h-6 opacity-0 group-hover:opacity-100 transition-all" />
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 bg-white border border-slate-100 rounded-lg flex items-center justify-center text-slate-300 group-hover:text-indigo-600 group-hover:border-indigo-100 transition-all">
+                          <Check className="w-5 h-5 opacity-0 group-hover:opacity-100 transition-all" />
                         </div>
                         <div>
-                          <p className="font-black text-slate-900 uppercase text-sm tracking-tight">{p.name}</p>
-                          <div className="flex items-center gap-2 mt-1">
-                            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{p.supplier.name}</span>
-                            <span className="w-1 h-1 bg-slate-300 rounded-full" />
-                            <span className="text-[10px] font-black text-indigo-400 uppercase tracking-widest">{p.category}</span>
+                          <p className="font-bold text-slate-700 uppercase text-xs tracking-tight">{p.name}</p>
+                          <div className="flex items-center gap-2 mt-0.5">
+                            <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">{p.supplier.name}</span>
+                            <span className="w-1 h-1 bg-slate-200 rounded-full" />
+                            <span className="text-[9px] font-bold text-indigo-400 uppercase tracking-widest">{p.category}</span>
                           </div>
                         </div>
                       </div>
                       <div className="text-right">
-                        <p className="font-black text-indigo-600 text-lg tracking-tight">{formatCurrency(p.price)}</p>
+                        <p className="font-bold text-indigo-600 text-base tracking-tight">{formatCurrency(p.price)}</p>
                       </div>
                     </button>
                   ))
                 ) : searchProductQuery ? (
-                  <div className="py-20 text-center space-y-4">
-                    <div className="w-20 h-20 bg-slate-50 text-slate-200 rounded-full flex items-center justify-center mx-auto">
-                      <Search className="w-10 h-10" />
+                  <div className="py-12 text-center space-y-4">
+                    <div className="w-16 h-16 bg-slate-50 text-slate-100 rounded-full flex items-center justify-center mx-auto">
+                      <Search className="w-8 h-8" />
                     </div>
                     <div>
-                      <p className="font-black text-slate-900 text-xl">Nenhum resultado</p>
-                      <p className="text-slate-400 font-bold">Tente termos mais genéricos ou verifique a ortografia</p>
+                      <p className="font-bold text-slate-800 text-lg">Nenhum resultado</p>
+                      <p className="text-slate-400 text-sm">Tente termos mais genéricos</p>
                     </div>
                   </div>
                 ) : (
-                  <div className="py-20 text-center space-y-4">
-                    <div className="w-20 h-20 bg-slate-50 text-slate-100 rounded-full flex items-center justify-center mx-auto">
-                      <ListChecks className="w-10 h-10" />
+                  <div className="py-12 text-center space-y-4">
+                    <div className="w-16 h-16 bg-slate-50 text-slate-100 rounded-full flex items-center justify-center mx-auto">
+                      <ListChecks className="w-8 h-8" />
                     </div>
                     <div>
-                      <p className="font-black text-slate-400 text-xl">Digite para começar a busca</p>
+                      <p className="font-bold text-slate-400">Digite para começar a busca</p>
                     </div>
                   </div>
                 )}
               </div>
               
-              <div className="p-6 bg-slate-50 border-t-4 border-slate-100 flex justify-end">
+              <div className="p-4 bg-slate-50 border-t border-slate-100 flex justify-end">
                 <button 
                   onClick={() => setLinkingIndex(null)}
-                  className="px-8 py-3 bg-white border-4 border-slate-900 rounded-2xl font-black uppercase tracking-widest text-xs shadow-[4px_4px_0px_0px_rgba(15,23,42,1)] active:shadow-none active:translate-y-1 transition-all"
+                  className="px-6 py-2 bg-white border border-slate-200 rounded-xl font-bold uppercase tracking-widest text-[10px] shadow-sm hover:shadow-md transition-all"
                 >
                   Fechar
                 </button>

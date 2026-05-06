@@ -43,9 +43,9 @@ export const Header: React.FC<HeaderProps> = ({
     <header className="flex justify-between items-center gap-4 mb-8 md:mb-12">
       <button
         onClick={onMenuToggle}
-        className="lg:hidden p-3 bg-white border-2 border-slate-100 text-slate-900 rounded-2xl hover:bg-slate-50 transition-all shadow-sm"
+        className="lg:hidden p-2.5 bg-white border border-slate-200 text-slate-900 rounded-xl hover:bg-slate-50 transition-all shadow-sm"
       >
-        <Menu className="w-6 h-6" />
+        <Menu className="w-5 h-5" />
       </button>
 
       <div className="flex items-center gap-3 md:gap-4 ml-auto">
@@ -53,29 +53,29 @@ export const Header: React.FC<HeaderProps> = ({
         {isOffline && (
           <button 
             onClick={onReconnect}
-            className="flex items-center gap-2 px-4 py-2 bg-amber-50 border-2 border-amber-100 text-amber-700 rounded-2xl shadow-sm animate-pulse cursor-pointer hover:bg-amber-100 transition-colors"
+            className="flex items-center gap-2 px-4 py-2 bg-amber-50 border border-amber-100 text-amber-700 rounded-xl shadow-sm animate-pulse cursor-pointer hover:bg-amber-100 transition-colors"
             title="Sincronização interrompida (Limite atingido). Clique para tentar reconectar."
           >
-            <CloudOff className="w-5 h-5" />
-            <span className="text-xs font-bold hidden sm:inline">LIMITE ATINGIDO (RECONECTAR)</span>
+            <CloudOff className="w-4 h-4" />
+            <span className="text-[10px] font-bold hidden sm:inline">LIMITE ATINGIDO (RECONECTAR)</span>
           </button>
         )}
 
         {/* Botão do Carrinho */}
         <button
           onClick={() => setIsCartOpen(true)}
-          className="relative p-3 bg-white border-2 border-slate-100 text-slate-600 rounded-2xl hover:bg-slate-50 hover:text-indigo-600 transition-all shadow-sm group"
+          className="relative p-2.5 bg-white border border-slate-200 text-slate-500 rounded-xl hover:bg-slate-50 hover:text-indigo-600 transition-all shadow-sm group"
         >
-          <ShoppingCart className="w-6 h-6" />
+          <ShoppingCart className="w-5 h-5" />
           {cartItemsCount > 0 && (
-            <span className="absolute -top-2 -right-2 w-6 h-6 bg-indigo-600 text-white text-[10px] font-black rounded-full flex items-center justify-center border-2 border-white shadow-lg group-hover:scale-110 transition-transform">
+            <span className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-indigo-600 text-white text-[9px] font-bold rounded-full flex items-center justify-center border-2 border-white shadow-sm group-hover:scale-110 transition-transform">
               {cartItemsCount}
             </span>
           )}
         </button>
 
         {/* Centro de Notificações */}
-        <div className="bg-white border-2 border-slate-100 rounded-2xl shadow-sm hover:bg-slate-50 transition-all">
+        <div className="bg-white border border-slate-200 rounded-xl shadow-sm hover:bg-slate-50 transition-all">
           <NotificationCenter 
             notifications={notifications}
             appNotifications={appNotifications}

@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Package, Pencil, Plus, Trash2, Search } from 'lucide-react';
+import { X, Package, Pencil, Plus, Trash2, Search, Check } from 'lucide-react';
 import { Product } from '../../types';
 import { formatCurrency } from '../../utils';
 
@@ -78,42 +78,42 @@ export const SupplierModal: React.FC<SupplierModalProps> = ({
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95, y: 10 }}
             transition={{ duration: 0.2, ease: "easeOut" }}
-            className="bg-white w-full max-w-4xl max-h-[90vh] rounded-[2.5rem] shadow-2xl overflow-hidden flex flex-col"
+            className="bg-white w-full max-w-4xl max-h-[90vh] rounded-2xl shadow-xl overflow-hidden flex flex-col"
           >
-            <div className="p-5 md:p-8 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+            <div className="p-6 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
               <div>
-                <h2 className="text-xl md:text-2xl font-black text-slate-900 leading-tight">
+                <h2 className="text-lg md:text-xl font-bold text-slate-900 leading-tight">
                   {editingSupplierId ? 'Editar Fornecedor' : 'Novo Fornecedor'}
                 </h2>
-                <p className="text-xs md:text-sm text-slate-500 font-medium">Informações do parceiro e catálogo</p>
+                <p className="text-[10px] md:text-xs text-slate-400 font-bold uppercase tracking-widest">Informações do parceiro e catálogo</p>
               </div>
               <button 
                 onClick={onClose}
-                className="p-2 md:p-3 hover:bg-slate-200 rounded-xl md:rounded-2xl transition-all"
+                className="p-2 hover:bg-slate-200 rounded-xl transition-all"
               >
-                <X className="w-5 h-5 md:w-6 h-6 text-slate-400" />
+                <X className="w-5 h-5 text-slate-400" />
               </button>
             </div>
 
-            <div className="flex-1 overflow-y-auto p-5 md:p-8 space-y-6 md:space-y-10">
+            <div className="flex-1 overflow-y-auto p-6 space-y-8">
               {/* Info Básica */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
-                <div className="space-y-1.5 md:space-y-2">
-                  <label className="text-xs md:text-sm font-bold text-slate-700 ml-1">Empresa</label>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Empresa</label>
                   <input
                     type="text"
                     placeholder="Ex: Distribuidora"
-                    className="w-full px-5 md:px-6 py-3.5 md:py-4 bg-slate-50 border-2 border-transparent focus:border-indigo-500 focus:bg-white rounded-xl md:rounded-2xl outline-none transition-all font-medium text-sm md:text-base"
+                    className="w-full px-4 py-3 bg-slate-50 border border-slate-100 focus:border-indigo-500 focus:bg-white rounded-xl outline-none transition-all font-medium text-sm"
                     value={name}
                     onChange={(e) => setName(e.target.value)}
                   />
                 </div>
-                <div className="space-y-1.5 md:space-y-2">
-                  <label className="text-xs md:text-sm font-bold text-slate-700 ml-1">Telefone</label>
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Telefone</label>
                   <input
                     type="text"
                     placeholder="(00) 00000-0000"
-                    className="w-full px-5 md:px-6 py-3.5 md:py-4 bg-slate-50 border-2 border-transparent focus:border-indigo-500 focus:bg-white rounded-xl md:rounded-2xl outline-none transition-all font-medium text-sm md:text-base"
+                    className="w-full px-4 py-3 bg-slate-50 border border-slate-100 focus:border-indigo-500 focus:bg-white rounded-xl outline-none transition-all font-medium text-sm"
                     value={phone}
                     onChange={(e) => setPhone(e.target.value)}
                   />
@@ -123,46 +123,46 @@ export const SupplierModal: React.FC<SupplierModalProps> = ({
               {/* Seção de Produtos */}
               <div className="space-y-6">
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                  <h3 className="text-xl font-black text-slate-900 flex items-center gap-3">
-                    <Package className="w-6 h-6 text-indigo-600" />
+                  <h3 className="text-base font-bold text-slate-800 flex items-center gap-3 uppercase tracking-tight">
+                    <Package className="w-5 h-5 text-indigo-600" />
                     Catálogo de Produtos
                   </h3>
-                  <div className="flex items-center gap-4">
+                  <div className="flex items-center gap-3">
                     <div className="relative">
-                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
                       <input 
                         type="text"
                         placeholder="Buscar item..."
-                        className="pl-9 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-indigo-500 transition-all font-bold text-xs"
+                        className="pl-9 pr-3 py-1.5 bg-slate-50 border border-slate-100 rounded-lg outline-none focus:border-indigo-500 transition-all font-bold text-[10px]"
                         value={localSearch}
                         onChange={(e) => setLocalSearch(e.target.value)}
                       />
                     </div>
-                    <span className="px-4 py-1 bg-indigo-50 text-indigo-600 rounded-full text-xs font-black uppercase tracking-widest whitespace-nowrap">
-                      {productList.length} itens {localSearch && `(${filteredProducts.length} filtrados)`}
+                    <span className="px-3 py-1 bg-indigo-50 text-indigo-600 rounded-full text-[9px] font-bold uppercase tracking-widest whitespace-nowrap">
+                      {productList.length} itens
                     </span>
                   </div>
                 </div>
 
-                <div className="bg-slate-50 p-6 rounded-[2rem] border-2 border-slate-100/50 space-y-4">
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 space-y-3">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                     <input
                       ref={productNameRef}
                       type="text"
                       placeholder="Nome do produto"
-                      className="px-6 py-4 bg-white border-2 border-transparent focus:border-indigo-500 rounded-2xl outline-none transition-all font-medium"
+                      className="px-4 py-3 bg-white border border-slate-200 focus:border-indigo-500 rounded-xl outline-none transition-all font-medium text-sm"
                       value={productName}
                       onChange={(e) => setProductName(e.target.value)}
                     />
                     <input
                       type="number"
                       placeholder="Preço (R$)"
-                      className="px-6 py-4 bg-white border-2 border-transparent focus:border-indigo-500 rounded-2xl outline-none transition-all font-medium"
+                      className="px-4 py-3 bg-white border border-slate-200 focus:border-indigo-500 rounded-xl outline-none transition-all font-medium text-sm"
                       value={productPrice}
                       onChange={(e) => setProductPrice(e.target.value)}
                     />
                     <select
-                      className="px-6 py-4 bg-white border-2 border-transparent focus:border-indigo-500 rounded-2xl outline-none transition-all font-medium appearance-none"
+                      className="px-4 py-3 bg-white border border-slate-200 focus:border-indigo-500 rounded-xl outline-none transition-all font-medium text-sm appearance-none"
                       value={productCategory}
                       onChange={(e) => setProductCategory(e.target.value)}
                     >
@@ -174,10 +174,10 @@ export const SupplierModal: React.FC<SupplierModalProps> = ({
                   </div>
                   <button
                     onClick={onAddProduct}
-                    className="w-full py-4 bg-slate-900 text-white rounded-2xl font-bold flex items-center justify-center gap-2 hover:bg-slate-800 transition-all"
+                    className="w-full py-3 bg-slate-900 text-white rounded-xl font-bold text-xs uppercase tracking-widest flex items-center justify-center gap-2 hover:bg-slate-800 transition-all shadow-sm"
                   >
-                    {editingProductIndex !== null ? <Pencil className="w-5 h-5" /> : <Plus className="w-5 h-5" />}
-                    {editingProductIndex !== null ? 'Atualizar Produto' : 'Adicionar Produto ao Catálogo'}
+                    {editingProductIndex !== null ? <Pencil className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
+                    {editingProductIndex !== null ? 'Atualizar Produto' : 'Adicionar ao Catálogo'}
                   </button>
                 </div>
 
@@ -188,7 +188,7 @@ export const SupplierModal: React.FC<SupplierModalProps> = ({
                     return (
                       <div 
                         key={i} 
-                        className={`flex items-center justify-between p-4 bg-white border-2 rounded-2xl group transition-all relative ${isEditingThis ? 'border-indigo-500 shadow-lg shadow-indigo-50' : 'border-slate-100 hover:border-indigo-200'}`}
+                        className={`flex items-center justify-between p-4 bg-white border rounded-xl group transition-all relative ${isEditingThis ? 'border-indigo-500 bg-indigo-50/10' : 'border-slate-100 hover:border-indigo-100'}`}
                       >
                         {isEditingThis && (
                           <div 
@@ -197,12 +197,12 @@ export const SupplierModal: React.FC<SupplierModalProps> = ({
                           />
                         )}
                         <div className={`flex-1 ${isEditingThis ? 'relative z-[220]' : ''}`}>
-                          <div className="flex flex-col gap-1">
+                          <div className="flex flex-col gap-0.5">
                             {isEditingThis ? (
                               <>
                                 <input
                                   type="text"
-                                  className="w-full px-3 py-2 bg-indigo-50 border border-indigo-200 rounded-lg text-sm font-bold text-slate-900 outline-none focus:ring-2 focus:ring-indigo-500 mb-2"
+                                  className="w-full px-2 py-1.5 bg-indigo-50 border border-indigo-200 rounded-lg text-xs font-bold text-slate-800 outline-none mb-2"
                                   value={productName}
                                   onChange={(e) => setProductName(e.target.value)}
                                   placeholder="Nome do produto"
@@ -212,11 +212,11 @@ export const SupplierModal: React.FC<SupplierModalProps> = ({
                                   }}
                                 />
                                 <div className="flex flex-wrap items-center gap-2">
-                                  <div className="flex items-center gap-2">
-                                    <span className="text-xs font-black text-indigo-600">R$</span>
+                                  <div className="flex items-center gap-1.5">
+                                    <span className="text-[10px] font-bold text-indigo-600">R$</span>
                                     <input
                                       type="number"
-                                      className="w-24 px-2 py-1 bg-indigo-50 border border-indigo-200 rounded-lg text-sm font-black text-indigo-700 outline-none focus:ring-2 focus:ring-indigo-500"
+                                      className="w-20 px-2 py-1 bg-indigo-50 border border-indigo-200 rounded-lg text-xs font-bold text-indigo-700 outline-none"
                                       value={productPrice}
                                       onChange={(e) => setProductPrice(e.target.value)}
                                       onKeyDown={(e) => {
@@ -226,7 +226,7 @@ export const SupplierModal: React.FC<SupplierModalProps> = ({
                                     />
                                   </div>
                                   <select
-                                    className="px-2 py-1 bg-indigo-50 border border-indigo-200 rounded-lg text-xs font-black text-indigo-600 outline-none focus:ring-2 focus:ring-indigo-500"
+                                    className="px-2 py-1 bg-indigo-50 border border-indigo-200 rounded-lg text-[10px] font-bold text-indigo-600 outline-none"
                                     value={productCategory}
                                     onChange={(e) => setProductCategory(e.target.value)}
                                   >
@@ -238,10 +238,10 @@ export const SupplierModal: React.FC<SupplierModalProps> = ({
                               </>
                             ) : (
                               <>
-                                <p className="font-bold text-slate-900">{p.name}</p>
+                                <p className="font-bold text-slate-700 text-sm tracking-tight">{p.name}</p>
                                 <div className="flex items-center gap-3">
                                   <span className="text-xs font-black text-indigo-600">{formatCurrency(p.price)}</span>
-                                  <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{p.category}</span>
+                                  <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">{p.category}</span>
                                 </div>
                               </>
                             )}
@@ -251,18 +251,18 @@ export const SupplierModal: React.FC<SupplierModalProps> = ({
                           {isEditingThis ? (
                             <button 
                               onClick={onAddProduct}
-                              className="p-2 bg-indigo-600 text-white rounded-lg shadow-sm hover:bg-indigo-700 transition-colors"
-                              title="Salvar alteração"
+                              className="p-1.5 bg-indigo-600 text-white rounded-lg shadow-sm hover:bg-indigo-700 transition-colors"
+                              title="Salvar"
                             >
-                              <Plus className="w-4 h-4" />
+                              <Check className="w-3.5 h-3.5" />
                             </button>
                           ) : (
-                            <button onClick={() => onEditProduct(i)} className="p-2 text-slate-400 hover:text-indigo-600 transition-colors">
-                              <Pencil className="w-4 h-4" />
+                            <button onClick={() => onEditProduct(i)} className="p-1.5 text-slate-300 hover:text-indigo-600 transition-colors">
+                              <Pencil className="w-3.5 h-3.5" />
                             </button>
                           )}
-                          <button onClick={() => onRemoveProduct(i)} className="p-2 text-slate-400 hover:text-red-500 transition-colors">
-                            <Trash2 className="w-4 h-4" />
+                          <button onClick={() => onRemoveProduct(i)} className="p-1.5 text-slate-300 hover:text-red-500 transition-colors">
+                            <Trash2 className="w-3.5 h-3.5" />
                           </button>
                         </div>
                       </div>
@@ -272,17 +272,17 @@ export const SupplierModal: React.FC<SupplierModalProps> = ({
               </div>
             </div>
 
-            <div className="p-8 bg-slate-50 border-t border-slate-100 flex justify-end gap-4">
+            <div className="p-6 bg-slate-50 border-t border-slate-100 flex justify-end gap-3">
               <button
                 onClick={onClose}
-                className="px-8 py-4 text-slate-500 font-bold hover:text-slate-900 transition-all"
+                className="px-6 py-3 text-slate-500 text-sm font-bold hover:text-slate-900 transition-all"
               >
                 Cancelar
               </button>
               <button
                 onClick={onSave}
                 disabled={!name || !phone || (productList.length === 0 && !productName.trim())}
-                className="px-10 py-4 bg-indigo-600 text-white rounded-2xl font-bold shadow-lg shadow-indigo-100 hover:bg-indigo-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                className="px-8 py-3 bg-indigo-600 text-white rounded-xl text-sm font-bold shadow-md hover:bg-indigo-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {editingSupplierId ? 'Salvar Alterações' : 'Cadastrar Fornecedor'}
               </button>

@@ -56,11 +56,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
         className={`fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-[90] transition-opacity lg:hidden ${isOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
         onClick={onClose}
       />
-      <aside className={`fixed inset-y-0 left-0 w-64 bg-white border-r-2 border-slate-900 flex flex-col h-screen overflow-y-auto scrollbar-thin scrollbar-thumb-slate-200 scrollbar-track-transparent z-[100] shrink-0 transition-transform duration-300 lg:translate-x-0 ${isOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+      <aside className={`fixed inset-y-0 left-0 w-64 bg-white border-r border-slate-200 flex flex-col h-screen overflow-y-auto scrollbar-thin scrollbar-thumb-slate-200 scrollbar-track-transparent z-[100] shrink-0 transition-transform duration-300 lg:translate-x-0 ${isOpen ? 'translate-x-0' : '-translate-x-full'}`}>
         <div className="p-8">
           <div className="flex items-center justify-between mb-10">
             <div className="flex flex-col items-center gap-4 w-full">
-              <div className="w-24 h-24 md:w-28 md:h-28 bg-white rounded-3xl overflow-hidden flex items-center justify-center shadow-xl shadow-slate-200 border-2 border-slate-900 shrink-0">
+              <div className="w-20 h-20 md:w-24 md:h-24 bg-white rounded-2xl overflow-hidden flex items-center justify-center shadow-sm border border-slate-100 shrink-0">
                 <img 
                   src="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTF8VmLyweYpbSL_D3D1F-hsvmGwm9EHcPi5A&s" 
                   alt="Logo" 
@@ -68,53 +68,59 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   referrerPolicy="no-referrer"
                 />
               </div>
-              <span className="text-4xl font-black text-slate-900 tracking-tighter uppercase">LABARR</span>
+              <span className="text-3xl font-black text-slate-800 tracking-tighter uppercase">LABARR</span>
             </div>
             <button onClick={onClose} className="lg:hidden p-2 text-slate-400 hover:text-slate-900 absolute right-4 top-4">
               <X className="w-6 h-6" />
             </button>
           </div>
 
-          <nav className="space-y-3">
+          <nav className="space-y-1">
             {menuItems.map((item) => (
               <button
                 key={item.id}
                 onClick={() => { setCurrentPage(item.id); onClose(); }}
-                className={`w-full flex items-center gap-4 px-5 py-4 rounded-2xl font-black transition-all border-2 cursor-pointer ${
+                className={`w-full flex items-center gap-4 px-4 py-3 rounded-xl font-bold transition-all cursor-pointer ${
                   currentPage === item.id
-                    ? 'bg-slate-900 text-white border-slate-900 shadow-lg shadow-slate-200'
-                    : 'text-slate-900 border-transparent hover:border-slate-300 hover:bg-slate-50'
+                    ? 'bg-indigo-600 text-white shadow-md'
+                    : 'text-slate-600 hover:bg-slate-50'
                 }`}
               >
-                <item.icon className={`w-6 h-6 ${currentPage === item.id ? 'text-white' : 'text-slate-900'}`} />
-                <span className="uppercase tracking-tight text-sm">{item.label}</span>
+                <div className="w-6 flex justify-center shrink-0">
+                  <item.icon className={`w-5 h-5 ${currentPage === item.id ? 'text-white' : 'text-slate-400'}`} />
+                </div>
+                <span className="uppercase tracking-tight text-xs whitespace-nowrap">{item.label}</span>
               </button>
             ))}
           </nav>
         </div>
 
-      <div className="mt-auto p-6 border-t-2 border-slate-900 space-y-2 bg-slate-50/50">
+      <div className="mt-auto p-6 border-t border-slate-100 space-y-2 bg-slate-50/30">
         {isAdmin && (
           <button
             onClick={() => setIsSettingsOpen(true)}
-            className="w-full flex items-center gap-4 px-5 py-4 rounded-2xl font-black text-slate-900 hover:bg-slate-200 transition-all border-2 border-transparent hover:border-slate-900"
+            className="w-full flex items-center gap-4 px-4 py-3 rounded-xl font-bold text-slate-600 hover:bg-slate-100 transition-all"
           >
-            <Settings className="w-5 h-5 text-slate-900" />
-            <span className="uppercase tracking-tight text-xs">Configurações</span>
+            <div className="w-6 flex justify-center shrink-0">
+              <Settings className="w-5 h-5 text-slate-400" />
+            </div>
+            <span className="uppercase tracking-tight text-xs whitespace-nowrap">Configurações</span>
           </button>
         )}
         
-        <div className="px-5 py-4 mb-2 bg-white border-2 border-slate-900 rounded-2xl">
-          <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Operador Ativo</p>
-          <p className="text-xs font-black text-slate-900 truncate uppercase">{loggedName}</p>
+        <div className="px-4 py-3 mb-2 bg-white border border-slate-100 rounded-xl">
+          <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1">Operador Ativo</p>
+          <p className="text-[11px] font-bold text-slate-700 truncate uppercase">{loggedName}</p>
         </div>
 
         <button
           onClick={handleLogout}
-          className="w-full flex items-center gap-4 px-5 py-4 rounded-2xl font-black text-red-600 hover:bg-red-600 hover:text-white transition-all border-2 border-transparent hover:border-red-600"
+          className="w-full flex items-center gap-4 px-4 py-3 rounded-xl font-bold text-red-500 hover:bg-red-50 transition-all"
         >
-          <LogOut className="w-5 h-5" />
-          <span className="uppercase tracking-tight text-xs">Encerrar Sessão</span>
+          <div className="w-6 flex justify-center shrink-0">
+            <LogOut className="w-5 h-5 text-slate-400" />
+          </div>
+          <span className="uppercase tracking-tight text-xs whitespace-nowrap">Sair</span>
         </button>
       </div>
     </aside>

@@ -187,6 +187,9 @@ export const OmieView: React.FC<OmieViewProps> = ({
           </div>
         </div>
         <div className="flex items-center gap-3">
+          <div className="w-16 h-16 bg-indigo-50 rounded-2xl flex items-center justify-center shrink-0">
+            <Globe className="w-8 h-8 text-indigo-600" />
+          </div>
           <button
             onClick={fetchExternalProducts}
             disabled={isSyncingExternal || isWakingUp}
