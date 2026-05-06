@@ -10,6 +10,34 @@ export interface ExtractedProduct {
 }
 
 /**
+ * Compresses and resizes an image before sending to AI to improve speed.
+ */
+const compressImage = async (base64Str: string, maxWidth = 1024): Promise<string> => {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.src = base64Str;
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      let width = img.width;
+      let height = img.height;
+
+      if (width > maxWidth) {
+        height = (maxWidth / width) * height;
+        width = maxWidth;
+      }
+
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext('2d');
+      ctx?.drawImage(img, 0, 0, width, height);
+      
+      // Compress to JPEG with 0.8 quality for speed/quality balance
+      resolve(canvas.toDataURL('image/jpeg', 0.8).split(',')[1]);
+    };
+  });
+};
+
+/**
  * Process document using Gemini AI (Client-side).
  */
 export const processDocumentWithAI = async (
@@ -25,34 +53,44 @@ export const processDocumentWithAI = async (
   }
 
   const ai = new GoogleGenAI({ apiKey });
-  const model = "gemini-3-flash-preview";
+  // Use stable flash model for fastest balanced performance
+  const model = "gemini-1.5-flash"; 
   
   const productsContext = existingProductNames && existingProductNames.length > 0 
-    ? `\n\nPRODUTOS JÁ EXISTENTES NO SISTEMA:\n${existingProductNames.join(", ")}`
+    ? `\n\nLISTA DE PRODUTOS EXISTENTES (PARA MATCHING):\n${existingProductNames.join(", ")}`
     : "";
 
   const systemInstruction = `
-    Você é um assistente especializado em extração de dados de notas fiscais e atualização de preços.
-    Sua tarefa é identificar produtos e seus respectivos preços unitários.
+    Aja como um extrator de dados ultra-rápido de notas fiscais.
     
-    INSTRUÇÕES DE VÍNCULO (MATCHING):
-    1. No campo "name", se o produto extraído parecer ser um dos "PRODUTOS JÁ EXISTENTES" (mesmo que o nome não seja idêntico, ex: "leite piracan" -> "leite piracanjuba integral 1L"), você deve retornar EXATAMENTE o nome do produto que já existe. Se não houver correspondência, use o nome lido.
-    2. No campo "rawName", retorne SEMPRE o nome original conforme lido no documento, sem alterações (ex: se está "LT PIRACAN", retorne "LT PIRACAN").
-    3. Use sua inteligência para entender abreviações, marcas e variações e associar ao nome correto em "name".
+    META: Retornar JSON de produtos com preço unitário.
+    ${productsContext}
     
-    Regras de Extração:
-    - Extraia o NOME do produto e o PREÇO UNITÁRIO atual.
-    - Ignore impostos e descontos totais.
-    - Retorne os dados em formato JSON seguindo o schema.${productsContext}
+    REGRAS:
+    1. "name": Se o item for similar a um da "LISTA DE PRODUTOS EXISTENTES", use EXATAMENTE o nome da lista. Caso contrário, use o nome lido.
+    2. "rawName": Nome bruto como está no documento.
+    3. Seja conciso. Ignore cabeçalhos e rodapés não relacionados a itens.
   `;
 
   const parts: any[] = [];
   
   if (fileData) {
+    let processableData = fileData.data;
+    
+    // If it's an image, compress it to speed up transmission and processing
+    if (fileData.mimeType.startsWith('image/')) {
+      try {
+        const fullBase64 = `data:${fileData.mimeType};base64,${fileData.data}`;
+        processableData = await compressImage(fullBase64);
+      } catch (e) {
+        console.warn("Falha na compressão, enviando original", e);
+      }
+    }
+
     parts.push({
       inlineData: {
-        mimeType: fileData.mimeType,
-        data: fileData.data
+        mimeType: fileData.mimeType.startsWith('image/') ? 'image/jpeg' : fileData.mimeType,
+        data: processableData
       }
     });
   }
@@ -60,13 +98,16 @@ export const processDocumentWithAI = async (
   if (prompt) {
     parts.push({ text: prompt });
   } else {
-    parts.push({ text: "Extraia todos os produtos e preços deste documento." });
+    parts.push({ text: "Extraia itens e preços." });
   }
 
   try {
     const genConfig = {
       systemInstruction,
       responseMimeType: "application/json",
+      // Reduced topP and temperature for faster, more deterministic output
+      temperature: 0.1,
+      topP: 0.8,
       responseSchema: {
         type: Type.OBJECT,
         properties: {
