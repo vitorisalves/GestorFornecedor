@@ -45,16 +45,16 @@ export const processDocumentWithAI = async (
   prompt?: string,
   existingProductNames?: string[]
 ): Promise<ExtractedProduct[]> => {
-  // Use G_API_KEY as requested, fallback to GEMINI_API_KEY
-  const apiKey = process.env.G_API_KEY || process.env.GEMINI_API_KEY;
+  // Use the platform-provided GEMINI_API_KEY
+  const apiKey = process.env.GEMINI_API_KEY;
   
   if (!apiKey) {
-    throw new Error("A chave G_API_KEY não foi encontrada. Certifique-se de configurá-la nas variáveis de ambiente (Vercel ou local).");
+    throw new Error("Configuração incompleta: GEMINI_API_KEY não encontrada.");
   }
 
   const ai = new GoogleGenAI({ apiKey });
-  // Use stable flash model for fastest balanced performance
-  const model = "gemini-1.5-flash"; 
+  // Using gemini-3-flash-preview for maximum speed and accuracy in extraction
+  const model = "gemini-3-flash-preview"; 
   
   const productsContext = existingProductNames && existingProductNames.length > 0 
     ? `\n\nLISTA DE PRODUTOS EXISTENTES (PARA MATCHING):\n${existingProductNames.join(", ")}`
