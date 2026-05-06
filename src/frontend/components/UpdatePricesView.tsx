@@ -26,6 +26,7 @@ import {
 import { Product, Supplier } from '../types';
 import { formatCurrency, extractErrorMessage } from '../utils';
 import { processDocumentWithAI, ExtractedProduct } from '../../services/geminiService';
+import { ConfirmationModal } from './modals/ConfirmationModal';
 
 // Simple fuzzy matching helper
 const stringSimilarity = (s1: string, s2: string): number => {
@@ -81,6 +82,7 @@ export const UpdatePricesView: React.FC<UpdatePricesViewProps> = ({
   const [showConfirm, setShowConfirm] = useState(false);
   const [searchProductQuery, setSearchProductQuery] = useState('');
   const [linkingIndex, setLinkingIndex] = useState<number | null>(null);
+  const [itemToRemoveIndex, setItemToRemoveIndex] = useState<number | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const flatProducts = useMemo(() => {
@@ -312,8 +314,13 @@ export const UpdatePricesView: React.FC<UpdatePricesViewProps> = ({
   };
 
   const removeItem = (index: number) => {
-    if (window.confirm("Deseja realmente remover este produto da extração?")) {
-      setMatchResults(prev => prev.filter((_, i) => i !== index));
+    setItemToRemoveIndex(index);
+  };
+
+  const confirmRemove = () => {
+    if (itemToRemoveIndex !== null) {
+      setMatchResults(prev => prev.filter((_, i) => i !== itemToRemoveIndex));
+      setItemToRemoveIndex(null);
     }
   };
 
@@ -742,6 +749,16 @@ export const UpdatePricesView: React.FC<UpdatePricesViewProps> = ({
           </div>
         )}
       </AnimatePresence>
+
+      <ConfirmationModal 
+        isOpen={itemToRemoveIndex !== null}
+        onClose={() => setItemToRemoveIndex(null)}
+        onConfirm={confirmRemove}
+        title="Remover Item"
+        message="Deseja realmente remover este produto da extração?"
+        confirmText="Remover"
+        variant="danger"
+      />
     </motion.div>
   );
 };
