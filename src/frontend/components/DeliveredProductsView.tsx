@@ -132,7 +132,7 @@ export const DeliveredProductsView: React.FC<DeliveredProductsViewProps> = ({
                           {p.name}
                         </span>
                         {p.delivered && p.deliveryDate && (
-                          <span className="text-[9px] font-bold text-emerald-500 uppercase tracking-tight">
+                          <span className="text-[11px] font-bold text-emerald-500 uppercase tracking-tight">
                             Entregue em: {p.deliveryDate}
                           </span>
                         )}
@@ -142,14 +142,14 @@ export const DeliveredProductsView: React.FC<DeliveredProductsViewProps> = ({
                       {p.supplierName}
                     </td>
                     <td className="px-6 py-4 text-center">
-                      <span className="inline-flex items-center justify-center px-2 py-1 bg-slate-100 rounded-lg text-[10px] font-black text-slate-700 min-w-[24px]">
+                      <span className="inline-flex items-center justify-center px-2 py-1 bg-slate-100 rounded-lg text-[11px] font-black text-slate-700 min-w-[24px]">
                         {p.quantity || 1}
                       </span>
                     </td>
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-2 text-slate-500">
                         <Calendar className="w-3.5 h-3.5" />
-                        <span className="text-[10px] font-bold uppercase tracking-tight">{p.purchaseDate}</span>
+                        <span className="text-[11px] font-bold uppercase tracking-tight">{p.purchaseDate}</span>
                       </div>
                     </td>
                     <td className="px-6 py-4 text-center">
