@@ -112,6 +112,48 @@ export default function App() {
     addItemToList
   } = useCart(isAuthReady, isLoggedIn, loggedName, addAppNotification);
 
+  const handleToggleSavedListItemBought = React.useCallback(async (listId: string, productName: string, supplierName: string) => {
+    const list = savedLists.find(l => l.id === listId);
+    if (!list) return;
+
+    const item = list.items.find(i => i.name === productName && i.supplierName === supplierName);
+    if (!item) return;
+
+    // Se o item NÃO estava comprado, ele vai se tornar comprado agora (Check)
+    const becomingBought = !item.bought;
+
+    // 1. Toggle status na lista
+    await toggleSavedListItemBought(listId, productName, supplierName);
+
+    // 2. Se foi marcado como comprado, atualiza a data no fornecedor
+    if (becomingBought) {
+      const now = new Date();
+      const day = now.getDate().toString().padStart(2, '0');
+      const month = (now.getMonth() + 1).toString().padStart(2, '0');
+      const formattedDate = `${day}/${month}/${now.getFullYear()}`;
+      
+      const supplier = suppliers.find(s => s.name === supplierName);
+      if (supplier) {
+        const productIndex = supplier.products.findIndex(p => p.name === productName);
+        if (productIndex !== -1) {
+          const updatedSupplier = { ...supplier };
+          updatedSupplier.products = [...updatedSupplier.products];
+          updatedSupplier.products[productIndex] = {
+            ...updatedSupplier.products[productIndex],
+            lastPurchaseDate: formattedDate
+          };
+          
+          try {
+            await saveSupplier(updatedSupplier);
+            addNotification(`Data atualizada: ${productName}`, 1, 'info');
+          } catch (err) {
+            console.error("Erro ao atualizar data de compra:", err);
+          }
+        }
+      }
+    }
+  }, [savedLists, toggleSavedListItemBought, suppliers, saveSupplier, addNotification]);
+
   const handleReconnect = React.useCallback(async () => {
     const { db, enableNetwork } = await import('./firebase');
     try {
@@ -226,6 +268,8 @@ export default function App() {
     productName: '',
     productPrice: '',
     productCategory: '',
+    productLastPurchaseDate: '',
+    productPaymentMethod: '',
   });
   const [productList, setProductList] = useState<Product[]>([]);
   const [editingProductIndex, setEditingProductIndex] = useState<number | null>(null);
@@ -284,6 +328,8 @@ export default function App() {
       productName: '',
       productPrice: '',
       productCategory: '',
+      productLastPurchaseDate: '',
+      productPaymentMethod: '',
     });
     setProductList([]);
     setEditingProductIndex(null);
@@ -298,7 +344,9 @@ export default function App() {
       const product: Product = {
         name: formState.productName.trim(),
         price: parseFloat(formState.productPrice || '0'),
-        category: formState.productCategory.trim() || 'Fornecedor'
+        category: formState.productCategory.trim() || 'Fornecedor',
+        lastPurchaseDate: formState.productLastPurchaseDate.trim(),
+        paymentMethod: formState.productPaymentMethod.trim()
       };
       
       if (editingProductIndex !== null) {
@@ -330,6 +378,8 @@ export default function App() {
       productName: '',
       productPrice: '',
       productCategory: '',
+      productLastPurchaseDate: '',
+      productPaymentMethod: '',
     });
     setProductList(supplier.products);
     setIsAdding(true);
@@ -344,7 +394,9 @@ export default function App() {
           ...existing,
           name: formState.productName.trim(),
           price: parseFloat(formState.productPrice || '0'),
-          category: formState.productCategory.trim() || 'Fornecedor'
+          category: formState.productCategory.trim() || 'Fornecedor',
+          lastPurchaseDate: formState.productLastPurchaseDate.trim(),
+          paymentMethod: formState.productPaymentMethod.trim()
         };
         setProductList(updatedList);
         setEditingProductIndex(null);
@@ -352,7 +404,9 @@ export default function App() {
         const product: Product = {
           name: formState.productName.trim(),
           price: parseFloat(formState.productPrice || '0'),
-          category: formState.productCategory.trim() || 'Fornecedor'
+          category: formState.productCategory.trim() || 'Fornecedor',
+          lastPurchaseDate: formState.productLastPurchaseDate.trim(),
+          paymentMethod: formState.productPaymentMethod.trim()
         };
         setProductList([...productList, product]);
       }
@@ -362,6 +416,8 @@ export default function App() {
         productName: '',
         productPrice: '',
         productCategory: '',
+        productLastPurchaseDate: '',
+        productPaymentMethod: '',
       }));
       productNameRef.current?.focus();
     }
@@ -546,7 +602,7 @@ export default function App() {
             onRefresh={refreshLists}
             editSavedList={onEditSavedList}
             deleteSavedList={(id) => setDeletions(prev => ({ ...prev, list: id }))}
-            toggleSavedListItemBought={toggleSavedListItemBought}
+            toggleSavedListItemBought={handleToggleSavedListItemBought}
             setActiveTargetList={onSetActiveTargetList}
           />
         )}
@@ -610,6 +666,10 @@ export default function App() {
         setNewProductPrice={(productPrice) => setFormState(prev => ({ ...prev, productPrice }))}
         newProductCategory={formState.productCategory}
         setNewProductCategory={(productCategory) => setFormState(prev => ({ ...prev, productCategory }))}
+        newProductLastPurchaseDate={formState.productLastPurchaseDate}
+        setNewProductLastPurchaseDate={(productLastPurchaseDate) => setFormState(prev => ({ ...prev, productLastPurchaseDate }))}
+        newProductPaymentMethod={formState.productPaymentMethod}
+        setNewProductPaymentMethod={(productPaymentMethod) => setFormState(prev => ({ ...prev, productPaymentMethod }))}
         categories={categories}
         editingProductIndex={editingProductIndex}
         productNameRef={productNameRef}
@@ -621,7 +681,9 @@ export default function App() {
               ...prev,
               productName: '',
               productPrice: '',
-              productCategory: ''
+              productCategory: '',
+              productLastPurchaseDate: '',
+              productPaymentMethod: ''
             }));
             return;
           }
@@ -630,7 +692,9 @@ export default function App() {
             ...prev,
             productName: p.name,
             productPrice: p.price.toString(),
-            productCategory: p.category
+            productCategory: p.category,
+            productLastPurchaseDate: p.lastPurchaseDate || '',
+            productPaymentMethod: p.paymentMethod || ''
           }));
           setEditingProductIndex(i);
         }}

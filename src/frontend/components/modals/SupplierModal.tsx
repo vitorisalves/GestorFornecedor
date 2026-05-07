@@ -19,6 +19,10 @@ interface SupplierModalProps {
   setProductPrice: (price: string) => void;
   productCategory: string;
   setProductCategory: (cat: string) => void;
+  productLastPurchaseDate: string;
+  setProductLastPurchaseDate: (date: string) => void;
+  productPaymentMethod: string;
+  setProductPaymentMethod: (method: string) => void;
   categories: string[];
   editingProductIndex: number | null;
   productNameRef: React.RefObject<HTMLInputElement>;
@@ -43,6 +47,10 @@ export const SupplierModal: React.FC<SupplierModalProps> = ({
   setProductPrice,
   productCategory,
   setProductCategory,
+  productLastPurchaseDate,
+  setProductLastPurchaseDate,
+  productPaymentMethod,
+  setProductPaymentMethod,
   categories,
   editingProductIndex,
   productNameRef,
@@ -172,6 +180,22 @@ export const SupplierModal: React.FC<SupplierModalProps> = ({
                       ))}
                     </select>
                   </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <input
+                      type="text"
+                      placeholder="Última Data Compra (Ex: 01/01/2024)"
+                      className="px-4 py-3 bg-white border border-slate-200 focus:border-indigo-500 rounded-xl outline-none transition-all font-medium text-sm"
+                      value={productLastPurchaseDate}
+                      onChange={(e) => setProductLastPurchaseDate(e.target.value)}
+                    />
+                    <input
+                      type="text"
+                      placeholder="Forma de Pagamento (Ex: PIX)"
+                      className="px-4 py-3 bg-white border border-slate-200 focus:border-indigo-500 rounded-xl outline-none transition-all font-medium text-sm"
+                      value={productPaymentMethod}
+                      onChange={(e) => setProductPaymentMethod(e.target.value)}
+                    />
+                  </div>
                   <button
                     onClick={onAddProduct}
                     className="w-full py-3 bg-slate-900 text-white rounded-xl font-bold text-xs uppercase tracking-widest flex items-center justify-center gap-2 hover:bg-slate-800 transition-all shadow-sm"
@@ -234,6 +258,22 @@ export const SupplierModal: React.FC<SupplierModalProps> = ({
                                       <option key={cat} value={cat}>{cat}</option>
                                     ))}
                                   </select>
+                                </div>
+                                <div className="grid grid-cols-2 gap-2 mt-2">
+                                  <input
+                                    type="text"
+                                    className="px-2 py-1 bg-indigo-50 border border-indigo-200 rounded-lg text-[10px] font-bold text-slate-700 outline-none"
+                                    value={productLastPurchaseDate}
+                                    onChange={(e) => setProductLastPurchaseDate(e.target.value)}
+                                    placeholder="Data"
+                                  />
+                                  <input
+                                    type="text"
+                                    className="px-2 py-1 bg-indigo-50 border border-indigo-200 rounded-lg text-[10px] font-bold text-slate-700 outline-none"
+                                    value={productPaymentMethod}
+                                    onChange={(e) => setProductPaymentMethod(e.target.value)}
+                                    placeholder="Pagto"
+                                  />
                                 </div>
                               </>
                             ) : (

@@ -27,6 +27,10 @@ interface ModalsProps {
   setNewProductPrice: (price: string) => void;
   newProductCategory: string;
   setNewProductCategory: (cat: string) => void;
+  newProductLastPurchaseDate: string;
+  setNewProductLastPurchaseDate: (date: string) => void;
+  newProductPaymentMethod: string;
+  setNewProductPaymentMethod: (method: string) => void;
   categories: string[];
   editingProductIndex: number | null;
   productNameRef: React.RefObject<HTMLInputElement>;
@@ -96,6 +100,10 @@ export const Modals: React.FC<ModalsProps> = (props) => {
         setProductPrice={props.setNewProductPrice}
         productCategory={props.newProductCategory}
         setProductCategory={props.setNewProductCategory}
+        productLastPurchaseDate={props.newProductLastPurchaseDate}
+        setProductLastPurchaseDate={props.setNewProductLastPurchaseDate}
+        productPaymentMethod={props.newProductPaymentMethod}
+        setProductPaymentMethod={props.setNewProductPaymentMethod}
         categories={props.categories}
         editingProductIndex={props.editingProductIndex}
         productNameRef={props.productNameRef}
