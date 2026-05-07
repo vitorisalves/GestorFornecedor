@@ -47,17 +47,14 @@ export interface SavedList {
   createdBy?: string;
 }
 
-export interface ExternalProduct {
+export interface DeliveredProduct {
   id: string;
-  name?: string;
-  descricao?: string; // Omie field
-  price?: number;
-  valor_unitario?: number; // Omie field
-  unidade?: string;
-  codigo_produto?: string | number;
-  stock?: number;
-  estoque_fisico?: number;
-  codigo?: string;
+  name: string;
+  supplierName: string;
+  purchaseDate: string;
+  delivered: boolean;
+  deliveryDate?: string;
+  quantity?: number;
 }
 
 export interface Reminder {

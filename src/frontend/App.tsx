@@ -12,7 +12,7 @@ import { useAuth } from './hooks/useAuth';
 import { useNotifications } from './hooks/useNotifications';
 import { useSuppliers } from './hooks/useSuppliers';
 import { useCart } from './hooks/useCart';
-import { useOmie } from './hooks/useOmie';
+import { useDeliveredProducts } from './hooks/useDeliveredProducts';
 import { useReminders } from './hooks/useReminders';
 import { useExcel } from './hooks/useExcel';
 
@@ -23,7 +23,7 @@ import { NotificationCenter } from './components/NotificationCenter';
 import { SuppliersView } from './components/SuppliersView';
 import { ShoppingView } from './components/ShoppingView';
 import { HistoryView } from './components/HistoryView';
-import { OmieView } from './components/OmieView';
+import { DeliveredProductsView } from './components/DeliveredProductsView';
 import { RemindersView } from './components/RemindersView';
 import { UpdatePricesView } from './components/UpdatePricesView';
 import { Modals } from './components/Modals';
@@ -112,6 +112,13 @@ export default function App() {
     addItemToList
   } = useCart(isAuthReady, isLoggedIn, loggedName, addAppNotification);
 
+  const {
+    deliveredProducts,
+    saveDeliveredProduct,
+    deleteDeliveredProduct,
+    toggleDeliveryStatus
+  } = useDeliveredProducts(isAuthReady, isLoggedIn);
+
   const handleToggleSavedListItemBought = React.useCallback(async (listId: string, productName: string, supplierName: string) => {
     const list = savedLists.find(l => l.id === listId);
     if (!list) return;
@@ -145,7 +152,24 @@ export default function App() {
           
           try {
             await saveSupplier(updatedSupplier);
-            addNotification(`Data atualizada: ${productName}`, 1, 'info');
+            
+            // 3. Adicionar aos produtos entregues (pendente de entrega física)
+            const deliveryId = `${productName}-${supplierName}-${now.getTime()}`
+              .toLowerCase()
+              .normalize("NFD")
+              .replace(/[\u0300-\u036f]/g, "")
+              .replace(/[^a-z0-9]/g, '-')
+              .replace(/-+/g, '-');
+            await saveDeliveredProduct({
+              id: deliveryId,
+              name: productName,
+              supplierName: supplierName,
+              purchaseDate: formattedDate,
+              delivered: false,
+              quantity: item.quantity
+            });
+
+            addNotification(`Data atualizada e enviado para Entregues`, 1, 'info');
           } catch (err) {
             console.error("Erro ao atualizar data de compra:", err);
           }
@@ -188,21 +212,8 @@ export default function App() {
     }
   }, [activeTargetListId, activeTargetListName, addItemToList, addNotification, addToCart]);
 
-  const [currentPage, setCurrentPage] = useState<'suppliers' | 'mercado' | 'materiais' | 'shopping' | 'history' | 'omie' | 'reminders' | 'update-prices'>('suppliers');
+  const [currentPage, setCurrentPage] = useState<'suppliers' | 'mercado' | 'materiais' | 'shopping' | 'history' | 'delivered' | 'reminders' | 'update-prices'>('suppliers');
   
-  const {
-    externalProducts,
-    isSyncingExternal,
-    isTriggeringSync,
-    apiHealth,
-    isCheckingHealth,
-    isWakingUp,
-    wakeUpMessage,
-    triggerOmieSync,
-    fetchExternalProducts,
-    checkApiHealth
-  } = useOmie(currentPage);
-
   const {
     handleExportExcel,
     handleImportExcel,
@@ -256,8 +267,6 @@ export default function App() {
   const [searchTerm, setSearchTerm] = useState('');
   const [shoppingQuantities, setShoppingQuantities] = useState<Record<string, number | string>>({});
   const [newCategoryName, setNewCategoryName] = useState('');
-  const [externalSearchTerm, setExternalSearchTerm] = useState('');
-  const [externalCurrentPage, setExternalCurrentPage] = useState(1);
   const [reminderProductName, setReminderProductName] = useState('');
   const [reminderDate, setReminderDate] = useState('');
   
@@ -606,25 +615,12 @@ export default function App() {
             setActiveTargetList={onSetActiveTargetList}
           />
         )}
-        {currentPage === 'omie' && (
-          <OmieView 
-            key="omie"
-            externalProducts={externalProducts}
-            externalSearchTerm={externalSearchTerm}
-            setExternalSearchTerm={setExternalSearchTerm}
-            isSyncingExternal={isSyncingExternal}
-            isTriggeringSync={isTriggeringSync}
-            triggerOmieSync={() => triggerOmieSync(addNotification)}
-            fetchExternalProducts={() => fetchExternalProducts(addNotification)}
-            apiHealth={apiHealth}
-            isCheckingHealth={isCheckingHealth}
-            isWakingUp={isWakingUp}
-            wakeUpMessage={wakeUpMessage}
-            checkApiHealth={checkApiHealth}
-            addToCart={handleAddToCart}
-            externalCurrentPage={externalCurrentPage}
-            setExternalCurrentPage={setExternalCurrentPage}
-            externalItemsPerPage={10}
+        {currentPage === 'delivered' && (
+          <DeliveredProductsView 
+            key="delivered"
+            deliveredProducts={deliveredProducts}
+            toggleDeliveryStatus={toggleDeliveryStatus}
+            deleteDeliveredProduct={deleteDeliveredProduct}
           />
         )}
         {currentPage === 'reminders' && (

@@ -45,6 +45,11 @@ service cloud.firestore {
       allow write: if isApproved();
     }
 
+    match /delivered_products/{productId} {
+      allow read: if isAuthenticated();
+      allow write: if isApproved();
+    }
+
     match /authorized_users/{userId} {
       allow read: if isAuthenticated();
       allow create: if isAuthenticated();

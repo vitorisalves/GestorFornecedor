@@ -1,0 +1,194 @@
+/**
+ * @license
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+import React from 'react';
+import { motion } from 'framer-motion';
+import { 
+  Search, 
+  Package,
+  Calendar,
+  Truck,
+  CheckCircle2,
+  Clock,
+  Trash2,
+  Check,
+  RotateCcw
+} from 'lucide-react';
+import { DeliveredProduct } from '../types';
+import { normalizeText, formatCurrency } from '../utils';
+import { ConfirmationModal } from './modals/ConfirmationModal';
+
+interface DeliveredProductsViewProps {
+  deliveredProducts: DeliveredProduct[];
+  toggleDeliveryStatus: (productId: string) => void;
+  deleteDeliveredProduct: (productId: string) => void;
+}
+
+export const DeliveredProductsView: React.FC<DeliveredProductsViewProps> = ({
+  deliveredProducts,
+  toggleDeliveryStatus,
+  deleteDeliveredProduct
+}) => {
+  const [searchTerm, setSearchTerm] = React.useState('');
+  const [productToDelete, setProductToDelete] = React.useState<string | null>(null);
+
+  const filteredProducts = deliveredProducts
+    .filter(p => {
+      const normalizedSearch = normalizeText(searchTerm);
+      return normalizeText(p.name).includes(normalizedSearch) || 
+             normalizeText(p.supplierName).includes(normalizedSearch);
+    })
+    .sort((a, b) => {
+      if (a.delivered !== b.delivered) {
+        return a.delivered ? 1 : -1;
+      }
+      return b.purchaseDate.localeCompare(a.purchaseDate);
+    });
+
+  const handleDeleteConfirm = () => {
+    if (productToDelete) {
+      deleteDeliveredProduct(productToDelete);
+      setProductToDelete(null);
+    }
+  };
+
+  return (
+    <motion.div 
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: -10 }}
+      transition={{ duration: 0.2 }}
+      className="space-y-6"
+    >
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+        <div>
+          <h1 className="text-3xl font-black text-slate-900 tracking-tight mb-1 uppercase">Produtos Entregues</h1>
+          <p className="text-slate-500 font-medium text-sm">Acompanhe a chegada dos produtos comprados</p>
+        </div>
+        <div className="hidden md:flex items-center gap-3">
+          <div className="px-4 py-2 bg-emerald-50 rounded-xl border border-emerald-100 flex items-center gap-2">
+            <Truck className="w-4 h-4 text-emerald-600" />
+            <span className="text-xs font-bold text-emerald-700 uppercase tracking-wider">Logística de Entrega</span>
+          </div>
+        </div>
+      </div>
+
+      <div className="relative group">
+        <Search className="absolute left-5 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 group-focus-within:text-indigo-500 transition-colors" />
+        <input
+          type="text"
+          placeholder="Buscar produto ou fornecedor..."
+          className="w-full pl-14 pr-6 py-4 bg-white border border-slate-200 focus:border-indigo-500 rounded-2xl outline-none transition-all shadow-sm text-base font-medium"
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+        />
+      </div>
+
+      <div className="bg-white rounded-3xl border border-slate-100 shadow-xl shadow-slate-100/50 overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-left border-collapse">
+            <thead>
+              <tr className="bg-slate-50/50 border-b border-slate-100">
+                <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest w-16">Status</th>
+                <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Produto</th>
+                <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Fornecedor</th>
+                <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">Qtd</th>
+                <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Data Compra</th>
+                <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">Ações</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-50">
+              {filteredProducts.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="py-20 text-center">
+                    <div className="flex flex-col items-center justify-center">
+                      <Package className="w-12 h-12 text-slate-200 mb-4" />
+                      <p className="text-slate-400 font-bold uppercase text-xs tracking-widest">Nenhum produto encontrado</p>
+                    </div>
+                  </td>
+                </tr>
+              ) : (
+                filteredProducts.map((p) => (
+                  <tr 
+                    key={p.id} 
+                    className={`group transition-all hover:bg-slate-50/50 ${p.delivered ? 'bg-emerald-50/20' : ''}`}
+                  >
+                    <td className="px-6 py-4">
+                      {p.delivered ? (
+                        <div className="w-8 h-8 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-600" title="Entregue">
+                          <Check className="w-4 h-4" />
+                        </div>
+                      ) : (
+                        <div className="w-8 h-8 rounded-full bg-amber-100 flex items-center justify-center text-amber-600" title="Pendente">
+                          <Clock className="w-4 h-4" />
+                        </div>
+                      )}
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="flex flex-col">
+                        <span className={`font-bold text-sm tracking-tight ${p.delivered ? 'text-slate-400' : 'text-slate-900'}`}>
+                          {p.name}
+                        </span>
+                        {p.delivered && p.deliveryDate && (
+                          <span className="text-[9px] font-bold text-emerald-500 uppercase tracking-tight">
+                            Entregue em: {p.deliveryDate}
+                          </span>
+                        )}
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-tight">
+                      {p.supplierName}
+                    </td>
+                    <td className="px-6 py-4 text-center">
+                      <span className="inline-flex items-center justify-center px-2 py-1 bg-slate-100 rounded-lg text-[10px] font-black text-slate-700 min-w-[24px]">
+                        {p.quantity || 1}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="flex items-center gap-2 text-slate-500">
+                        <Calendar className="w-3.5 h-3.5" />
+                        <span className="text-[10px] font-bold uppercase tracking-tight">{p.purchaseDate}</span>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 text-center">
+                      <div className="flex items-center justify-center gap-2">
+                        <button
+                          onClick={() => toggleDeliveryStatus(p.id)}
+                          className={`p-2 rounded-xl transition-all active:scale-95 ${
+                            p.delivered 
+                              ? 'bg-slate-100 text-slate-400 hover:bg-slate-200' 
+                              : 'bg-emerald-500 text-white hover:bg-emerald-600 shadow-sm'
+                          }`}
+                          title={p.delivered ? "Reabrir Pendência" : "Marcar como Entregue"}
+                        >
+                          {p.delivered ? <RotateCcw className="w-4 h-4" /> : <Check className="w-4 h-4" />}
+                        </button>
+                        <button
+                          onClick={() => setProductToDelete(p.id)}
+                          className="p-2 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all active:scale-95"
+                          title="Excluir"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <ConfirmationModal
+        isOpen={!!productToDelete}
+        onClose={() => setProductToDelete(null)}
+        onConfirm={handleDeleteConfirm}
+        title="Excluir Registro de Entrega"
+        message="Tem certeza que deseja excluir este registro? Esta ação não pode ser desfeita."
+      />
+    </motion.div>
+  );
+};

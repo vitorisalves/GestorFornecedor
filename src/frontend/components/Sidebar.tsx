@@ -9,6 +9,7 @@ import {
   ShoppingCart, 
   ListChecks, 
   Globe, 
+  Truck,
   Bell, 
   LogOut,
   Settings,
@@ -45,7 +46,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     { id: 'materiais', label: 'Materiais', icon: Hammer },
     { id: 'shopping', label: 'Fazer Compras', icon: ShoppingCart },
     { id: 'history', label: 'Minhas Listas', icon: ListChecks },
-    { id: 'omie', label: 'Produtos Externos', icon: Globe },
+    { id: 'delivered', label: 'Produtos Entregues', icon: Truck },
     { id: 'reminders', label: 'Lembretes', icon: Bell },
     { id: 'update-prices', label: 'Atualizar Preços', icon: Sparkles },
   ];

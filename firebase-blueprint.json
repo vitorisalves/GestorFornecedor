@@ -56,6 +56,21 @@
         "name": { "type": "string" }
       },
       "required": ["name"]
+    },
+    "DeliveredProduct": {
+      "title": "Delivered Product",
+      "description": "A product that was bought and is pending delivery",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "supplierName": { "type": "string" },
+        "purchaseDate": { "type": "string" },
+        "delivered": { "type": "boolean" },
+        "deliveryDate": { "type": "string" },
+        "quantity": { "type": "number" }
+      },
+      "required": ["id", "name", "supplierName", "purchaseDate", "delivered"]
     }
   },
   "firestore": {
@@ -74,6 +89,10 @@
     "/categories/{categoryId}": {
       "schema": "Category",
       "description": "Collection of product categories"
+    },
+    "/delivered_products/{productId}": {
+      "schema": "DeliveredProduct",
+      "description": "Collection of products pending delivery"
     }
   }
 }
