@@ -24,14 +24,14 @@ import {
   Trash2
 } from 'lucide-react';
 import { Product, Supplier } from '../types';
-import { formatCurrency, extractErrorMessage } from '../utils';
+import { formatCurrency, extractErrorMessage, normalizeText } from '../utils';
 import { processDocumentWithAI, ExtractedProduct } from '../../services/geminiService';
 import { ConfirmationModal } from './modals/ConfirmationModal';
 
 // Simple fuzzy matching helper
 const stringSimilarity = (s1: string, s2: string): number => {
-  const v1 = s1.toLowerCase().trim();
-  const v2 = s2.toLowerCase().trim();
+  const v1 = normalizeText(s1).trim();
+  const v2 = normalizeText(s2).trim();
   if (v1 === v2) return 1;
   if (!v1 || !v2) return 0;
   
@@ -91,9 +91,9 @@ export const UpdatePricesView: React.FC<UpdatePricesViewProps> = ({
 
   const filteredSearchProducts = useMemo(() => {
     if (!searchProductQuery.trim()) return [];
-    const lower = searchProductQuery.toLowerCase();
+    const normalizedQuery = normalizeText(searchProductQuery);
     return flatProducts
-      .filter(p => p.name.toLowerCase().includes(lower))
+      .filter(p => normalizeText(p.name).includes(normalizedQuery))
       .slice(0, 10);
   }, [flatProducts, searchProductQuery]);
 
@@ -169,8 +169,9 @@ export const UpdatePricesView: React.FC<UpdatePricesViewProps> = ({
         const originalName = item.rawName || item.name;
 
         // 1. Tentar match exato primeiro (IA foi instruída a retornar o nome exato se vinculou)
+        const normalizedItemName = normalizeText(item.name);
         for (const s of suppliers) {
-          const p = s.products.find(p => p.name.toLowerCase() === item.name.toLowerCase());
+          const p = s.products.find(p => normalizeText(p.name) === normalizedItemName);
           if (p) {
             matchedProduct = p;
             matchedSupplier = s;

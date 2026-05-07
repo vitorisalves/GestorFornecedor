@@ -137,3 +137,10 @@ export const extractErrorMessage = (error: any, fallback: string = 'Ocorreu um e
 
 export const generateId = () => Math.random().toString(36).substr(2, 9);
 
+export const normalizeText = (text: string): string => {
+  return text
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+};
+

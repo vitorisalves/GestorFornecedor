@@ -20,7 +20,7 @@ import {
   RefreshCcw
 } from 'lucide-react';
 import { Supplier, Product } from '../types';
-import { formatCurrency } from '../utils';
+import { formatCurrency, normalizeText } from '../utils';
 
 interface SuppliersViewProps {
   suppliers: Supplier[];
@@ -114,10 +114,11 @@ export const SuppliersView: React.FC<SuppliersViewProps> = ({
   };
 
   const filteredSuppliers = suppliers
-    .filter(s => 
-      s.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      s.products.some(p => p.name.toLowerCase().includes(searchTerm.toLowerCase()))
-    )
+    .filter(s => {
+      const normalizedSearch = normalizeText(searchTerm);
+      return normalizeText(s.name).includes(normalizedSearch) ||
+        s.products.some(p => normalizeText(p.name).includes(normalizedSearch));
+    })
     .sort((a, b) => a.name.localeCompare(b.name));
 
   return (
@@ -277,11 +278,13 @@ export const SuppliersView: React.FC<SuppliersViewProps> = ({
                   <div className="p-6 pt-0 border-t border-slate-50">
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 mt-6">
                       {supplier.products
-                        .filter(p => !searchTerm || 
-                          p.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
-                          p.category.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                          supplier.name.toLowerCase().includes(searchTerm.toLowerCase())
-                        )
+                        .filter(p => {
+                          if (!searchTerm) return true;
+                          const normalizedSearch = normalizeText(searchTerm);
+                          return normalizeText(p.name).includes(normalizedSearch) || 
+                            normalizeText(p.category).includes(normalizedSearch) ||
+                            normalizeText(supplier.name).includes(normalizedSearch);
+                        })
                         .sort((a, b) => a.name.localeCompare(b.name))
                         .map((product, idx) => {
                           const qKey = `${supplier.id || 'sup'}-${String(product.name)}-${idx}`;
@@ -411,7 +414,11 @@ export const SuppliersView: React.FC<SuppliersViewProps> = ({
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
               {marketSupplier.products
-                .filter(p => p.name.toLowerCase().includes(searchTerm.toLowerCase()) || p.category.toLowerCase().includes(searchTerm.toLowerCase()))
+                .filter(p => {
+                  const normalizedSearch = normalizeText(searchTerm);
+                  return normalizeText(p.name).includes(normalizedSearch) || 
+                    normalizeText(p.category).includes(normalizedSearch);
+                })
                 .sort((a, b) => a.name.localeCompare(b.name))
                 .map((product, idx) => {
                   const qKey = `MERCADO-${String(product.name)}-${idx}`;
@@ -537,7 +544,11 @@ export const SuppliersView: React.FC<SuppliersViewProps> = ({
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
               {materialsSupplier.products
-                .filter(p => p.name.toLowerCase().includes(searchTerm.toLowerCase()) || p.category.toLowerCase().includes(searchTerm.toLowerCase()))
+                .filter(p => {
+                  const normalizedSearch = normalizeText(searchTerm);
+                  return normalizeText(p.name).includes(normalizedSearch) || 
+                    normalizeText(p.category).includes(normalizedSearch);
+                })
                 .sort((a, b) => a.name.localeCompare(b.name))
                 .map((product, idx) => {
                   const qKey = `MATERIAIS-${String(product.name)}-${idx}`;

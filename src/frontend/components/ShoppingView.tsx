@@ -15,7 +15,7 @@ import {
   ChevronUp
 } from 'lucide-react';
 import { Supplier, Product } from '../types';
-import { formatCurrency } from '../utils';
+import { formatCurrency, normalizeText } from '../utils';
 
 interface ShoppingViewProps {
   suppliers: Supplier[];
@@ -50,14 +50,14 @@ export const ShoppingView: React.FC<ShoppingViewProps> = ({
    */
   const productsByCategory = useMemo(() => {
     const acc: Record<string, ProductWithSupplier[]> = {};
-    const lowerSearch = searchTerm.toLowerCase();
+    const normalizedSearch = normalizeText(searchTerm);
 
     suppliers.forEach(supplier => {
       supplier.products.forEach(product => {
         const matchesSearch = 
-          product.name.toLowerCase().includes(lowerSearch) ||
-          supplier.name.toLowerCase().includes(lowerSearch) ||
-          product.category?.toLowerCase().includes(lowerSearch);
+          normalizeText(product.name).includes(normalizedSearch) ||
+          normalizeText(supplier.name).includes(normalizedSearch) ||
+          normalizeText(product.category || "").includes(normalizedSearch);
 
         if (matchesSearch) {
           const category = product.category || 'Fornecedor';
