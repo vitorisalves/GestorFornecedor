@@ -81,7 +81,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
               <button
                 key={item.id}
                 onClick={() => { setCurrentPage(item.id); onClose(); }}
-                className={`w-full flex items-center gap-4 px-4 py-3 rounded-xl font-bold transition-all cursor-pointer ${
+                className={`flex items-center gap-4 px-4 py-3 font-bold transition-all cursor-pointer w-[190px] rounded-[12px] border-0 ${
                   currentPage === item.id
                     ? 'bg-indigo-600 text-white shadow-md'
                     : 'text-slate-600 hover:bg-slate-50'
@@ -100,7 +100,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         {isAdmin && (
           <button
             onClick={() => setIsSettingsOpen(true)}
-            className="w-full flex items-center gap-4 px-4 py-3 rounded-xl font-bold text-slate-600 hover:bg-slate-100 transition-all"
+            className="w-[190px] flex items-center gap-4 px-4 py-3 rounded-[12px] border-0 font-bold text-slate-600 hover:bg-slate-100 transition-all"
           >
             <div className="w-6 flex justify-center shrink-0">
               <Settings className="w-5 h-5 text-slate-400" />
@@ -116,7 +116,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
         <button
           onClick={handleLogout}
-          className="w-full flex items-center gap-4 px-4 py-3 rounded-xl font-bold text-red-500 hover:bg-red-50 transition-all"
+          className="w-[190px] flex items-center gap-4 px-4 py-3 rounded-[12px] border-0 font-bold text-red-500 hover:bg-red-50 transition-all"
         >
           <div className="w-6 flex justify-center shrink-0">
             <LogOut className="w-5 h-5 text-slate-400" />
