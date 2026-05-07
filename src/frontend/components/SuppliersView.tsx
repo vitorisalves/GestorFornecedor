@@ -113,10 +113,12 @@ export const SuppliersView: React.FC<SuppliersViewProps> = ({
     setQuantities(prev => ({ ...prev, [key]: '1' }));
   };
 
-  const filteredSuppliers = suppliers.filter(s => 
-    s.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    s.products.some(p => p.name.toLowerCase().includes(searchTerm.toLowerCase()))
-  );
+  const filteredSuppliers = suppliers
+    .filter(s => 
+      s.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      s.products.some(p => p.name.toLowerCase().includes(searchTerm.toLowerCase()))
+    )
+    .sort((a, b) => a.name.localeCompare(b.name));
 
   return (
     <motion.div 
@@ -280,6 +282,7 @@ export const SuppliersView: React.FC<SuppliersViewProps> = ({
                           p.category.toLowerCase().includes(searchTerm.toLowerCase()) ||
                           supplier.name.toLowerCase().includes(searchTerm.toLowerCase())
                         )
+                        .sort((a, b) => a.name.localeCompare(b.name))
                         .map((product, idx) => {
                           const qKey = `${supplier.id || 'sup'}-${String(product.name)}-${idx}`;
                           return (
@@ -409,6 +412,7 @@ export const SuppliersView: React.FC<SuppliersViewProps> = ({
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
               {marketSupplier.products
                 .filter(p => p.name.toLowerCase().includes(searchTerm.toLowerCase()) || p.category.toLowerCase().includes(searchTerm.toLowerCase()))
+                .sort((a, b) => a.name.localeCompare(b.name))
                 .map((product, idx) => {
                   const qKey = `MERCADO-${String(product.name)}-${idx}`;
                   return (
@@ -534,6 +538,7 @@ export const SuppliersView: React.FC<SuppliersViewProps> = ({
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
               {materialsSupplier.products
                 .filter(p => p.name.toLowerCase().includes(searchTerm.toLowerCase()) || p.category.toLowerCase().includes(searchTerm.toLowerCase()))
+                .sort((a, b) => a.name.localeCompare(b.name))
                 .map((product, idx) => {
                   const qKey = `MATERIAIS-${String(product.name)}-${idx}`;
                   return (
