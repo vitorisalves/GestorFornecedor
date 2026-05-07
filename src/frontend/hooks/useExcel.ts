@@ -16,7 +16,9 @@ export const useExcel = (suppliers: Supplier[], saveSupplier: (s: Supplier) => P
         'Telefone': supplier.phone,
         'Produto': product.name,
         'Preço': product.price,
-        'Categoria': product.category
+        'Categoria': product.category,
+        'Ultima Data Compra': product.lastPurchaseDate || '',
+        'Forma de Pagamento': product.paymentMethod || ''
       }))
     );
 
@@ -48,12 +50,24 @@ export const useExcel = (suppliers: Supplier[], saveSupplier: (s: Supplier) => P
         const newSuppliersMap: Record<string, Supplier> = {};
 
         rawData.forEach((row: any) => {
-          const sName = row['Empresa Razão Social'] || row['Fornecedor'] || row['Empresa'] || row['Razão Social'] || row['Nome da Empresa'];
-          const sPhone = row['Telefone'] || row['WhatsApp'] || row['Celular'] || '';
-          const pName = row['Produto'] || row['Nome'] || row['Nome do Produto'] || row['Descrição'];
+          const findVal = (row: any, keywords: string[]) => {
+            const keys = Object.keys(row);
+            const match = keys.find(k => {
+              const cleanK = k.toString().trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+              return keywords.some(kw => {
+                const cleanKW = kw.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+                return cleanK === cleanKW || cleanK.includes(cleanKW);
+              });
+            });
+            return match ? row[match] : null;
+          };
+
+          const sName = findVal(row, ['Empresa Razão Social', 'Fornecedor', 'Empresa', 'Razão Social', 'Nome da Empresa']);
+          const sPhone = findVal(row, ['Telefone', 'WhatsApp', 'Celular', 'Contato']) || '';
+          const pName = findVal(row, ['Produto', 'Nome', 'Nome do Produto', 'Descrição', 'Item']);
           
           let pPrice = 0;
-          const rawPrice = row['Preço'] || row['Valor'] || row['Valor Unitário'] || row['Preço Unitário'] || row['Preço de Custo'];
+          const rawPrice = findVal(row, ['Preço', 'Valor', 'Valor Unitário', 'Preço Unitário', 'Preço de Custo', 'Custo']);
           if (typeof rawPrice === 'number') {
             pPrice = rawPrice;
           } else if (rawPrice) {
@@ -65,26 +79,30 @@ export const useExcel = (suppliers: Supplier[], saveSupplier: (s: Supplier) => P
             }
           }
           
-          const pCat = row['Categoria'] || row['Grupo'] || 'Fornecedor';
+          const pCat = findVal(row, ['Categoria', 'Grupo', 'Seção']) || 'Fornecedor';
+          const pLastDate = findVal(row, ['Ultima Data Compra', 'Data Compra', 'Última Data', 'Data', 'Data de Compra', 'Ult. Compra']) || "";
+          const pPayMethod = findVal(row, ['Forma de Pagamento', 'Pagamento', 'Pagto', 'Forma Pagto', 'Meio de Pagamento', 'Tipo de Pagamento']) || "";
 
-          if (sName && pName) {
-            const trimmedName = sName.toString().trim().toUpperCase();
-            if (trimmedName === 'MERCADO' || trimmedName === 'MATERIAIS') {
+          if ((sName || pName) && pName) {
+            const finalSName = (sName || 'DIVERSOS').toString().trim().toUpperCase();
+            if (finalSName === 'MERCADO' || finalSName === 'MATERIAIS') {
               return; // Ignora canais protegidos
             }
 
-            if (!newSuppliersMap[sName]) {
-              newSuppliersMap[sName] = {
+            if (!newSuppliersMap[finalSName]) {
+              newSuppliersMap[finalSName] = {
                 id: generateId(),
-                name: sName,
-                phone: sPhone,
+                name: finalSName,
+                phone: sPhone.toString(),
                 products: []
               };
             }
-            newSuppliersMap[sName].products.push({
-              name: pName,
+            newSuppliersMap[finalSName].products.push({
+              name: pName.toString(),
               price: pPrice,
-              category: pCat
+              category: pCat.toString(),
+              lastPurchaseDate: pLastDate.toString(),
+              paymentMethod: pPayMethod.toString()
             });
           }
         });
@@ -130,9 +148,38 @@ export const useExcel = (suppliers: Supplier[], saveSupplier: (s: Supplier) => P
     }
   };
 
+  const handleSyncSheets = async (onDataLoaded: (data: Record<string, Supplier>) => void) => {
+    try {
+      addNotification('Sincronizando com Google Sheets...', 0);
+      const response = await fetch('/api/excel-sync');
+      if (!response.ok) throw new Error('Falha na resposta do servidor');
+      
+      const { data } = await response.json();
+      if (!data || Object.keys(data).length === 0) {
+        addNotification('Nenhum dado encontrado na planilha', 0);
+        return;
+      }
+
+      // Garantir que todos os fornecedores tenham um ID
+      const sanitizedData: Record<string, Supplier> = {};
+      Object.entries(data).forEach(([name, supplier]: [string, any]) => {
+        sanitizedData[name] = {
+          ...supplier,
+          id: supplier.id || generateId()
+        };
+      });
+
+      onDataLoaded(sanitizedData);
+    } catch (err) {
+      console.error('Erro na sincronização:', extractErrorMessage(err));
+      addNotification('Erro ao sincronizar com Google Sheets', 0);
+    }
+  };
+
   return {
     handleExportExcel,
     handleImportExcel,
+    handleSyncSheets,
     performImport
   };
 };

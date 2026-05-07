@@ -35,6 +35,7 @@ interface SuppliersViewProps {
   addToCart: (product: Product, supplierName: string, quantity: number) => void;
   handleExportExcel: () => void;
   handleImportExcel: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  handleSyncSheets?: () => void;
   activeTab?: 'fornecedores' | 'mercado' | 'materiais';
   onTabChange?: (tab: 'fornecedores' | 'mercado' | 'materiais') => void;
 }
@@ -52,6 +53,7 @@ export const SuppliersView: React.FC<SuppliersViewProps> = ({
   addToCart,
   handleExportExcel,
   handleImportExcel,
+  handleSyncSheets,
   activeTab: externalTab,
   onTabChange
 }) => {
@@ -167,6 +169,13 @@ export const SuppliersView: React.FC<SuppliersViewProps> = ({
             <h2 className="text-xl md:text-2xl font-black text-slate-900 uppercase tracking-tight">Lista de Fornecedores</h2>
             <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
               <button
+                onClick={handleSyncSheets}
+                className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-3 bg-indigo-50 border-2 border-indigo-100 text-indigo-600 rounded-xl font-bold hover:bg-indigo-100 transition-all shadow-sm text-xs"
+              >
+                <RefreshCcw className="w-4 h-4" />
+                Atualizar Planilha
+              </button>
+              <button
                 onClick={handleExportExcel}
                 className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-3 bg-white border-2 border-slate-100 text-slate-600 rounded-xl font-bold hover:bg-slate-50 transition-all shadow-sm text-xs"
               >
@@ -200,10 +209,10 @@ export const SuppliersView: React.FC<SuppliersViewProps> = ({
           </div>
 
           <div className="grid grid-cols-1 gap-4">
-            {filteredSuppliers.map((supplier) => (
+            {filteredSuppliers.map((supplier, sIdx) => (
               <motion.div
                 layout
-                key={supplier.id}
+                key={`${supplier.id || 's'}-${sIdx}`}
                 className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden transition-all hover:border-indigo-100"
               >
                 <div 
@@ -272,9 +281,9 @@ export const SuppliersView: React.FC<SuppliersViewProps> = ({
                           supplier.name.toLowerCase().includes(searchTerm.toLowerCase())
                         )
                         .map((product, idx) => {
-                          const qKey = `${supplier.id}-${product.name}`;
+                          const qKey = `${supplier.id || 'sup'}-${String(product.name)}-${idx}`;
                           return (
-                            <div key={idx} className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm flex flex-col justify-between group hover:border-indigo-200 transition-all">
+                            <div key={qKey} className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm flex flex-col justify-between group hover:border-indigo-200 transition-all">
                               <div>
                                 <div className="flex justify-between items-start mb-3">
                                   <span className="px-3 py-1 bg-slate-100 text-slate-500 rounded-full text-[10px] font-black uppercase tracking-wider">
@@ -284,7 +293,23 @@ export const SuppliersView: React.FC<SuppliersViewProps> = ({
                                     {formatCurrency(product.price)}
                                   </span>
                                 </div>
-                                <h4 className="font-bold text-slate-900 mb-4">{product.name}</h4>
+                                <h4 className="font-bold text-slate-900 mb-3">{product.name}</h4>
+                                <div className="space-y-1.5 mb-6">
+                                  {product.lastPurchaseDate && (
+                                    <div className="flex items-center gap-2 bg-indigo-50/50 px-2 py-1 rounded-lg border border-indigo-100/50">
+                                      <div className="w-1.5 h-1.5 bg-indigo-500 rounded-full" />
+                                      <span className="text-[9px] text-slate-500 font-bold uppercase">Última Compra:</span>
+                                      <span className="text-[9px] text-indigo-700 font-black">{product.lastPurchaseDate}</span>
+                                    </div>
+                                  )}
+                                  {product.paymentMethod && (
+                                    <div className="flex items-center gap-2 bg-emerald-50/50 px-2 py-1 rounded-lg border border-emerald-100/50">
+                                      <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full" />
+                                      <span className="text-[9px] text-slate-500 font-bold uppercase">Pagamento:</span>
+                                      <span className="text-[9px] text-emerald-700 font-black">{product.paymentMethod}</span>
+                                    </div>
+                                  )}
+                                </div>
                               </div>
                               <div className="flex flex-col sm:flex-row gap-2 mt-auto">
                                 <div className="flex items-center bg-slate-100 rounded-xl border-2 border-transparent focus-within:border-indigo-600 transition-all overflow-hidden shrink-0 h-11">
@@ -385,9 +410,9 @@ export const SuppliersView: React.FC<SuppliersViewProps> = ({
               {marketSupplier.products
                 .filter(p => p.name.toLowerCase().includes(searchTerm.toLowerCase()) || p.category.toLowerCase().includes(searchTerm.toLowerCase()))
                 .map((product, idx) => {
-                  const qKey = `MERCADO-${product.name}`;
+                  const qKey = `MERCADO-${String(product.name)}-${idx}`;
                   return (
-                    <div key={idx} className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm flex flex-col justify-between group hover:border-indigo-100 transition-all">
+                    <div key={qKey} className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm flex flex-col justify-between group hover:border-indigo-100 transition-all">
                       <div>
                         <div className="flex justify-between items-start mb-4">
                           <span className="px-3 py-1 bg-slate-50 text-slate-400 border border-slate-100 rounded-lg text-[9px] font-bold uppercase tracking-wider">
@@ -397,12 +422,28 @@ export const SuppliersView: React.FC<SuppliersViewProps> = ({
                             {formatCurrency(product.price)}
                           </span>
                         </div>
-                        <h4 className="text-lg font-bold text-slate-700 mb-6 uppercase tracking-tight">{product.name}</h4>
+                        <h4 className="text-lg font-bold text-slate-700 mb-3 uppercase tracking-tight">{product.name}</h4>
+                        <div className="space-y-1.5 mb-6">
+                          {product.lastPurchaseDate && (
+                            <div className="flex items-center gap-2 bg-indigo-50/50 px-2 py-1 rounded-lg border border-indigo-100/50">
+                              <div className="w-1.5 h-1.5 bg-indigo-500 rounded-full" />
+                              <span className="text-[9px] text-slate-500 font-bold uppercase">Última Compra:</span>
+                              <span className="text-[9px] text-indigo-700 font-black">{product.lastPurchaseDate}</span>
+                            </div>
+                          )}
+                          {product.paymentMethod && (
+                            <div className="flex items-center gap-2 bg-emerald-50/50 px-2 py-1 rounded-lg border border-emerald-100/50">
+                              <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full" />
+                              <span className="text-[9px] text-slate-500 font-bold uppercase">Pagamento:</span>
+                              <span className="text-[9px] text-emerald-700 font-black">{product.paymentMethod}</span>
+                            </div>
+                          )}
+                        </div>
                       </div>
                         <div className="flex flex-col sm:flex-row gap-2 mt-auto">
                           <div className="flex items-center bg-slate-50 rounded-xl border border-slate-200 focus-within:border-indigo-500 transition-all overflow-hidden h-11 shrink-0">
                             <button 
-                              id={`dec-mercado-${idx}`}
+                              id={`dec-${qKey}`}
                               type="button"
                               onClick={(e) => {
                                 e.preventDefault();
@@ -414,7 +455,7 @@ export const SuppliersView: React.FC<SuppliersViewProps> = ({
                               <ChevronDown className="w-4 h-4" />
                             </button>
                             <input
-                              id={`qty-mercado-${idx}`}
+                              id={`qty-${qKey}`}
                               type="text"
                               value={quantities[qKey] ?? '1'}
                               onChange={(e) => handleQuantityChange(qKey, e.target.value)}
@@ -429,7 +470,7 @@ export const SuppliersView: React.FC<SuppliersViewProps> = ({
                               placeholder="Qtd"
                             />
                             <button 
-                              id={`inc-mercado-${idx}`}
+                              id={`inc-${qKey}`}
                               type="button"
                               onClick={(e) => {
                                 e.preventDefault();
@@ -442,7 +483,7 @@ export const SuppliersView: React.FC<SuppliersViewProps> = ({
                             </button>
                           </div>
                           <button
-                            id={`add-mercado-${idx}`}
+                            id={`add-${qKey}`}
                             onClick={() => onAddToCart(product, 'MERCADO', qKey)}
                             className="flex-1 h-11 bg-slate-900 text-white rounded-xl font-bold uppercase text-[10px] tracking-widest hover:bg-indigo-600 transition-all shadow-sm"
                           >
@@ -458,72 +499,88 @@ export const SuppliersView: React.FC<SuppliersViewProps> = ({
       )}
 
       {activeSubTab === 'materiais' && (
-        <div className="space-y-8">
+        <div className="space-y-6">
           <div className="flex items-center justify-between">
-            <h2 className="text-2xl font-black text-slate-900 uppercase tracking-tight">Produtos de Materiais</h2>
+            <h2 className="text-xl font-bold text-slate-800 uppercase tracking-tight">Produtos de Materiais</h2>
             <button
               onClick={() => handleAddChannelProduct('MATERIAIS')}
-              className="flex items-center gap-2 px-8 py-4 bg-indigo-600 text-white rounded-2xl font-bold hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-200 active:scale-95 text-sm"
+              className="flex items-center gap-2 px-6 py-3 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700 transition-all shadow-md active:scale-95 text-xs"
             >
-              <Plus className="w-5 h-5" />
+              <Plus className="w-4 h-4" />
               Gerenciar Produtos
             </button>
           </div>
 
           <div className="relative group">
-            <Search className="absolute left-4 md:left-6 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 group-focus-within:text-indigo-500 transition-colors" />
+            <Search className="absolute left-5 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 group-focus-within:text-indigo-500 transition-colors" />
             <input
               type="text"
               placeholder="Buscar materiais..."
-              className="w-full pl-12 md:pl-16 pr-4 py-4 md:py-5 bg-white border-2 border-slate-100 focus:border-indigo-500 rounded-2xl md:rounded-[2rem] outline-none transition-all shadow-sm text-base md:text-lg font-medium"
+              className="w-full pl-14 pr-4 py-4 bg-white border border-slate-200 focus:border-indigo-500 rounded-2xl outline-none transition-all shadow-sm text-base font-medium"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
             />
           </div>
 
           {!materialsSupplier || materialsSupplier.products.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-20 bg-white border-2 border-dashed border-slate-200 rounded-[2.5rem]">
-              <div className="w-20 h-20 bg-slate-50 rounded-full flex items-center justify-center mb-6">
-                <Package className="w-10 h-10 text-slate-300" />
+            <div className="flex flex-col items-center justify-center py-20 bg-white border border-dashed border-slate-200 rounded-2xl">
+              <div className="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center mb-6">
+                <Package className="w-8 h-8 text-slate-300" />
               </div>
-              <h3 className="text-2xl font-black text-slate-900 uppercase tracking-tight mb-2">Canal Materiais</h3>
-              <p className="text-slate-500 font-medium">Nenhum produto cadastrado em materiais ainda.</p>
+              <h3 className="text-xl font-bold text-slate-800 uppercase tracking-tight mb-2">Canal Materiais</h3>
+              <p className="text-slate-500 text-sm">Nenhum produto cadastrado em materiais ainda.</p>
             </div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
               {materialsSupplier.products
                 .filter(p => p.name.toLowerCase().includes(searchTerm.toLowerCase()) || p.category.toLowerCase().includes(searchTerm.toLowerCase()))
                 .map((product, idx) => {
-                  const qKey = `MATERIAIS-${product.name}`;
+                  const qKey = `MATERIAIS-${String(product.name)}-${idx}`;
                   return (
-                    <div key={idx} className="bg-white p-8 rounded-[2.5rem] border-2 border-slate-900 shadow-xl shadow-slate-100 flex flex-col justify-between group hover:border-indigo-200 transition-all">
+                    <div key={qKey} className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm flex flex-col justify-between group hover:border-indigo-100 transition-all">
                       <div>
                         <div className="flex justify-between items-start mb-4">
-                          <span className="px-4 py-1.5 bg-slate-100 text-slate-500 rounded-full text-xs font-black uppercase tracking-wider">
+                          <span className="px-3 py-1 bg-slate-50 text-slate-400 border border-slate-100 rounded-lg text-[9px] font-bold uppercase tracking-wider">
                             {product.category}
                           </span>
-                          <span className="text-2xl font-black text-indigo-600">
+                          <span className="text-xl font-black text-indigo-600">
                             {formatCurrency(product.price)}
                           </span>
                         </div>
-                        <h4 className="text-xl font-black text-slate-900 mb-6 uppercase tracking-tight">{product.name}</h4>
+                        <h4 className="text-lg font-bold text-slate-700 mb-3 uppercase tracking-tight">{product.name}</h4>
+                        <div className="space-y-1.5 mb-6">
+                          {product.lastPurchaseDate && (
+                            <div className="flex items-center gap-2 bg-indigo-50/50 px-2 py-1 rounded-lg border border-indigo-100/50">
+                              <div className="w-1.5 h-1.5 bg-indigo-500 rounded-full" />
+                              <span className="text-[9px] text-slate-500 font-bold uppercase">Última Compra:</span>
+                              <span className="text-[9px] text-indigo-700 font-black">{product.lastPurchaseDate}</span>
+                            </div>
+                          )}
+                          {product.paymentMethod && (
+                            <div className="flex items-center gap-2 bg-emerald-50/50 px-2 py-1 rounded-lg border border-emerald-100/50">
+                              <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full" />
+                              <span className="text-[9px] text-slate-500 font-bold uppercase">Pagamento:</span>
+                              <span className="text-[9px] text-emerald-700 font-black">{product.paymentMethod}</span>
+                            </div>
+                          )}
+                        </div>
                       </div>
                         <div className="flex flex-col sm:flex-row gap-2 mt-auto">
-                          <div className="flex items-center bg-slate-100 rounded-2xl border-2 border-transparent focus-within:border-indigo-600 transition-all overflow-hidden h-12 shrink-0">
+                          <div className="flex items-center bg-slate-50 rounded-xl border border-slate-200 focus-within:border-indigo-500 transition-all overflow-hidden h-11 shrink-0">
                             <button 
-                              id={`dec-materiais-${idx}`}
+                              id={`dec-${qKey}`}
                               type="button"
                               onClick={(e) => {
                                 e.preventDefault();
                                 e.stopPropagation();
                                 adjustQuantity(qKey, -1);
                               }}
-                              className="w-10 h-full text-slate-400 hover:text-indigo-600 hover:bg-slate-200 transition-all active:scale-95 flex items-center justify-center"
+                              className="w-10 h-full text-slate-400 hover:text-indigo-600 hover:bg-slate-100 transition-all active:scale-95 flex items-center justify-center"
                             >
-                              <ChevronDown className="w-5 h-5" />
+                              <ChevronDown className="w-4 h-4" />
                             </button>
                             <input
-                              id={`qty-materiais-${idx}`}
+                              id={`qty-${qKey}`}
                               type="text"
                               value={quantities[qKey] ?? '1'}
                               onChange={(e) => handleQuantityChange(qKey, e.target.value)}
@@ -534,26 +591,26 @@ export const SuppliersView: React.FC<SuppliersViewProps> = ({
                                   onAddToCart(product, 'MATERIAIS', qKey);
                                 }
                               }}
-                              className="w-10 h-full bg-transparent text-center font-black text-slate-900 outline-none text-base"
+                              className="w-10 h-full bg-transparent text-center font-bold text-slate-700 outline-none text-sm"
                               placeholder="Qtd"
                             />
                             <button 
-                              id={`inc-materiais-${idx}`}
+                              id={`inc-${qKey}`}
                               type="button"
                               onClick={(e) => {
                                 e.preventDefault();
                                 e.stopPropagation();
                                 adjustQuantity(qKey, 1);
                               }}
-                              className="w-10 h-full text-slate-400 hover:text-indigo-600 hover:bg-slate-200 transition-all active:scale-95 flex items-center justify-center"
+                              className="w-10 h-full text-slate-400 hover:text-indigo-600 hover:bg-slate-100 transition-all active:scale-95 flex items-center justify-center"
                             >
-                              <ChevronUp className="w-5 h-5" />
+                              <ChevronUp className="w-4 h-4" />
                             </button>
                           </div>
                           <button
-                            id={`add-materiais-${idx}`}
+                            id={`add-${qKey}`}
                             onClick={() => onAddToCart(product, 'MATERIAIS', qKey)}
-                            className="flex-1 h-12 bg-slate-900 text-white rounded-2xl font-black uppercase text-[10px] sm:text-xs tracking-widest hover:bg-indigo-600 transition-all active:scale-95 border-b-4 border-slate-700 active:border-b-0"
+                            className="flex-1 h-11 bg-slate-900 text-white rounded-xl font-bold uppercase text-[10px] tracking-widest hover:bg-indigo-600 transition-all shadow-sm"
                           >
                             Adicionar
                           </button>

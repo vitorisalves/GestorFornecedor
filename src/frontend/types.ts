@@ -7,6 +7,8 @@ export interface Product {
   name: string;
   price: number;
   category: string;
+  lastPurchaseDate?: string;
+  paymentMethod?: string;
 }
 
 export interface Supplier {

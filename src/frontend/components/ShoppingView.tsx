@@ -176,9 +176,23 @@ export const ShoppingView: React.FC<ShoppingViewProps> = ({
                                   {formatCurrency(product.price)}
                                 </span>
                               </div>
-                              <h4 className="font-bold text-slate-700 mb-6 uppercase tracking-tight text-sm leading-tight">
+                              <h4 className="font-bold text-slate-700 mb-3 uppercase tracking-tight text-sm leading-tight">
                                 {product.name}
                               </h4>
+                              <div className="space-y-1 mb-4">
+                                {product.lastPurchaseDate && (
+                                  <div className="flex items-center gap-1.5 text-[9px] text-slate-500 font-bold uppercase">
+                                    <span className="w-1 h-1 bg-indigo-400 rounded-full" />
+                                    Últ. Compra: <span className="text-slate-900">{product.lastPurchaseDate}</span>
+                                  </div>
+                                )}
+                                {product.paymentMethod && (
+                                  <div className="flex items-center gap-1.5 text-[9px] text-slate-500 font-bold uppercase">
+                                    <span className="w-1 h-1 bg-emerald-400 rounded-full" />
+                                    Pagto: <span className="text-slate-900">{product.paymentMethod}</span>
+                                  </div>
+                                )}
+                              </div>
                             </div>
 
                             <div className="space-y-3">

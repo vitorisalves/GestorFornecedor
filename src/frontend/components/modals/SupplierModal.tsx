@@ -239,7 +239,21 @@ export const SupplierModal: React.FC<SupplierModalProps> = ({
                             ) : (
                               <>
                                 <p className="font-bold text-slate-700 text-sm tracking-tight">{p.name}</p>
-                                <div className="flex items-center gap-3">
+                                <div className="flex flex-wrap gap-x-3 gap-y-1 mt-1">
+                                  {p.lastPurchaseDate && (
+                                    <div className="text-[8px] text-slate-500 font-bold uppercase tracking-tight flex items-center gap-1">
+                                      <span className="w-1 h-1 bg-indigo-400 rounded-full" />
+                                      Últ. Compra: <span className="text-slate-900">{p.lastPurchaseDate}</span>
+                                    </div>
+                                  )}
+                                  {p.paymentMethod && (
+                                    <div className="text-[8px] text-slate-500 font-bold uppercase tracking-tight flex items-center gap-1">
+                                      <span className="w-1 h-1 bg-emerald-400 rounded-full" />
+                                      Pagto: <span className="text-slate-900">{p.paymentMethod}</span>
+                                    </div>
+                                  )}
+                                </div>
+                                <div className="flex items-center gap-3 mt-1">
                                   <span className="text-xs font-black text-indigo-600">{formatCurrency(p.price)}</span>
                                   <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">{p.category}</span>
                                 </div>

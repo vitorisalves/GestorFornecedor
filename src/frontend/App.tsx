@@ -164,6 +164,7 @@ export default function App() {
   const {
     handleExportExcel,
     handleImportExcel,
+    handleSyncSheets,
     performImport
   } = useExcel(suppliers, saveSupplier, addNotification);
 
@@ -336,18 +337,23 @@ export default function App() {
 
   const addProduct = React.useCallback(() => {
     if (formState.productName.trim()) {
-      const product: Product = {
-        name: formState.productName.trim(),
-        price: parseFloat(formState.productPrice || '0'),
-        category: formState.productCategory.trim() || 'Fornecedor'
-      };
-      
       if (editingProductIndex !== null) {
         const updatedList = [...productList];
-        updatedList[editingProductIndex] = product;
+        const existing = updatedList[editingProductIndex];
+        updatedList[editingProductIndex] = {
+          ...existing,
+          name: formState.productName.trim(),
+          price: parseFloat(formState.productPrice || '0'),
+          category: formState.productCategory.trim() || 'Fornecedor'
+        };
         setProductList(updatedList);
         setEditingProductIndex(null);
       } else {
+        const product: Product = {
+          name: formState.productName.trim(),
+          price: parseFloat(formState.productPrice || '0'),
+          category: formState.productCategory.trim() || 'Fornecedor'
+        };
         setProductList([...productList, product]);
       }
       
@@ -397,6 +403,12 @@ export default function App() {
       setIsImporting(false);
     }
   }, [pendingImportData, isImporting, performImport, deleteAllSuppliers]);
+
+  const onSyncSheets = React.useCallback(async () => {
+    await handleSyncSheets((data) => {
+      setPendingImportData(data);
+    });
+  }, [handleSyncSheets]);
 
   // --- RENDER HELPERS ---
   const mainSuppliers = React.useMemo(() => 
@@ -510,6 +522,7 @@ export default function App() {
             addToCart={handleAddToCart}
             handleExportExcel={handleExportExcel}
             handleImportExcel={onImportExcel}
+            handleSyncSheets={onSyncSheets}
             activeTab={currentPage === 'suppliers' ? 'fornecedores' : currentPage as any}
             onTabChange={(tab) => setCurrentPage(tab === 'fornecedores' ? 'suppliers' : tab)}
           />
