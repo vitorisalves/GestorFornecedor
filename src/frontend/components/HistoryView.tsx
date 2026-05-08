@@ -175,7 +175,7 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
                           </span>
                         )}
                       </div>
-                      <div className="flex flex-wrap items-center gap-3 text-slate-400 font-bold text-[10px] uppercase tracking-tight">
+                      <div className="flex flex-wrap items-center gap-3 text-black font-bold text-[10px] uppercase tracking-tight">
                         <span className="flex items-center gap-1">
                           <Calendar className="w-3.5 h-3.5" />
                           {formatDate(list.date)}
