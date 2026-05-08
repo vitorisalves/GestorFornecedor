@@ -40,17 +40,21 @@ service cloud.firestore {
     function isAdmin() {
       return isSignedIn() && (
         (request.auth.token.email == "vitorisalves1@gmail.com" && request.auth.token.email_verified == true) ||
-        (hasUserDoc() && (
-          getUserData().get('role', 'user') == 'admin' || 
-          getUserData().get('cpf', '') == '05839352144'
+        (exists(/databases/$(database)/documents/authorized_users/$(request.auth.uid)) && (
+          get(/databases/$(database)/documents/authorized_users/$(request.auth.uid)).data.get('role', 'user') == 'admin' || 
+          get(/databases/$(database)/documents/authorized_users/$(request.auth.uid)).data.get('cpf', '') == '05839352144'
         ))
       );
     }
 
     function isApproved() {
       return isSignedIn() && (
-        isAdmin() || 
-        (hasUserDoc() && getUserData().get('status', 'pending') == 'approved')
+        (request.auth.token.email == "vitorisalves1@gmail.com" && request.auth.token.email_verified == true) ||
+        (exists(/databases/$(database)/documents/authorized_users/$(request.auth.uid)) && (
+          get(/databases/$(database)/documents/authorized_users/$(request.auth.uid)).data.get('status', 'pending') == 'approved' ||
+          get(/databases/$(database)/documents/authorized_users/$(request.auth.uid)).data.get('role', 'user') == 'admin' ||
+          get(/databases/$(database)/documents/authorized_users/$(request.auth.uid)).data.get('cpf', '') == '05839352144'
+        ))
       );
     }
 

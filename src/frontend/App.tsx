@@ -402,8 +402,8 @@ export default function App() {
       });
       
       addNotification(editingSupplierId ? 'Fornecedor atualizado!' : 'Fornecedor cadastrado!', 1, 'info');
-      resetForm();
       setIsAdding(false);
+      resetForm();
     } catch (err) {
       console.error("Erro ao salvar fornecedor:", err);
       addNotification("Erro ao salvar", 0, 'info');
