@@ -85,7 +85,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                       {cat}
                       <button
                         onClick={() => setCategoryToDelete(cat)}
-                        className="p-0.5 hover:text-red-500 transition-colors opacity-0 group-hover:opacity-100"
+                        className="p-0.5 text-black hover:text-red-500 transition-colors opacity-0 group-hover:opacity-100"
                         title="Excluir"
                       >
                         <Trash2 className="w-3.5 h-3.5" />
@@ -165,7 +165,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                         </div>
                         <button
                           onClick={() => user.uid && setUserToDelete(user.uid)}
-                          className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all opacity-0 group-hover/user:opacity-100"
+                          className="p-1.5 text-black hover:text-red-500 hover:bg-red-50 rounded-lg transition-all opacity-0 group-hover/user:opacity-100"
                         >
                           <Trash2 className="w-3.5 h-3.5" />
                         </button>

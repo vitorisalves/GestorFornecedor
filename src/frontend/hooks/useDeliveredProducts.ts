@@ -15,7 +15,7 @@ import {
 } from 'firebase/firestore';
 import { db } from '../firebase';
 import { DeliveredProduct } from '../types';
-import { extractErrorMessage, handleFirestoreError, OperationType } from '../utils';
+import { extractErrorMessage, handleFirestoreError, OperationType, cleanObject } from '../utils';
 
 export function useDeliveredProducts(isAuthReady: boolean, isApproved: boolean) {
   const [deliveredProducts, setDeliveredProducts] = useState<DeliveredProduct[]>([]);
@@ -45,7 +45,8 @@ export function useDeliveredProducts(isAuthReady: boolean, isApproved: boolean) 
   const saveDeliveredProduct = useCallback(async (product: DeliveredProduct) => {
     try {
       const docRef = doc(db, 'delivered_products', product.id);
-      await setDoc(docRef, product);
+      const cleanedData = cleanObject(product);
+      await setDoc(docRef, cleanedData);
     } catch (err) {
       handleFirestoreError(err, OperationType.WRITE, `delivered_products/${product.id}`);
       console.error("Error saving delivered product:", err);
@@ -72,11 +73,38 @@ export function useDeliveredProducts(isAuthReady: boolean, isApproved: boolean) 
     const month = (now.getMonth() + 1).toString().padStart(2, '0');
     const formattedDate = `${day}/${month}/${now.getFullYear()}`;
 
+    let deliveryTimeDays: number | undefined = undefined;
+
+    if (!product.delivered) {
+      try {
+        const [d, m, y] = product.purchaseDate.split('/').map(Number);
+        const purchaseDate = new Date(y, m - 1, d);
+        
+        // Reset both to midnight for clean day calculation
+        const date1 = new Date(purchaseDate.getFullYear(), purchaseDate.getMonth(), purchaseDate.getDate());
+        const date2 = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        
+        const diffTime = Math.abs(date2.getTime() - date1.getTime());
+        deliveryTimeDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+      } catch (e) {
+        console.error("Error calculating delivery time:", e);
+      }
+    }
+
     const updatedProduct: DeliveredProduct = {
       ...product,
       delivered: !product.delivered,
-      deliveryDate: !product.delivered ? formattedDate : undefined
     };
+
+    if (updatedProduct.delivered) {
+      updatedProduct.deliveryDate = formattedDate;
+      if (deliveryTimeDays !== undefined) {
+        updatedProduct.deliveryTimeDays = deliveryTimeDays;
+      }
+    } else {
+      updatedProduct.deliveryDate = undefined;
+      updatedProduct.deliveryTimeDays = undefined;
+    }
 
     await saveDeliveredProduct(updatedProduct);
   }, [deliveredProducts, saveDeliveredProduct]);

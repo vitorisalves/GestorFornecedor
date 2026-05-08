@@ -7,7 +7,7 @@ import { useState, useEffect } from 'react';
 import { auth, signInAnonymously, onAuthStateChanged, db } from '../firebase';
 import { collection, onSnapshot, doc, setDoc, updateDoc, deleteDoc, getDoc, getDocs } from 'firebase/firestore';
 import { AuthorizedUser } from '../types';
-import { extractErrorMessage, safeStringify, handleFirestoreError, OperationType } from '../utils';
+import { extractErrorMessage, safeStringify, handleFirestoreError, OperationType, cleanObject } from '../utils';
 
 export const useAuth = () => {
   const [isLoggedIn, setIsLoggedIn] = useState(() => localStorage.getItem('cache_isLoggedIn') === 'true');
@@ -186,7 +186,8 @@ export const useAuth = () => {
             console.warn("Could not delete duplicate user doc:", delErr);
           }
         }
-        await setDoc(doc(db, 'authorized_users', currentUid), updatedUser);
+        const cleaned = cleanObject(updatedUser);
+        await setDoc(doc(db, 'authorized_users', currentUid), cleaned);
         
         if (updatedUser.status === 'approved') {
           setIsLoggedIn(true);
@@ -217,7 +218,8 @@ export const useAuth = () => {
       };
 
       try {
-        await setDoc(doc(db, 'authorized_users', currentUid), newUser);
+        const cleaned = cleanObject(newUser);
+        await setDoc(doc(db, 'authorized_users', currentUid), cleaned);
         if (newUser.status === 'approved') {
           setIsLoggedIn(true);
           setLoggedCpf(cleanCpf);

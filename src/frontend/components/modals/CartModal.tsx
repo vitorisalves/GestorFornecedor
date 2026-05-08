@@ -110,7 +110,7 @@ export const CartModal: React.FC<CartModalProps> = ({
                         <div className="text-right min-w-[80px]">
                           <p className="text-base font-black text-slate-800 tracking-tighter tabular-nums">{formatCurrency(item.price * item.quantity)}</p>
                         </div>
-                        <button onClick={() => removeFromCart(item.name, item.supplierName)} className="p-2 text-slate-300 hover:text-red-500 transition-all">
+                        <button onClick={() => removeFromCart(item.name, item.supplierName)} className="p-2 text-black hover:text-red-500 transition-all">
                           <Trash2 className="w-5 h-5" />
                         </button>
                       </div>

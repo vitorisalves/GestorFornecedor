@@ -135,13 +135,14 @@ export const DeliveredProductsView: React.FC<DeliveredProductsViewProps> = ({
                 <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Fornecedor</th>
                 <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">Qtd</th>
                 <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Data Compra</th>
+                <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">Tempo</th>
                 <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">Ações</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-50">
               {filteredProducts.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="py-20 text-center">
+                  <td colSpan={7} className="py-20 text-center">
                     <div className="flex flex-col items-center justify-center">
                       <Package className="w-12 h-12 text-slate-200 mb-4" />
                       <p className="text-slate-400 font-bold uppercase text-xs tracking-widest">Nenhum produto encontrado</p>
@@ -214,13 +215,23 @@ export const DeliveredProductsView: React.FC<DeliveredProductsViewProps> = ({
                             <span className="text-sm font-bold uppercase tracking-tight">{p.purchaseDate}</span>
                             <button
                               onClick={() => handleStartEditDate(p)}
-                              className="p-1 text-slate-900 border border-slate-200 hover:text-indigo-700 hover:bg-slate-100 rounded transition-all bg-white shadow-sm"
+                              className="p-1 text-black border border-slate-200 hover:text-indigo-700 hover:bg-slate-100 rounded transition-all bg-white shadow-sm"
                             >
                               <Pencil className="w-3 h-3" />
                             </button>
                           </div>
                         )}
                       </div>
+                    </td>
+                    <td className="px-6 py-4 text-center">
+                      {p.delivered && p.deliveryTimeDays !== undefined ? (
+                        <div className="flex flex-col items-center">
+                          <span className="text-sm font-black text-slate-900">{p.deliveryTimeDays}</span>
+                          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Dias</span>
+                        </div>
+                      ) : (
+                        <span className="text-slate-300">—</span>
+                      )}
                     </td>
                     <td className="px-6 py-4 text-center">
                       <div className="flex items-center justify-center gap-2">
@@ -237,7 +248,7 @@ export const DeliveredProductsView: React.FC<DeliveredProductsViewProps> = ({
                         </button>
                         <button
                           onClick={() => setProductToDelete(p.id)}
-                          className="p-2 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all active:scale-95"
+                          className="p-2 text-black hover:text-red-500 hover:bg-red-50 rounded-xl transition-all active:scale-95"
                           title="Excluir"
                         >
                           <Trash2 className="w-4 h-4" />

@@ -7,7 +7,7 @@ import { useState, useEffect } from 'react';
 import { db } from '../firebase';
 import { collection, onSnapshot, addDoc, query, orderBy, deleteDoc, doc, updateDoc, limit } from 'firebase/firestore';
 import { Product, SavedList } from '../types';
-import { extractErrorMessage, safeStringify, handleFirestoreError, OperationType } from '../utils';
+import { extractErrorMessage, safeStringify, handleFirestoreError, OperationType, cleanObject } from '../utils';
 
 export const useCart = (
   isAuthReady: boolean, 
@@ -114,13 +114,13 @@ export const useCart = (
     if (cart.length === 0) return null;
 
     const total = cart.reduce((acc, item) => acc + (item.price * item.quantity), 0);
-    const listData = {
+    const listData = cleanObject({
       name: listName,
       date: new Date().toISOString(),
-      items: cart.map(item => ({ ...item, bought: !!(item as any).bought })),
+      items: cart.map(item => cleanObject({ ...item, bought: !!(item as any).bought })),
       total,
       createdBy: loggedName
-    };
+    });
 
     if (editingListId) {
       // Optimistic update

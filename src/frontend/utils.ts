@@ -31,6 +31,17 @@ interface FirestoreErrorInfo {
   }
 }
 
+export function cleanObject<T extends object>(obj: T): T {
+  const result = { ...obj };
+  Object.keys(result).forEach(key => {
+    const k = key as keyof T;
+    if (result[k] === undefined) {
+      delete result[k];
+    }
+  });
+  return result;
+}
+
 export function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null) {
   const errInfo: FirestoreErrorInfo = {
     error: error instanceof Error ? error.message : String(error),

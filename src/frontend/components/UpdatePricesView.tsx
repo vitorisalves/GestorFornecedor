@@ -518,7 +518,7 @@ export const UpdatePricesView: React.FC<UpdatePricesViewProps> = ({
                         value={res.extracted.name}
                         onChange={(e) => updateItemConfig(i, { extracted: { ...res.extracted, name: e.target.value } })}
                       />
-                      <Pencil className="w-4 h-4 text-slate-300 group-hover/name:text-indigo-400 transition-colors shrink-0" />
+                      <Pencil className="w-4 h-4 text-black group-hover/name:text-indigo-400 transition-colors shrink-0" />
                     </div>
                     
                     <div className="flex flex-wrap items-center gap-3 mt-1">
@@ -625,7 +625,7 @@ export const UpdatePricesView: React.FC<UpdatePricesViewProps> = ({
 
                   <button 
                     onClick={() => removeItem(i)}
-                    className="p-4 bg-red-50 text-red-500 rounded-2xl border-2 border-red-100 hover:bg-red-500 hover:text-white hover:border-red-600 transition-all shrink-0 w-full sm:w-auto flex items-center justify-center"
+                    className="p-4 bg-red-50 text-black rounded-2xl border-2 border-red-100 hover:bg-red-500 hover:text-white hover:border-red-600 transition-all shrink-0 w-full sm:w-auto flex items-center justify-center"
                     title="Remover produto da extração"
                   >
                     <Trash2 className="w-6 h-6" />

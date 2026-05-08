@@ -55,6 +55,7 @@ export interface DeliveredProduct {
   delivered: boolean;
   deliveryDate?: string;
   quantity?: number;
+  deliveryTimeDays?: number;
 }
 
 export interface Reminder {

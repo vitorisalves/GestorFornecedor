@@ -7,7 +7,7 @@ import { useState, useEffect } from 'react';
 import { db } from '../firebase';
 import { collection, onSnapshot, doc, setDoc, deleteDoc, getDocs, query, where } from 'firebase/firestore';
 import { Supplier, Product } from '../types';
-import { generateId, extractErrorMessage, safeStringify, handleFirestoreError, OperationType } from '../utils';
+import { generateId, extractErrorMessage, safeStringify, handleFirestoreError, OperationType, cleanObject } from '../utils';
 
 export const useSuppliers = (isAuthReady: boolean, isApproved: boolean) => {
   const [suppliers, setSuppliers] = useState<Supplier[]>(() => {
@@ -86,7 +86,8 @@ export const useSuppliers = (isAuthReady: boolean, isApproved: boolean) => {
     });
 
     try {
-      await setDoc(doc(db, 'suppliers', sanitizedSupplier.id), sanitizedSupplier);
+      const cleaned = cleanObject(sanitizedSupplier);
+      await setDoc(doc(db, 'suppliers', sanitizedSupplier.id), cleaned);
     } catch (err: any) {
       handleFirestoreError(err, OperationType.WRITE, `suppliers/${sanitizedSupplier.id}`);
       console.warn("Cloud sync failed (could be quota):", err.message);

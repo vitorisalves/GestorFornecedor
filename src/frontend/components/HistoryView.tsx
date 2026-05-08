@@ -252,7 +252,7 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
                                       className={`w-7 h-7 rounded-lg border flex items-center justify-center transition-all ${
                                         item.bought 
                                           ? 'bg-green-600 border-green-700 text-white shadow-sm' 
-                                          : 'border-slate-300 hover:border-slate-900'
+                                          : 'border-black hover:border-slate-900'
                                       }`}
                                     >
                                       {item.bought && <Check className="w-4 h-4" />}

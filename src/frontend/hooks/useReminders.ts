@@ -7,7 +7,7 @@ import { useState, useEffect } from 'react';
 import { db } from '../firebase';
 import { collection, onSnapshot, addDoc, doc, updateDoc, query, orderBy, deleteDoc, where } from 'firebase/firestore';
 import { Reminder } from '../types';
-import { extractErrorMessage, safeStringify, handleFirestoreError, OperationType } from '../utils';
+import { extractErrorMessage, safeStringify, handleFirestoreError, OperationType, cleanObject } from '../utils';
 
 export const useReminders = (
   isAuthReady: boolean, 
@@ -97,11 +97,12 @@ export const useReminders = (
     );
 
     try {
-      const docRef = await addDoc(collection(db, 'reminders'), {
+      const cleaned = cleanObject({
         productName,
         date,
         notified: false
       });
+      const docRef = await addDoc(collection(db, 'reminders'), cleaned);
       // Replace temporary ID with real Firestore ID
       setReminders(prev => prev.map(r => r.id === tempId ? { ...r, id: docRef.id } : r));
     } catch (err: any) {
