@@ -15,15 +15,15 @@ import {
 } from 'firebase/firestore';
 import { db } from '../firebase';
 import { DeliveredProduct } from '../types';
-import { extractErrorMessage } from '../utils';
+import { extractErrorMessage, handleFirestoreError, OperationType } from '../utils';
 
-export function useDeliveredProducts(isAuthReady: boolean, isLoggedIn: boolean) {
+export function useDeliveredProducts(isAuthReady: boolean, isApproved: boolean) {
   const [deliveredProducts, setDeliveredProducts] = useState<DeliveredProduct[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!isAuthReady || !isLoggedIn) return;
+    if (!isAuthReady || !isApproved) return;
 
     setIsLoading(true);
     const q = query(collection(db, 'delivered_products'), orderBy('purchaseDate', 'desc'));
@@ -33,19 +33,21 @@ export function useDeliveredProducts(isAuthReady: boolean, isLoggedIn: boolean) 
       setDeliveredProducts(docs);
       setIsLoading(false);
     }, (err) => {
+      handleFirestoreError(err, OperationType.GET, 'delivered_products');
       console.error("Firestore Error (delivered_products):", err);
       setError(extractErrorMessage(err));
       setIsLoading(false);
     });
 
     return () => unsubscribe();
-  }, [isAuthReady, isLoggedIn]);
+  }, [isAuthReady, isApproved]);
 
   const saveDeliveredProduct = useCallback(async (product: DeliveredProduct) => {
     try {
       const docRef = doc(db, 'delivered_products', product.id);
       await setDoc(docRef, product);
     } catch (err) {
+      handleFirestoreError(err, OperationType.WRITE, `delivered_products/${product.id}`);
       console.error("Error saving delivered product:", err);
       throw err;
     }
@@ -55,6 +57,7 @@ export function useDeliveredProducts(isAuthReady: boolean, isLoggedIn: boolean) 
     try {
       await deleteDoc(doc(db, 'delivered_products', id));
     } catch (err) {
+      handleFirestoreError(err, OperationType.DELETE, `delivered_products/${id}`);
       console.error("Error deleting delivered product:", err);
       throw err;
     }

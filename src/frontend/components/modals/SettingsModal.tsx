@@ -13,6 +13,7 @@ interface SettingsModalProps {
   authorizedUsers: AuthorizedUser[];
   updateUserStatus: (uid: string, status: 'approved' | 'denied') => void;
   setCategoryToDelete: (cat: string) => void;
+  setUserToDelete: (uid: string) => void;
 }
 
 export const SettingsModal: React.FC<SettingsModalProps> = ({
@@ -24,7 +25,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   handleAddCategory,
   authorizedUsers,
   updateUserStatus,
-  setCategoryToDelete
+  setCategoryToDelete,
+  setUserToDelete
 }) => {
   return (
     <AnimatePresence>
@@ -130,6 +132,43 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                             <X className="w-4 h-4" />
                           </button>
                         </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </section>
+
+              {/* Usuários Já Autorizados */}
+              <section className="space-y-4">
+                <h3 className="text-sm font-black text-slate-800 flex items-center gap-3 uppercase tracking-wider">
+                  <User className="w-4 h-4 text-emerald-600" />
+                  Acessos Autorizados
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  {authorizedUsers.filter(u => u.status === 'approved').length === 0 ? (
+                    <div className="col-span-full text-center py-6 bg-slate-50 rounded-xl border border-dashed border-slate-200">
+                      <p className="text-xs text-slate-400 font-bold uppercase tracking-widest">Nenhum acesso liberado</p>
+                    </div>
+                  ) : (
+                    authorizedUsers.filter(u => u.status === 'approved').map(user => (
+                      <div key={user.uid} className="flex items-center justify-between p-3 bg-slate-50/50 border border-slate-100 rounded-xl group/user">
+                        <div className="flex items-center gap-3">
+                          <div className="w-8 h-8 bg-white border border-slate-100 rounded-lg flex items-center justify-center shadow-sm">
+                            <span className="text-[10px] font-black text-slate-400">
+                              {user.name ? user.name.substring(0, 1).toUpperCase() : '?'}
+                            </span>
+                          </div>
+                          <div>
+                            <p className="font-bold text-slate-700 text-xs truncate max-w-[120px]">{user.name || 'Sem nome'}</p>
+                            <p className="text-[9px] text-slate-400 font-bold">CPF: {user.cpf}</p>
+                          </div>
+                        </div>
+                        <button
+                          onClick={() => user.uid && setUserToDelete(user.uid)}
+                          className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all opacity-0 group-hover/user:opacity-100"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
                       </div>
                     ))
                   )}

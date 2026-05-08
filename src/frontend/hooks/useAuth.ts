@@ -7,10 +7,11 @@ import { useState, useEffect } from 'react';
 import { auth, signInAnonymously, onAuthStateChanged, db } from '../firebase';
 import { collection, onSnapshot, doc, setDoc, updateDoc, deleteDoc, getDoc, getDocs } from 'firebase/firestore';
 import { AuthorizedUser } from '../types';
-import { extractErrorMessage, safeStringify } from '../utils';
+import { extractErrorMessage, safeStringify, handleFirestoreError, OperationType } from '../utils';
 
 export const useAuth = () => {
   const [isLoggedIn, setIsLoggedIn] = useState(() => localStorage.getItem('cache_isLoggedIn') === 'true');
+  const [isApproved, setIsApproved] = useState(false);
   const [loggedCpf, setLoggedCpf] = useState(() => localStorage.getItem('cache_loggedCpf') || '');
   const [loggedName, setLoggedName] = useState(() => localStorage.getItem('cache_loggedName') || '');
   const [isAuthReady, setIsAuthReady] = useState(false);
@@ -45,55 +46,68 @@ export const useAuth = () => {
 
     let unsubAll: (() => void) | undefined;
 
-    // Function to handle the global list of users if user is admin
-    const checkAdminAndFetch = async (userData: AuthorizedUser) => {
-      const adminCpf = '05839352144';
-      if (userData.role === 'admin' || userData.cpf === adminCpf) {
-         try {
-           const snapshot = await getDocs(collection(db, 'authorized_users'));
-           const data = snapshot.docs.map(doc => doc.data() as AuthorizedUser);
-           setAuthorizedUsers(data);
-           localStorage.setItem('cache_authorizedUsers', safeStringify(data));
-         } catch (error: any) {
-           if (error.message.toLowerCase().includes('quota') || error.message.toLowerCase().includes('resource-exhausted')) {
-             setAuthError(error.message);
-           }
-         }
-      } else {
-        // Non-admins only know about themselves
-        setAuthorizedUsers([userData]);
-      }
-    };
-
     // Listen only to the current user's document to save reads
     const unsubUser = onSnapshot(doc(db, 'authorized_users', currentUid), (snapshot) => {
+      const adminEmail = 'vitorisalves1@gmail.com';
+      const isHardcodedAdmin = auth.currentUser?.email === adminEmail && auth.currentUser?.emailVerified;
+
       if (snapshot.exists()) {
         const userData = snapshot.data() as AuthorizedUser;
         
-        // Fetch list if admin, otherwise just set self
         const adminCpf = '05839352144';
-        if (userData.role === 'admin' || userData.cpf === adminCpf) {
-          checkAdminAndFetch(userData);
+        const userIsAdmin = userData.role === 'admin' || userData.cpf === adminCpf || !!isHardcodedAdmin;
+        const userIsApproved = userData.status === 'approved' || userIsAdmin;
+
+        setIsApproved(userIsApproved);
+
+        // Fetch list if admin (REAL-TIME)
+        if (userIsAdmin) {
+          if (!unsubAll) {
+            unsubAll = onSnapshot(collection(db, 'authorized_users'), (allSnapshot) => {
+              const rawData = allSnapshot.docs.map(d => ({ ...d.data() }) as AuthorizedUser);
+              
+              // Deduplicate by CPF (keep latest request)
+              const uniqueMap = new Map<string, AuthorizedUser>();
+              rawData.forEach(u => {
+                if (!u.cpf) return;
+                const existing = uniqueMap.get(u.cpf);
+                if (!existing || (u.requestDate && existing.requestDate && new Date(u.requestDate) > new Date(existing.requestDate))) {
+                  uniqueMap.set(u.cpf, u);
+                } else if (!existing) {
+                  uniqueMap.set(u.cpf, u);
+                }
+              });
+              const data = Array.from(uniqueMap.values());
+              
+              setAuthorizedUsers(data);
+              localStorage.setItem('cache_authorizedUsers', safeStringify(data));
+            }, (err) => {
+               if (err.message.toLowerCase().includes('quota')) {
+                 setAuthError(err.message);
+               }
+            });
+          }
         } else {
-          setAuthorizedUsers(prev => {
-            if (prev.length === 1 && prev[0].uid === userData.uid && 
-                prev[0].status === userData.status && 
-                prev[0].role === userData.role && 
-                prev[0].name === userData.name) {
-              return prev;
-            }
-            return [userData];
-          });
+          setAuthorizedUsers([userData]);
+          if (unsubAll) {
+            unsubAll();
+            unsubAll = undefined;
+          }
         }
 
-        if (userData.status === 'approved' && !isLoggedIn) {
+        // AUTO-LOGIN: Only if approved AND we have the intent to be logged in (cache_loggedCpf exists)
+        // This prevents immediate re-login after manual logout
+        if (userIsApproved && !isLoggedIn && localStorage.getItem('cache_loggedCpf') === userData.cpf) {
           setIsLoggedIn(true);
           setLoggedCpf(userData.cpf);
           setLoggedName(userData.name || '');
           localStorage.setItem('cache_isLoggedIn', 'true');
         }
+      } else {
+        setIsApproved(!!isHardcodedAdmin);
       }
     }, (error) => {
+      handleFirestoreError(error, OperationType.GET, currentUid);
       if (extractErrorMessage(error).toLowerCase().includes('quota') || extractErrorMessage(error).toLowerCase().includes('resource-exhausted')) {
         setAuthError(extractErrorMessage(error));
       }
@@ -101,6 +115,7 @@ export const useAuth = () => {
 
     return () => {
       unsubUser();
+      if (unsubAll) (unsubAll as any)();
     };
   }, [isAuthReady, isLoggedIn]);
 
@@ -119,47 +134,37 @@ export const useAuth = () => {
       return false;
     }
 
-    const currentUserDoc = authorizedUsers.find(u => u.uid === currentUid);
-    
-    if (currentUserDoc && currentUserDoc.cpf === cleanCpf) {
-      if (currentUserDoc.status === 'approved') {
-        setIsLoggedIn(true);
-        setLoggedCpf(cleanCpf);
-        setLoggedName(currentUserDoc.name || '');
-        localStorage.setItem('cache_isLoggedIn', 'true');
-        localStorage.setItem('cache_loggedCpf', cleanCpf);
-        localStorage.setItem('cache_loggedName', currentUserDoc.name || '');
-        setLoginError('');
-        return true;
-      } else if (currentUserDoc.status === 'pending') {
-        setLoginError('Aguardando liberação do administrador.');
-        return false;
-      } else {
-        setLoginError('Seu acesso foi negado pelo administrador.');
-        return false;
-      }
-    }
-
     const existingUserByCpf = authorizedUsers.find(u => u.cpf === cleanCpf);
 
     if (existingUserByCpf) {
       const updatedUser: AuthorizedUser = {
         ...existingUserByCpf,
         uid: currentUid,
-        name: loginName.trim() || existingUserByCpf.name
+        lastLogin: new Date().toISOString()
       };
-      
+
       if (cleanCpf === adminCpf) {
         updatedUser.status = 'approved';
         updatedUser.role = 'admin';
-        // Garante que o nome "Vitor" seja salvo se fornecido
         if (loginName.trim()) {
           updatedUser.name = loginName.trim();
         }
       }
 
-      await setDoc(doc(db, 'authorized_users', currentUid), updatedUser);
-      
+      try {
+        // Se o registro existente tinha um UID diferente, removemos o antigo para evitar duplicatas
+        if (existingUserByCpf.uid && existingUserByCpf.uid !== currentUid) {
+          try {
+            await deleteDoc(doc(db, 'authorized_users', existingUserByCpf.uid));
+          } catch (delErr) {
+            console.warn("Could not delete duplicate user doc:", delErr);
+          }
+        }
+        await setDoc(doc(db, 'authorized_users', currentUid), updatedUser);
+      } catch (e) {
+        handleFirestoreError(e, OperationType.WRITE, `authorized_users/${currentUid}`);
+      }
+
       if (updatedUser.status === 'approved') {
         setIsLoggedIn(true);
         setLoggedCpf(cleanCpf);
@@ -167,10 +172,9 @@ export const useAuth = () => {
         localStorage.setItem('cache_isLoggedIn', 'true');
         localStorage.setItem('cache_loggedCpf', cleanCpf);
         localStorage.setItem('cache_loggedName', updatedUser.name || '');
-        setLoginError('');
         return true;
       } else {
-        setLoginError(updatedUser.status === 'pending' ? 'Aguardando liberação.' : 'Acesso negado.');
+        setLoginError('Seu acesso está aguardando aprovação.');
         return false;
       }
     } else {
@@ -179,22 +183,27 @@ export const useAuth = () => {
         cpf: cleanCpf,
         name: loginName.trim(),
         status: cleanCpf === adminCpf ? 'approved' : 'pending',
+        role: cleanCpf === adminCpf ? 'admin' : 'user',
         requestDate: new Date().toISOString(),
-        role: cleanCpf === adminCpf ? 'admin' : 'user'
+        lastLogin: new Date().toISOString()
       };
-      await setDoc(doc(db, 'authorized_users', currentUid), newUser);
-      
-      if (newUser.status === 'approved') {
-        setIsLoggedIn(true);
-        setLoggedCpf(cleanCpf);
-        setLoggedName(newUser.name || '');
-        localStorage.setItem('cache_isLoggedIn', 'true');
-        localStorage.setItem('cache_loggedCpf', cleanCpf);
-        localStorage.setItem('cache_loggedName', newUser.name || '');
-        setLoginError('');
-        return true;
-      } else {
-        setLoginError('Solicitação enviada. Aguarde a liberação do administrador.');
+
+      try {
+        await setDoc(doc(db, 'authorized_users', currentUid), newUser);
+        if (newUser.status === 'approved') {
+          setIsLoggedIn(true);
+          setLoggedCpf(cleanCpf);
+          setLoggedName(newUser.name || '');
+          localStorage.setItem('cache_isLoggedIn', 'true');
+          localStorage.setItem('cache_loggedCpf', cleanCpf);
+          localStorage.setItem('cache_loggedName', newUser.name || '');
+          return true;
+        } else {
+          setLoginError('Sua solicitação de acesso foi enviada e aguarda aprovação.');
+          return false;
+        }
+      } catch (e) {
+        handleFirestoreError(e, OperationType.WRITE, `authorized_users/${currentUid}`);
         return false;
       }
     }
@@ -210,29 +219,42 @@ export const useAuth = () => {
   };
 
   const updateUserStatus = async (uid: string, status: 'approved' | 'denied') => {
-    await updateDoc(doc(db, 'authorized_users', uid), { status });
+    try {
+      if (status === 'denied') {
+        await deleteDoc(doc(db, 'authorized_users', uid));
+      } else {
+        await updateDoc(doc(db, 'authorized_users', uid), { status });
+      }
+    } catch (e) {
+      handleFirestoreError(e, OperationType.WRITE, `authorized_users/${uid}`);
+    }
   };
 
-  const removeUserRequest = async (uid: string) => {
-    await deleteDoc(doc(db, 'authorized_users', uid));
+  const confirmDeleteUser = async (uid: string) => {
+    try {
+      await deleteDoc(doc(db, 'authorized_users', uid));
+    } catch (e) {
+      handleFirestoreError(e, OperationType.WRITE, `authorized_users/${uid}`);
+    }
   };
 
-  const isAdmin = authorizedUsers.find(u => u.uid === auth.currentUser?.uid)?.role === 'admin';
+  const isAdmin = authorizedUsers.find(u => u.cpf === loggedCpf)?.role === 'admin' || 
+                 (auth.currentUser?.email === 'vitorisalves1@gmail.com' && auth.currentUser?.emailVerified);
 
   return {
     isLoggedIn,
+    isApproved,
     loggedCpf,
     loggedName,
-    isAuthReady,
-    authorizedUsers,
     loginError,
+    authError,
     setLoginError,
     handleLogin,
     handleLogout,
+    authorizedUsers,
     updateUserStatus,
-    removeUserRequest,
+    removeUserRequest: confirmDeleteUser,
     isAdmin,
-    authError,
-    setAuthError
+    isAuthReady
   };
 };

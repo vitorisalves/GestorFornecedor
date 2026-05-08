@@ -214,7 +214,7 @@ export const DeliveredProductsView: React.FC<DeliveredProductsViewProps> = ({
                             <span className="text-sm font-bold uppercase tracking-tight">{p.purchaseDate}</span>
                             <button
                               onClick={() => handleStartEditDate(p)}
-                              className="p-1 text-slate-600 hover:text-indigo-600 hover:bg-indigo-50 rounded transition-all"
+                              className="p-1 text-slate-900 border border-slate-200 hover:text-indigo-700 hover:bg-slate-100 rounded transition-all bg-white shadow-sm"
                             >
                               <Pencil className="w-3 h-3" />
                             </button>

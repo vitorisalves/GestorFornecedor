@@ -41,6 +41,7 @@ export default function App() {
   // --- CUSTOM HOOKS ---
   const {
     isLoggedIn,
+    isApproved,
     loggedCpf,
     loggedName,
     isAuthReady,
@@ -78,7 +79,7 @@ export default function App() {
     addCategory,
     deleteCategory,
     error: suppliersError
-  } = useSuppliers(isAuthReady, isLoggedIn);
+  } = useSuppliers(isAuthReady, isApproved);
 
   const {
     reminders,
@@ -86,7 +87,7 @@ export default function App() {
     addReminder,
     deleteReminder,
     error: remindersError
-  } = useReminders(isAuthReady, addAppNotification);
+  } = useReminders(isAuthReady, isApproved, addAppNotification);
 
   // Memoized logic for quota check
   const isQuotaExceeded = React.useMemo(() => {
@@ -110,7 +111,7 @@ export default function App() {
     toggleSavedListItemBought,
     deleteSavedList,
     addItemToList
-  } = useCart(isAuthReady, isLoggedIn, loggedName, addAppNotification);
+  } = useCart(isAuthReady, isApproved, loggedName, addAppNotification);
 
   const {
     deliveredProducts,
@@ -118,7 +119,7 @@ export default function App() {
     deleteDeliveredProduct,
     toggleDeliveryStatus,
     updatePurchaseDate
-  } = useDeliveredProducts(isAuthReady, isLoggedIn);
+  } = useDeliveredProducts(isAuthReady, isApproved);
 
   const handleToggleSavedListItemBought = React.useCallback(async (listId: string, productName: string, supplierName: string) => {
     const list = savedLists.find(l => l.id === listId);
@@ -263,11 +264,13 @@ export default function App() {
     list: string | null;
     reminder: string | null;
     category: string | null;
+    user: string | null;
   }>({
     supplier: null,
     list: null,
     reminder: null,
-    category: null
+    category: null,
+    user: null
   });
 
   const [searchTerm, setSearchTerm] = useState('');
@@ -734,6 +737,15 @@ export default function App() {
         categoryToDelete={deletions.category}
         setCategoryToDelete={(id) => setDeletions(prev => ({ ...prev, category: id }))}
         confirmDeleteCategory={() => { if (deletions.category) { deleteCategory(deletions.category); setDeletions(prev => ({ ...prev, category: null })); } }}
+        userToDelete={deletions.user}
+        setUserToDelete={(id) => setDeletions(prev => ({ ...prev, user: id }))}
+        confirmDeleteUser={async () => { 
+          if (deletions.user && removeUserRequest) { 
+            await removeUserRequest(deletions.user); 
+            setDeletions(prev => ({ ...prev, user: null })); 
+            addNotification("Usuário removido", 1, 'info');
+          } 
+        }}
         pendingImportData={pendingImportData}
         setPendingImportData={setPendingImportData}
         handlePerformImport={onPerformImport}

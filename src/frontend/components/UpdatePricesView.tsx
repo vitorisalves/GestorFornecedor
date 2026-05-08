@@ -240,12 +240,12 @@ export const UpdatePricesView: React.FC<UpdatePricesViewProps> = ({
         targetSupplier = suppliers.find(s => s.name.toUpperCase() === 'MERCADO');
         if (!targetSupplier) {
            // Mock de fornecedor novo se não existir
-           targetSupplier = { name: 'MERCADO', phone: '', products: [] };
+           targetSupplier = { id: 'MERCADO', name: 'MERCADO', phone: '', products: [] };
         }
       } else if (res.selectedContext === 'materiais') {
         targetSupplier = suppliers.find(s => s.name.toUpperCase() === 'MATERIAIS');
         if (!targetSupplier) {
-           targetSupplier = { name: 'MATERIAIS', phone: '', products: [] };
+           targetSupplier = { id: 'MATERIAIS', name: 'MATERIAIS', phone: '', products: [] };
         }
       } else {
         targetSupplier = suppliers.find(s => s.id === res.selectedSupplierId);

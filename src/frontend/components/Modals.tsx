@@ -76,6 +76,10 @@ interface ModalsProps {
   setCategoryToDelete: (id: string | null) => void;
   confirmDeleteCategory: () => void;
 
+  userToDelete: string | null;
+  setUserToDelete: (id: string | null) => void;
+  confirmDeleteUser: () => void;
+
   pendingImportData: Record<string, Supplier> | null;
   setPendingImportData: (data: Record<string, Supplier> | null) => void;
   handlePerformImport: (replace: boolean) => void;
@@ -136,6 +140,7 @@ export const Modals: React.FC<ModalsProps> = (props) => {
         authorizedUsers={props.authorizedUsers}
         updateUserStatus={props.updateUserStatus}
         setCategoryToDelete={props.setCategoryToDelete}
+        setUserToDelete={props.setUserToDelete}
       />
 
       <ConfirmationModal 
@@ -168,6 +173,14 @@ export const Modals: React.FC<ModalsProps> = (props) => {
         onConfirm={props.confirmDeleteCategory}
         title="Excluir Categoria?"
         message={`Deseja remover a categoria "${props.categoryToDelete}"? Isso não afetará os produtos já cadastrados.`}
+      />
+
+      <ConfirmationModal 
+        isOpen={!!props.userToDelete}
+        onClose={() => props.setUserToDelete(null)}
+        onConfirm={props.confirmDeleteUser}
+        title="Remover Usuário?"
+        message="O usuário perderá o acesso ao sistema imediatamente."
       />
 
       <ImportModal 

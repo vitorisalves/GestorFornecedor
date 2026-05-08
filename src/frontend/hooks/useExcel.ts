@@ -85,9 +85,6 @@ export const useExcel = (suppliers: Supplier[], saveSupplier: (s: Supplier) => P
 
           if ((sName || pName) && pName) {
             const finalSName = (sName || 'DIVERSOS').toString().trim().toUpperCase();
-            if (finalSName === 'MERCADO' || finalSName === 'MATERIAIS') {
-              return; // Ignora canais protegidos
-            }
 
             if (!newSuppliersMap[finalSName]) {
               newSuppliersMap[finalSName] = {

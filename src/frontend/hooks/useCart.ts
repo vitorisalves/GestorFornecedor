@@ -7,11 +7,11 @@ import { useState, useEffect } from 'react';
 import { db } from '../firebase';
 import { collection, onSnapshot, addDoc, query, orderBy, deleteDoc, doc, updateDoc, limit } from 'firebase/firestore';
 import { Product, SavedList } from '../types';
-import { extractErrorMessage, safeStringify } from '../utils';
+import { extractErrorMessage, safeStringify, handleFirestoreError, OperationType } from '../utils';
 
 export const useCart = (
   isAuthReady: boolean, 
-  isLoggedIn: boolean, 
+  isApproved: boolean, 
   loggedName: string,
   addAppNotification: (title: string, message: string) => void
 ) => {
@@ -34,7 +34,7 @@ export const useCart = (
   }, [savedLists]);
 
   useEffect(() => {
-    if (!isAuthReady || !isLoggedIn) return;
+    if (!isAuthReady || !isApproved) return;
 
     setIsLoadingLists(true);
     const q = query(
@@ -67,13 +67,14 @@ export const useCart = (
       setSavedLists(lists);
       setIsLoadingLists(false);
     }, (error: any) => {
+      handleFirestoreError(error, OperationType.GET, 'shopping_lists');
       const isQuota = extractErrorMessage(error).toLowerCase().includes('quota') || extractErrorMessage(error).toLowerCase().includes('resource-exhausted');
       if (!isQuota) console.error("Shopping lists sync error:", extractErrorMessage(error));
       setIsLoadingLists(false);
     });
 
     return () => unsubscribe();
-  }, [isAuthReady, isLoggedIn]);
+  }, [isAuthReady, isApproved]);
 
   const refreshLists = async () => {
     // onSnapshot já lida com o refresh
@@ -129,6 +130,7 @@ export const useCart = (
       try {
         await updateDoc(doc(db, 'shopping_lists', editingListId), listData);
       } catch (err: any) {
+        handleFirestoreError(err, OperationType.UPDATE, `shopping_lists/${editingListId}`);
         console.warn("Could not sync list update:", err.message);
       }
       return { id: editingListId, ...listData };
@@ -145,6 +147,7 @@ export const useCart = (
         setSavedLists(prev => prev.map(l => l.id === tempId ? { ...l, id: docRef.id } : l));
         return { id: docRef.id, ...listData };
       } catch (err: any) {
+        handleFirestoreError(err, OperationType.WRITE, 'shopping_lists');
         console.warn("Could not sync new list:", err.message);
         return newList;
       }
@@ -170,6 +173,7 @@ export const useCart = (
         await updateDoc(doc(db, 'shopping_lists', listId), { items: updatedItems });
       }
     } catch (e) {
+      handleFirestoreError(e, OperationType.UPDATE, `shopping_lists/${listId}`);
       console.error("Error toggling bought status:", extractErrorMessage(e));
     }
   };
@@ -183,6 +187,7 @@ export const useCart = (
         await deleteDoc(doc(db, 'shopping_lists', id));
       }
     } catch (err: any) {
+      handleFirestoreError(err, OperationType.DELETE, `shopping_lists/${id}`);
       console.warn("Cloud delete failed:", err.message);
     }
   };
@@ -225,6 +230,7 @@ export const useCart = (
         await updateDoc(doc(db, 'shopping_lists', listId), updatedListData);
       }
     } catch (err: any) {
+      handleFirestoreError(err, OperationType.UPDATE, `shopping_lists/${listId}`);
       console.warn("Cloud update failed:", err.message);
     }
 

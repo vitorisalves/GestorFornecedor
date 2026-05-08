@@ -158,8 +158,8 @@ export const ShoppingView: React.FC<ShoppingViewProps> = ({
                 >
                   <div className="p-4 md:p-6 pt-0 border-t border-slate-50">
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 mt-6">
-                      {products.map((product) => {
-                        const uniqueId = `${product.supplierName}-${product.name}`;
+                      {products.map((product, index) => {
+                        const uniqueId = `${product.supplierName}-${product.name}-${index}`;
                         const qty = shoppingQuantities[uniqueId] || 1;
                         
                         return (

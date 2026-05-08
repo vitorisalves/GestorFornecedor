@@ -7,9 +7,9 @@ import { useState, useEffect } from 'react';
 import { db } from '../firebase';
 import { collection, onSnapshot, doc, setDoc, deleteDoc, getDocs, query, where } from 'firebase/firestore';
 import { Supplier, Product } from '../types';
-import { generateId, extractErrorMessage, safeStringify } from '../utils';
+import { generateId, extractErrorMessage, safeStringify, handleFirestoreError, OperationType } from '../utils';
 
-export const useSuppliers = (isAuthReady: boolean, isLoggedIn: boolean) => {
+export const useSuppliers = (isAuthReady: boolean, isApproved: boolean) => {
   const [suppliers, setSuppliers] = useState<Supplier[]>(() => {
     const cached = localStorage.getItem('cache_suppliers');
     return cached ? JSON.parse(cached) : [];
@@ -22,7 +22,10 @@ export const useSuppliers = (isAuthReady: boolean, isLoggedIn: boolean) => {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!isAuthReady || !isLoggedIn) return;
+    if (!isAuthReady || !isApproved) {
+      setIsLoading(false);
+      return;
+    }
 
     setIsLoading(true);
     const suppliersCollection = collection(db, 'suppliers');
@@ -55,7 +58,7 @@ export const useSuppliers = (isAuthReady: boolean, isLoggedIn: boolean) => {
       unsubSuppliers();
       unsubCategories();
     };
-  }, [isAuthReady, isLoggedIn]);
+  }, [isAuthReady, isApproved]);
 
   const refreshData = async () => {
     // onSnapshot já lida com o "refresh" automático, mas mantemos para compatibilidade
@@ -63,22 +66,29 @@ export const useSuppliers = (isAuthReady: boolean, isLoggedIn: boolean) => {
   };
 
   const saveSupplier = async (supplier: Supplier) => {
+    // Garantir que temos um ID
+    const sanitizedSupplier = {
+      ...supplier,
+      id: supplier.id || generateId()
+    };
+
     // Optimistic update
     setSuppliers(prev => {
-      const index = prev.findIndex(s => s.id === supplier.id);
+      const index = prev.findIndex(s => s.id === sanitizedSupplier.id);
       const next = [...prev];
       if (index !== -1) {
-        next[index] = supplier;
+        next[index] = sanitizedSupplier;
       } else {
-        next.push(supplier);
+        next.push(sanitizedSupplier);
       }
       localStorage.setItem('cache_suppliers', safeStringify(next));
       return next;
     });
 
     try {
-      await setDoc(doc(db, 'suppliers', supplier.id), supplier);
+      await setDoc(doc(db, 'suppliers', sanitizedSupplier.id), sanitizedSupplier);
     } catch (err: any) {
+      handleFirestoreError(err, OperationType.WRITE, `suppliers/${sanitizedSupplier.id}`);
       console.warn("Cloud sync failed (could be quota):", err.message);
       // We keep the local state so the user can continue working
     }
@@ -95,6 +105,7 @@ export const useSuppliers = (isAuthReady: boolean, isLoggedIn: boolean) => {
     try {
       await deleteDoc(doc(db, 'suppliers', id));
     } catch (err: any) {
+      handleFirestoreError(err, OperationType.DELETE, `suppliers/${id}`);
       console.warn("Cloud delete failed:", err.message);
     }
   };
@@ -139,6 +150,7 @@ export const useSuppliers = (isAuthReady: boolean, isLoggedIn: boolean) => {
       const id = generateId();
       await setDoc(doc(db, 'categories', id), { name });
     } catch (err: any) {
+      handleFirestoreError(err, OperationType.WRITE, `categories/${name}`);
       console.warn("Cloud category add failed:", err.message);
     }
   };
@@ -157,6 +169,7 @@ export const useSuppliers = (isAuthReady: boolean, isLoggedIn: boolean) => {
       const deletePromises = snapshot.docs.map(d => deleteDoc(d.ref));
       await Promise.all(deletePromises);
     } catch (err: any) {
+       handleFirestoreError(err, OperationType.DELETE, `categories/${name}`);
        console.warn("Cloud category delete failed:", err.message);
     }
   };

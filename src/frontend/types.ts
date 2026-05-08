@@ -65,10 +65,11 @@ export interface Reminder {
 }
 
 export interface AuthorizedUser {
-  uid: string;
+  uid?: string;
   cpf: string;
   name: string;
   status: 'pending' | 'approved' | 'denied';
-  requestDate: string;
-  role: 'admin' | 'user';
+  requestDate?: string;
+  lastLogin?: string;
+  role?: 'admin' | 'user';
 }

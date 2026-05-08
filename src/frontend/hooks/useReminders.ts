@@ -7,9 +7,13 @@ import { useState, useEffect } from 'react';
 import { db } from '../firebase';
 import { collection, onSnapshot, addDoc, doc, updateDoc, query, orderBy, deleteDoc, where } from 'firebase/firestore';
 import { Reminder } from '../types';
-import { extractErrorMessage, safeStringify } from '../utils';
+import { extractErrorMessage, safeStringify, handleFirestoreError, OperationType } from '../utils';
 
-export const useReminders = (isAuthReady: boolean, addAppNotification: (title: string, message: string) => void) => {
+export const useReminders = (
+  isAuthReady: boolean, 
+  isApproved: boolean, 
+  addAppNotification: (title: string, message: string) => void
+) => {
   const [reminders, setReminders] = useState<Reminder[]>(() => {
     const cached = localStorage.getItem('cache_reminders');
     return cached ? JSON.parse(cached) : [];
@@ -33,6 +37,7 @@ export const useReminders = (isAuthReady: boolean, addAppNotification: (title: s
           // Mark as notified in DB
           if (reminder.id && !reminder.id.startsWith('temp-')) {
             updateDoc(doc(db, 'reminders', reminder.id), { notified: true }).catch(err => {
+              handleFirestoreError(err, OperationType.UPDATE, `reminders/${reminder.id}`);
               console.warn("Could not sync reminder status:", err.message);
             });
           }
@@ -42,7 +47,7 @@ export const useReminders = (isAuthReady: boolean, addAppNotification: (title: s
   };
 
   useEffect(() => {
-    if (!isAuthReady) return;
+    if (!isAuthReady || !isApproved) return;
 
     const q = query(
       collection(db, 'reminders'), 
@@ -58,15 +63,16 @@ export const useReminders = (isAuthReady: boolean, addAppNotification: (title: s
       setReminders(data);
       checkForDueReminders(data);
     }, (err: any) => {
+      handleFirestoreError(err, OperationType.GET, 'reminders');
       const isQuota = extractErrorMessage(err).toLowerCase().includes('quota') || extractErrorMessage(err).toLowerCase().includes('resource-exhausted');
       if (!isQuota) console.error("Reminders sync error:", extractErrorMessage(err));
     });
 
     return () => unsubscribe();
-  }, [isAuthReady, addAppNotification]);
+  }, [isAuthReady, isApproved, addAppNotification]);
 
   useEffect(() => {
-    if (!isAuthReady) return;
+    if (!isAuthReady || !isApproved) return;
     
     // Check dues every minute locally
     const interval = setInterval(() => {
@@ -99,6 +105,7 @@ export const useReminders = (isAuthReady: boolean, addAppNotification: (title: s
       // Replace temporary ID with real Firestore ID
       setReminders(prev => prev.map(r => r.id === tempId ? { ...r, id: docRef.id } : r));
     } catch (err: any) {
+      handleFirestoreError(err, OperationType.WRITE, `reminders/${productName}`);
       console.warn("Could not sync reminder to cloud:", err.message);
     }
   };
@@ -112,6 +119,7 @@ export const useReminders = (isAuthReady: boolean, addAppNotification: (title: s
         await deleteDoc(doc(db, 'reminders', id));
       }
     } catch (err: any) {
+      handleFirestoreError(err, OperationType.DELETE, `reminders/${id}`);
       console.warn("Cloud reminder delete failed:", err.message);
     }
   };

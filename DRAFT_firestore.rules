@@ -29,26 +29,31 @@ service cloud.firestore {
     }
 
     // Helper to get user data safely
-    function getUserData() {
-      return get(/databases/$(database)/documents/authorized_users/$(request.auth.uid)).data;
+    function getUser(uid) {
+      return get(/databases/$(database)/documents/authorized_users/$(uid)).data;
     }
     
-    function hasUserDoc() {
-      return exists(/databases/$(database)/documents/authorized_users/$(request.auth.uid));
+    function userExists(uid) {
+      return exists(/databases/$(database)/documents/authorized_users/$(uid));
     }
 
     function isAdmin() {
-      return isSignedIn() && (
-        (request.auth.token.email == "vitorisalves1@gmail.com" && request.auth.token.email_verified == true) ||
-        (hasUserDoc() && (getUserData().get('role', 'user') == 'admin' || getUserData().get('cpf', '') == '05839352144'))
-      );
+      if (!isSignedIn()) return false;
+      // Fallback for hardcoded admin email (must be verified)
+      if (request.auth.token.email == "vitorisalves1@gmail.com" && request.auth.token.email_verified == true) return true;
+      
+      // If we are looking up the user in DB
+      if (!userExists(request.auth.uid)) return false;
+      let userData = getUser(request.auth.uid);
+      return userData.role == 'admin' || userData.cpf == '05839352144';
     }
 
     function isApproved() {
-      return isSignedIn() && (
-        isAdmin() || 
-        (hasUserDoc() && getUserData().get('status', 'pending') == 'approved')
-      );
+      if (!isSignedIn()) return false;
+      if (isAdmin()) return true;
+      
+      if (!userExists(request.auth.uid)) return false;
+      return getUser(request.auth.uid).status == 'approved';
     }
 
     // ===============================================================
@@ -60,20 +65,20 @@ service cloud.firestore {
              data.cpf is string && data.cpf.size() == 11 &&
              data.status in ['pending', 'approved', 'denied'] &&
              data.role in ['admin', 'user'] &&
-             data.requestDate is string && data.requestDate.size() < 100;
+             data.requestDate is string;
     }
 
     function isValidSupplier(data) {
       return data.keys().hasAll(['id', 'name', 'phone', 'products']) &&
-             data.id is string && data.id.size() <= 128 &&
+             data.id is string && data.id.size() <= 100 &&
              data.name is string && data.name.size() <= 200 &&
-             data.phone is string && data.phone.size() <= 30 &&
+             data.phone is string && data.phone.size() <= 20 &&
              data.products is list && data.products.size() <= 1000;
     }
 
     function isValidDeliveredProduct(data) {
       return data.keys().hasAll(['id', 'name', 'supplierName', 'purchaseDate', 'delivered']) &&
-             data.id is string && data.id.size() <= 200 &&
+             data.id is string && data.id.size() <= 150 &&
              data.name is string && data.name.size() <= 200 &&
              data.supplierName is string && data.supplierName.size() <= 200 &&
              data.purchaseDate is string &&
@@ -86,25 +91,25 @@ service cloud.firestore {
 
     match /authorized_users/{userId} {
       allow get: if isSignedIn() && (request.auth.uid == userId || isAdmin());
+      // Non-admins can only list their own document or none at all (handled by query filter requirement)
       allow list: if isAdmin(); 
       
       allow create: if isSignedIn() && isValidUser(incoming()) && (
+        // Self-registration: status must be pending unless they are the hardcoded admin
         (incoming().cpf != '05839352144' && incoming().status == 'pending' && incoming().role == 'user') ||
         (incoming().cpf == '05839352144' && incoming().status == 'approved' && incoming().role == 'admin') ||
         isAdmin()
       );
       
-      allow update: if (isSignedIn() && (
-        isAdmin() || 
+      allow update: if isAdmin() || (
+        isSignedIn() && request.auth.uid == userId && 
+        isValidUser(incoming()) &&
+        // Self-update limited: can't change roles/status unless it's the admin CPF
         (
-          request.auth.uid == userId && 
-          isValidUser(incoming()) &&
-          (
-            (incoming().cpf == '05839352144' && incoming().status == 'approved' && incoming().role == 'admin') ||
-            (incoming().status == existing().status && incoming().role == existing().role)
-          )
+          (incoming().cpf == '05839352144' && incoming().status == 'approved' && incoming().role == 'admin') ||
+          (incoming().status == existing().status && incoming().role == existing().role)
         )
-      ));
+      );
       
       allow delete: if isAdmin();
     }
