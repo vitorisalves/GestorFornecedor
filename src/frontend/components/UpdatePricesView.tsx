@@ -256,14 +256,17 @@ export const UpdatePricesView: React.FC<UpdatePricesViewProps> = ({
         const s = updatedSuppliers.get(sId) || { ...targetSupplier };
         
         if (!res.isNew && res.existingProduct) {
-          // Atualização de produto existente (pode ter mudado de fornecedor/contexto?)
-          // Se mudou de fornecedor, remove do antigo e adiciona no novo? 
-          // Para simplificar, vamos apenas atualizar no fornecedor atual se o contexto for o mesmo
+          // It's an update. Use the extracted data which might have changed
           const pIdx = s.products.findIndex(p => p.name === res.existingProduct?.name);
           if (pIdx !== -1) {
-            s.products[pIdx] = { ...s.products[pIdx], price: res.extracted.price };
+            s.products[pIdx] = { 
+              ...s.products[pIdx], 
+              name: res.extracted.name, // Update name if user edited it
+              price: res.extracted.price,
+              category: res.selectedCategory || s.products[pIdx].category
+            };
           } else {
-            // Se o produto não está neste fornecedor (mudança de contexto), adicionamos
+            // Found by name match elsewhere or fuzzy match that was user-confirmed
             s.products.push({
               name: res.extracted.name,
               price: res.extracted.price,

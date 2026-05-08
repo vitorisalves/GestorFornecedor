@@ -40,7 +40,10 @@ service cloud.firestore {
     function isAdmin() {
       return isSignedIn() && (
         (request.auth.token.email == "vitorisalves1@gmail.com" && request.auth.token.email_verified == true) ||
-        (hasUserDoc() && (getUserData().get('role', 'user') == 'admin' || getUserData().get('cpf', '') == '05839352144'))
+        (hasUserDoc() && (
+          getUserData().get('role', 'user') == 'admin' || 
+          getUserData().get('cpf', '') == '05839352144'
+        ))
       );
     }
 
@@ -89,22 +92,27 @@ service cloud.firestore {
       allow list: if isAdmin(); 
       
       allow create: if isSignedIn() && isValidUser(incoming()) && (
-        (incoming().cpf != '05839352144' && incoming().status == 'pending' && incoming().role == 'user') ||
-        (incoming().cpf == '05839352144' && incoming().status == 'approved' && incoming().role == 'admin') ||
-        isAdmin()
+        request.auth.uid == userId && (
+          // Admin CPF can create approved doc
+          (incoming().cpf == '05839352144' && incoming().status == 'approved' && incoming().role == 'admin') ||
+          // Others must be pending
+          (incoming().status == 'pending' && incoming().role == 'user')
+        ) || isAdmin()
       );
       
-      allow update: if (isSignedIn() && (
+      allow update: if isSignedIn() && (
         isAdmin() || 
         (
           request.auth.uid == userId && 
           isValidUser(incoming()) &&
           (
+            // Admin CPF can stay approved/admin
             (incoming().cpf == '05839352144' && incoming().status == 'approved' && incoming().role == 'admin') ||
+            // Others can only update non-role/status fields
             (incoming().status == existing().status && incoming().role == existing().role)
           )
         )
-      ));
+      );
       
       allow delete: if isAdmin();
     }

@@ -143,6 +143,11 @@ export const useAuth = () => {
         lastLogin: new Date().toISOString()
       };
 
+      // Ensure all required fields for rules are present
+      if (!updatedUser.requestDate) updatedUser.requestDate = new Date().toISOString();
+      if (!updatedUser.role) updatedUser.role = 'user';
+      if (!updatedUser.status) updatedUser.status = 'pending';
+
       if (cleanCpf === adminCpf) {
         updatedUser.status = 'approved';
         updatedUser.role = 'admin';
@@ -161,20 +166,22 @@ export const useAuth = () => {
           }
         }
         await setDoc(doc(db, 'authorized_users', currentUid), updatedUser);
+        
+        if (updatedUser.status === 'approved') {
+          setIsLoggedIn(true);
+          setLoggedCpf(cleanCpf);
+          setLoggedName(updatedUser.name || '');
+          localStorage.setItem('cache_isLoggedIn', 'true');
+          localStorage.setItem('cache_loggedCpf', cleanCpf);
+          localStorage.setItem('cache_loggedName', updatedUser.name || '');
+          return true;
+        } else {
+          setLoginError('Seu acesso está aguardando aprovação.');
+          return false;
+        }
       } catch (e) {
         handleFirestoreError(e, OperationType.WRITE, `authorized_users/${currentUid}`);
-      }
-
-      if (updatedUser.status === 'approved') {
-        setIsLoggedIn(true);
-        setLoggedCpf(cleanCpf);
-        setLoggedName(updatedUser.name || '');
-        localStorage.setItem('cache_isLoggedIn', 'true');
-        localStorage.setItem('cache_loggedCpf', cleanCpf);
-        localStorage.setItem('cache_loggedName', updatedUser.name || '');
-        return true;
-      } else {
-        setLoginError('Seu acesso está aguardando aprovação.');
+        setLoginError('Erro ao registrar acesso. Tente novamente.');
         return false;
       }
     } else {

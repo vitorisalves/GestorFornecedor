@@ -294,6 +294,8 @@ export default function App() {
   const productNameRef = useRef<HTMLInputElement>(null);
 
   // --- HANDLERS ---
+  const [isSaving, setIsSaving] = useState(false);
+
   const onLogin = React.useCallback((e: React.FormEvent) => {
     e.preventDefault();
     handleLogin(loginCpf, loginName);
@@ -357,36 +359,58 @@ export default function App() {
   const onAddSupplier = React.useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
     
-    let finalProductList = [...productList];
-    if (formState.productName.trim()) {
-      const product: Product = {
-        name: formState.productName.trim(),
-        price: parseFloat(formState.productPrice || '0'),
-        category: formState.productCategory.trim() || 'Fornecedor',
-        lastPurchaseDate: formState.productLastPurchaseDate.trim(),
-        paymentMethod: formState.productPaymentMethod.trim()
-      };
-      
-      if (editingProductIndex !== null) {
-        finalProductList[editingProductIndex] = product;
-      } else {
-        finalProductList.push(product);
-      }
-    }
+    if (isSaving) return;
+    setIsSaving(true);
+    
+    try {
+      let finalProductList = [...productList];
+      if (formState.productName.trim()) {
+        const parsePrice = (val: string) => {
+          if (!val) return 0;
+          // Suporte para decimal com vírgula ou ponto
+          const normalized = val.replace(',', '.');
+          const parsed = parseFloat(normalized);
+          return isNaN(parsed) ? 0 : parsed;
+        };
 
-    if (!formState.name || !formState.phone || finalProductList.length === 0) return;
-    
-    const supplierId = editingSupplierId || Math.random().toString(36).substring(2, 11);
-    await saveSupplier({
-      id: supplierId,
-      name: formState.name,
-      phone: formState.phone,
-      products: finalProductList
-    });
-    
-    resetForm();
-    setIsAdding(false);
-  }, [productList, formState, editingProductIndex, editingSupplierId, saveSupplier, resetForm]);
+        const product: Product = {
+          name: formState.productName.trim(),
+          price: parsePrice(formState.productPrice),
+          category: formState.productCategory.trim() || 'Fornecedor',
+          lastPurchaseDate: formState.productLastPurchaseDate.trim(),
+          paymentMethod: formState.productPaymentMethod.trim()
+        };
+        
+        if (editingProductIndex !== null) {
+          finalProductList[editingProductIndex] = product;
+        } else {
+          finalProductList.push(product);
+        }
+      }
+
+      if (!formState.name || !formState.phone || finalProductList.length === 0) {
+        setIsSaving(false);
+        return;
+      }
+      
+      const supplierId = editingSupplierId || Math.random().toString(36).substring(2, 11);
+      await saveSupplier({
+        id: supplierId,
+        name: formState.name,
+        phone: formState.phone,
+        products: finalProductList
+      });
+      
+      addNotification(editingSupplierId ? 'Fornecedor atualizado!' : 'Fornecedor cadastrado!', 1, 'info');
+      resetForm();
+      setIsAdding(false);
+    } catch (err) {
+      console.error("Erro ao salvar fornecedor:", err);
+      addNotification("Erro ao salvar", 0, 'info');
+    } finally {
+      setIsSaving(false);
+    }
+  }, [productList, formState, editingProductIndex, editingSupplierId, saveSupplier, resetForm, isSaving, addNotification]);
 
   const onEditSupplier = React.useCallback((supplier: Supplier) => {
     setEditingSupplierId(supplier.id);
@@ -405,13 +429,20 @@ export default function App() {
 
   const addProduct = React.useCallback(() => {
     if (formState.productName.trim()) {
+      const parsePrice = (val: string) => {
+        if (!val) return 0;
+        const normalized = val.replace(',', '.');
+        const parsed = parseFloat(normalized);
+        return isNaN(parsed) ? 0 : parsed;
+      };
+
       if (editingProductIndex !== null) {
         const updatedList = [...productList];
         const existing = updatedList[editingProductIndex];
         updatedList[editingProductIndex] = {
           ...existing,
           name: formState.productName.trim(),
-          price: parseFloat(formState.productPrice || '0'),
+          price: parsePrice(formState.productPrice),
           category: formState.productCategory.trim() || 'Fornecedor',
           lastPurchaseDate: formState.productLastPurchaseDate.trim(),
           paymentMethod: formState.productPaymentMethod.trim()
@@ -421,7 +452,7 @@ export default function App() {
       } else {
         const product: Product = {
           name: formState.productName.trim(),
-          price: parseFloat(formState.productPrice || '0'),
+          price: parsePrice(formState.productPrice),
           category: formState.productCategory.trim() || 'Fornecedor',
           lastPurchaseDate: formState.productLastPurchaseDate.trim(),
           paymentMethod: formState.productPaymentMethod.trim()
@@ -750,6 +781,7 @@ export default function App() {
         setPendingImportData={setPendingImportData}
         handlePerformImport={onPerformImport}
         isImporting={isImporting}
+        isSaving={isSaving}
       />
     </AppLayout>
   );

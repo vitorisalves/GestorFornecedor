@@ -84,6 +84,7 @@ interface ModalsProps {
   setPendingImportData: (data: Record<string, Supplier> | null) => void;
   handlePerformImport: (replace: boolean) => void;
   isImporting: boolean;
+  isSaving: boolean;
 }
 
 export const Modals: React.FC<ModalsProps> = (props) => {
@@ -115,6 +116,7 @@ export const Modals: React.FC<ModalsProps> = (props) => {
         onEditProduct={props.handleEditProduct}
         onRemoveProduct={props.removeProduct}
         onSave={props.handleAddSupplier}
+        isSaving={props.isSaving}
       />
 
       <CartModal 

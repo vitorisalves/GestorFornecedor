@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Package, Pencil, Plus, Trash2, Search, Check } from 'lucide-react';
+import { X, Package, Pencil, Plus, Trash2, Search, Check, Loader2 } from 'lucide-react';
 import { Product } from '../../types';
 import { formatCurrency } from '../../utils';
 
@@ -30,6 +30,7 @@ interface SupplierModalProps {
   onEditProduct: (index: number | null) => void;
   onRemoveProduct: (index: number) => void;
   onSave: (e: React.FormEvent) => void;
+  isSaving: boolean;
 }
 
 export const SupplierModal: React.FC<SupplierModalProps> = ({
@@ -57,7 +58,8 @@ export const SupplierModal: React.FC<SupplierModalProps> = ({
   onAddProduct,
   onEditProduct,
   onRemoveProduct,
-  onSave
+  onSave,
+  isSaving
 }) => {
   const [localSearch, setLocalSearch] = React.useState('');
 
@@ -212,7 +214,8 @@ export const SupplierModal: React.FC<SupplierModalProps> = ({
                     return (
                       <div 
                         key={i} 
-                        className={`flex items-center justify-between p-4 bg-white border rounded-xl group transition-all relative ${isEditingThis ? 'border-indigo-500 bg-indigo-50/10' : 'border-slate-100 hover:border-indigo-100'}`}
+                        onClick={() => !isEditingThis && onEditProduct(i)}
+                        className={`flex items-center justify-between p-4 bg-white border rounded-xl group transition-all relative cursor-pointer ${isEditingThis ? 'border-indigo-500 bg-indigo-50/10' : 'border-slate-100 hover:border-indigo-100'}`}
                       >
                         {isEditingThis && (
                           <div 
@@ -335,9 +338,10 @@ export const SupplierModal: React.FC<SupplierModalProps> = ({
               </button>
               <button
                 onClick={onSave}
-                disabled={!name || !phone || (productList.length === 0 && !productName.trim())}
-                className="px-8 py-3 bg-indigo-600 text-white rounded-xl text-sm font-bold shadow-md hover:bg-indigo-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                disabled={isSaving || !name || !phone || (productList.length === 0 && !productName.trim())}
+                className="px-8 py-3 bg-indigo-600 text-white rounded-xl text-sm font-bold shadow-md hover:bg-indigo-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
               >
+                {isSaving && <Loader2 className="w-4 h-4 animate-spin" />}
                 {editingSupplierId ? 'Salvar Alterações' : 'Cadastrar Fornecedor'}
               </button>
             </div>
