@@ -78,12 +78,25 @@ export function useDeliveredProducts(isAuthReady: boolean, isLoggedIn: boolean) 
     await saveDeliveredProduct(updatedProduct);
   }, [deliveredProducts, saveDeliveredProduct]);
 
+  const updatePurchaseDate = useCallback(async (id: string, newDate: string) => {
+    const product = deliveredProducts.find(p => p.id === id);
+    if (!product) return;
+
+    const updatedProduct: DeliveredProduct = {
+      ...product,
+      purchaseDate: newDate
+    };
+
+    await saveDeliveredProduct(updatedProduct);
+  }, [deliveredProducts, saveDeliveredProduct]);
+
   return {
     deliveredProducts,
     isLoading,
     error,
     saveDeliveredProduct,
     deleteDeliveredProduct,
-    toggleDeliveryStatus
+    toggleDeliveryStatus,
+    updatePurchaseDate
   };
 }

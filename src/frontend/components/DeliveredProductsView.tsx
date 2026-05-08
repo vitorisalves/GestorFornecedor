@@ -14,7 +14,9 @@ import {
   Clock,
   Trash2,
   Check,
-  RotateCcw
+  RotateCcw,
+  Pencil,
+  X
 } from 'lucide-react';
 import { DeliveredProduct } from '../types';
 import { normalizeText, formatCurrency } from '../utils';
@@ -24,15 +26,52 @@ interface DeliveredProductsViewProps {
   deliveredProducts: DeliveredProduct[];
   toggleDeliveryStatus: (productId: string) => void;
   deleteDeliveredProduct: (productId: string) => void;
+  updatePurchaseDate: (productId: string, newDate: string) => void;
 }
 
 export const DeliveredProductsView: React.FC<DeliveredProductsViewProps> = ({
   deliveredProducts,
   toggleDeliveryStatus,
-  deleteDeliveredProduct
+  deleteDeliveredProduct,
+  updatePurchaseDate
 }) => {
   const [searchTerm, setSearchTerm] = React.useState('');
   const [productToDelete, setProductToDelete] = React.useState<string | null>(null);
+  const [editingDateId, setEditingDateId] = React.useState<string | null>(null);
+  const [tempDate, setTempDate] = React.useState('');
+
+  const toISODate = (dateStr: string) => {
+    try {
+      const parts = dateStr.split('/');
+      if (parts.length !== 3) return new Date().toISOString().split('T')[0];
+      const [day, month, year] = parts;
+      return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+    } catch {
+      return new Date().toISOString().split('T')[0];
+    }
+  };
+
+  const fromISODate = (isoStr: string) => {
+    try {
+      const [year, month, day] = isoStr.split('-');
+      return `${day}/${month}/${year}`;
+    } catch {
+      return '';
+    }
+  };
+
+  const handleStartEditDate = (product: DeliveredProduct) => {
+    setEditingDateId(product.id);
+    setTempDate(toISODate(product.purchaseDate));
+  };
+
+  const handleSaveDate = (id: string) => {
+    const formattedDate = fromISODate(tempDate);
+    if (formattedDate) {
+      updatePurchaseDate(id, formattedDate);
+    }
+    setEditingDateId(null);
+  };
 
   const filteredProducts = deliveredProducts
     .filter(p => {
@@ -149,7 +188,38 @@ export const DeliveredProductsView: React.FC<DeliveredProductsViewProps> = ({
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-2 text-slate-500">
                         <Calendar className="w-3.5 h-3.5" />
-                        <span className="text-sm font-bold uppercase tracking-tight">{p.purchaseDate}</span>
+                        {editingDateId === p.id ? (
+                          <div className="flex items-center gap-1">
+                            <input
+                              type="date"
+                              value={tempDate}
+                              onChange={(e) => setTempDate(e.target.value)}
+                              className="bg-white border border-slate-200 rounded px-1 py-0.5 text-[11px] font-bold outline-none focus:border-indigo-500"
+                            />
+                            <button 
+                              onClick={() => handleSaveDate(p.id)}
+                              className="p-1 text-emerald-500 hover:bg-emerald-50 rounded"
+                            >
+                              <Check className="w-3 h-3" />
+                            </button>
+                            <button 
+                              onClick={() => setEditingDateId(null)}
+                              className="p-1 text-red-400 hover:bg-red-50 rounded"
+                            >
+                              <X className="w-3 h-3" />
+                            </button>
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-2 group/date">
+                            <span className="text-sm font-bold uppercase tracking-tight">{p.purchaseDate}</span>
+                            <button
+                              onClick={() => handleStartEditDate(p)}
+                              className="p-1 text-slate-600 hover:text-indigo-600 hover:bg-indigo-50 rounded transition-all"
+                            >
+                              <Pencil className="w-3 h-3" />
+                            </button>
+                          </div>
+                        )}
                       </div>
                     </td>
                     <td className="px-6 py-4 text-center">

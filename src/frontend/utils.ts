@@ -33,49 +33,49 @@ export const formatDate = (dateString: string) => {
 export const safeStringify = (obj: any, maxDepth: number = 3): string => {
   if (obj === undefined) return 'undefined';
   if (obj === null) return 'null';
-  if (typeof obj !== 'object') return String(obj);
+  if (typeof obj !== 'object' && typeof obj !== 'function') return String(obj);
   
-  // Se for um Erro, não tentamos stringificar o objeto todo, apenas pegamos a mensagem
   if (obj instanceof Error) return obj.message;
 
-  const cache = new Set();
+  const seen = new WeakSet();
+  
   const handleValue = (val: any, depth: number): any => {
-    if (depth > maxDepth) return '[Max Depth Reached]';
+    if (depth > maxDepth) return '[Max Depth]';
     if (val === null || val === undefined) return val;
-    if (typeof val !== 'object') return val;
     
-    // Evitar processar objetos complexos do navegador que costumam ser circulares
-    if (val instanceof Node || (typeof window !== 'undefined' && (val === window || val === document))) {
+    const type = typeof val;
+    if (type !== 'object' && type !== 'function') return val;
+
+    // Handle special types
+    if (val instanceof Date) return val.toISOString();
+    if (val instanceof RegExp) return val.toString();
+    
+    // Avoid DOM objects
+    if (typeof window !== 'undefined' && (val === window || val === document || val instanceof Node)) {
       return '[DOM Object]';
     }
 
-    if (cache.has(val)) return '[Circular]';
-    cache.add(val);
+    if (seen.has(val)) return '[Circular]';
+    seen.add(val);
 
     try {
       if (Array.isArray(val)) {
         return val.map(item => handleValue(item, depth + 1));
       }
 
-      const jsonObj: any = {};
-      
-      // Capturamos propriedades básicas se for um objeto tipo Erro que não herda de Error
-      if (val.message && val.stack) {
-        return { message: val.message, code: val.code || val.status };
+      if (val instanceof Error) {
+        return { message: val.message, name: val.name, stack: val.stack };
       }
 
-      for (const key of Object.keys(val)) {
-        try {
-          const value = (val as any)[key];
-          jsonObj[key] = handleValue(value, depth + 1);
-        } catch (e) {
-          jsonObj[key] = '[Unreadable Property]';
+      const result: any = {};
+      for (const key in val) {
+        if (Object.prototype.hasOwnProperty.call(val, key)) {
+          result[key] = handleValue(val[key], depth + 1);
         }
       }
-      return jsonObj;
-    } finally {
-      // Opcional: manter na cache para evitar duplicidade no mesmo grafo, 
-      // ou remover se quiser permitir o mesmo objeto em ramos diferentes
+      return result;
+    } catch (e) {
+      return '[Unreadable Object]';
     }
   };
 
@@ -83,7 +83,7 @@ export const safeStringify = (obj: any, maxDepth: number = 3): string => {
     const safeObj = handleValue(obj, 0);
     return JSON.stringify(safeObj);
   } catch (err) {
-    return `[Error stringifying: ${err instanceof Error ? err.message : 'Unknown'}]`;
+    return '[Serialization Error]';
   }
 };
 

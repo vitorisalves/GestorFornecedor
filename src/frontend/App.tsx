@@ -116,7 +116,8 @@ export default function App() {
     deliveredProducts,
     saveDeliveredProduct,
     deleteDeliveredProduct,
-    toggleDeliveryStatus
+    toggleDeliveryStatus,
+    updatePurchaseDate
   } = useDeliveredProducts(isAuthReady, isLoggedIn);
 
   const handleToggleSavedListItemBought = React.useCallback(async (listId: string, productName: string, supplierName: string) => {
@@ -154,12 +155,17 @@ export default function App() {
             await saveSupplier(updatedSupplier);
             
             // 3. Adicionar aos produtos entregues (pendente de entrega física)
-            const deliveryId = `${productName}-${supplierName}-${now.getTime()}`
-              .toLowerCase()
-              .normalize("NFD")
-              .replace(/[\u0300-\u036f]/g, "")
-              .replace(/[^a-z0-9]/g, '-')
-              .replace(/-+/g, '-');
+            const sanitizeForId = (str: string) => {
+              return str
+                .toLowerCase()
+                .normalize("NFD")
+                .replace(/[\u0300-\u036f]/g, "")
+                .replace(/[^a-z0-9]/g, '-')
+                .replace(/-+/g, '-')
+                .replace(/^-+|-+$/g, '');
+            };
+
+            const deliveryId = sanitizeForId(`${productName}-${supplierName}-${now.getTime()}`);
             await saveDeliveredProduct({
               id: deliveryId,
               name: productName,
@@ -621,6 +627,7 @@ export default function App() {
             deliveredProducts={deliveredProducts}
             toggleDeliveryStatus={toggleDeliveryStatus}
             deleteDeliveredProduct={deleteDeliveredProduct}
+            updatePurchaseDate={updatePurchaseDate}
           />
         )}
         {currentPage === 'reminders' && (
