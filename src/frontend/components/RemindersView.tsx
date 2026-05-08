@@ -147,7 +147,7 @@ export const RemindersView: React.FC<RemindersViewProps> = ({
                   <div className="flex flex-col items-end gap-2">
                     <button
                       onClick={() => deleteReminder(reminder.id)}
-                      className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all"
+                      className="p-2 text-black hover:text-red-500 hover:bg-red-50 rounded-xl transition-all"
                     >
                       <Trash2 className="w-5 h-5" />
                     </button>

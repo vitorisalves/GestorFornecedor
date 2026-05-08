@@ -314,11 +314,11 @@ export const SupplierModal: React.FC<SupplierModalProps> = ({
                               <Check className="w-3.5 h-3.5" />
                             </button>
                           ) : (
-                            <button onClick={() => onEditProduct(i)} className="p-1.5 text-slate-300 hover:text-indigo-600 transition-colors">
+                            <button onClick={() => onEditProduct(i)} className="p-1.5 text-black hover:text-indigo-600 transition-colors">
                               <Pencil className="w-3.5 h-3.5" />
                             </button>
                           )}
-                          <button onClick={() => onRemoveProduct(i)} className="p-1.5 text-slate-300 hover:text-red-500 transition-colors">
+                          <button onClick={() => onRemoveProduct(i)} className="p-1.5 text-black hover:text-red-500 transition-colors">
                             <Trash2 className="w-3.5 h-3.5" />
                           </button>
                         </div>

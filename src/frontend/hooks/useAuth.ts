@@ -119,6 +119,27 @@ export const useAuth = () => {
     };
   }, [isAuthReady, isLoggedIn]);
 
+  useEffect(() => {
+    if (!isAuthReady || isApproved || !isLoggedIn) return;
+    
+    // Recovery logic for anonymous session changes
+    const currentUid = auth.currentUser?.uid;
+    const cachedCpf = localStorage.getItem('cache_loggedCpf');
+    const cachedName = localStorage.getItem('cache_loggedName');
+
+    if (currentUid && cachedCpf && cachedName) {
+      // Check if we already have a doc for this UID (this effect runs on isApproved change)
+      // If isApproved is false despite being loggedIn, we might need a doc sync
+      const timer = setTimeout(() => {
+        if (!isApproved) {
+          console.log("Attempting session recovery for:", cachedCpf);
+          handleLogin(cachedCpf, cachedName).catch(err => console.error("Recovery failed:", err));
+        }
+      }, 2000); // Wait a bit to let onSnapshot settle
+      return () => clearTimeout(timer);
+    }
+  }, [isAuthReady, isApproved, isLoggedIn]);
+
   const handleLogin = async (loginCpf: string, loginName: string) => {
     const adminCpf = '05839352144';
     const cleanCpf = loginCpf.replace(/\D/g, '');

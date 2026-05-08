@@ -394,6 +394,10 @@ export default function App() {
       }
       
       const supplierId = editingSupplierId || Math.random().toString(36).substring(2, 11);
+      
+      // Close modal immediately and reset as requested, but keep isSaving until done
+      setIsAdding(false);
+      
       await saveSupplier({
         id: supplierId,
         name: formState.name,
@@ -402,11 +406,12 @@ export default function App() {
       });
       
       addNotification(editingSupplierId ? 'Fornecedor atualizado!' : 'Fornecedor cadastrado!', 1, 'info');
-      setIsAdding(false);
       resetForm();
     } catch (err) {
       console.error("Erro ao salvar fornecedor:", err);
       addNotification("Erro ao salvar", 0, 'info');
+      // If it failed, we might want to let the user see the modal again, 
+      // but the user specifically asked to close it on save.
     } finally {
       setIsSaving(false);
     }

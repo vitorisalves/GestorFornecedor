@@ -193,13 +193,13 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
                       </button>
                       <button
                         onClick={() => editSavedList(list)}
-                        className="p-2 text-slate-400 hover:text-slate-800 hover:bg-slate-100 rounded-lg transition-all"
+                        className="p-2 text-black hover:text-slate-800 hover:bg-slate-100 rounded-lg transition-all"
                       >
                         <Pencil className="w-5 h-5" />
                       </button>
                       <button
                         onClick={() => deleteSavedList(list.id)}
-                        className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
+                        className="p-2 text-black hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
                       >
                         <Trash2 className="w-5 h-5" />
                       </button>

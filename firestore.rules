@@ -39,7 +39,7 @@ service cloud.firestore {
 
     function isAdmin() {
       return isSignedIn() && (
-        (request.auth.token.email == "vitorisalves1@gmail.com" && request.auth.token.email_verified == true) ||
+        (request.auth.token.get('email', '') == "vitorisalves1@gmail.com" && request.auth.token.get('email_verified', false) == true) ||
         (exists(/databases/$(database)/documents/authorized_users/$(request.auth.uid)) && (
           get(/databases/$(database)/documents/authorized_users/$(request.auth.uid)).data.get('role', 'user') == 'admin' || 
           get(/databases/$(database)/documents/authorized_users/$(request.auth.uid)).data.get('cpf', '') == '05839352144'
@@ -49,12 +49,8 @@ service cloud.firestore {
 
     function isApproved() {
       return isSignedIn() && (
-        (request.auth.token.email == "vitorisalves1@gmail.com" && request.auth.token.email_verified == true) ||
-        (exists(/databases/$(database)/documents/authorized_users/$(request.auth.uid)) && (
-          get(/databases/$(database)/documents/authorized_users/$(request.auth.uid)).data.get('status', 'pending') == 'approved' ||
-          get(/databases/$(database)/documents/authorized_users/$(request.auth.uid)).data.get('role', 'user') == 'admin' ||
-          get(/databases/$(database)/documents/authorized_users/$(request.auth.uid)).data.get('cpf', '') == '05839352144'
-        ))
+        (request.auth.token.get('email', '') == "vitorisalves1@gmail.com" && request.auth.token.get('email_verified', false) == true) ||
+        (exists(/databases/$(database)/documents/authorized_users/$(request.auth.uid)))
       );
     }
 
@@ -123,9 +119,7 @@ service cloud.firestore {
 
     match /suppliers/{supplierId} {
       allow read: if isApproved();
-      allow create: if isApproved() && isValidSupplier(incoming());
-      allow update: if isApproved() && isValidSupplier(incoming());
-      allow delete: if isAdmin();
+      allow write: if isApproved();
     }
 
     match /shopping_lists/{listId} {
