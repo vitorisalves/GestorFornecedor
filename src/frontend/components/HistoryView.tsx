@@ -45,6 +45,19 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
 }) => {
   const [expandedList, setExpandedList] = React.useState<string | null>(null);
 
+  const sortedLists = React.useMemo(() => {
+    return [...savedLists].sort((a, b) => {
+      const aCompleted = a.items.length > 0 && a.items.every(item => item.bought);
+      const bCompleted = b.items.length > 0 && b.items.every(item => item.bought);
+
+      if (aCompleted && !bCompleted) return 1;
+      if (!aCompleted && bCompleted) return -1;
+      
+      // If both are same status, they are already sorted by date desc from the hook
+      return 0;
+    });
+  }, [savedLists]);
+
   const exportToPDF = (list: SavedList) => {
     const doc = new jsPDF();
     
@@ -118,14 +131,14 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
       </div>
 
       <div className="grid grid-cols-1 gap-4">
-        {savedLists.length === 0 ? (
+        {sortedLists.length === 0 ? (
           <div className="bg-white rounded-2xl p-20 border border-dashed border-slate-200 flex flex-col items-center justify-center text-slate-400">
             <ListChecks className="w-16 h-16 mb-4 opacity-20" />
             <p className="text-lg font-bold uppercase tracking-tight">Nenhuma lista encontrada</p>
             <p className="text-sm text-slate-400">Suas listas finalizadas aparecerão aqui.</p>
           </div>
         ) : (
-          savedLists.map((list) => {
+          sortedLists.map((list) => {
             const isCompleted = list.items.length > 0 && list.items.every(item => item.bought);
             
             return (
