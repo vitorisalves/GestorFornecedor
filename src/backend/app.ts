@@ -24,6 +24,8 @@ import firebaseConfig from '../../firebase-applet-config.json';
 
 // Try to initialize Admin SDK (works in AI Studio and environments with Service Account)
 let adminDb: any = null;
+let adminDisabled = false;
+
 try {
   if (getAdminApps().length === 0) {
     // Cloud Run (AI Studio) should provide environment variables automatically
@@ -33,11 +35,12 @@ try {
   }
   
   // Tenta conectar ao banco específico do config
+  const dbId = firebaseConfig.firestoreDatabaseId || '(default)';
   try {
     adminDb = getAdminFirestore(firebaseConfig.firestoreDatabaseId);
-    console.log(`[Firebase] Admin SDK initialized for database: ${firebaseConfig.firestoreDatabaseId}`);
+    console.log(`[Firebase] Admin SDK initialized for database: ${dbId}`);
   } catch (dbErr) {
-    console.warn(`[Firebase] Falha ao conectar ao banco ${firebaseConfig.firestoreDatabaseId}, tentando (default)...`);
+    console.warn(`[Firebase] Falha ao conectar ao banco ${dbId}, tentando (default)...`);
     adminDb = getAdminFirestore();
   }
 } catch (e) {
@@ -50,9 +53,10 @@ const clientDb = getFirestore(clientApp, firebaseConfig.firestoreDatabaseId);
 
 /**
  * Returns a Firestore instance. Prefers Admin SDK on backend for bypassing rules.
+ * Automatically falls back to Client SDK if Admin SDK encounters permission issues.
  */
 const getDb = () => {
-  if (adminDb) return adminDb;
+  if (adminDb && !adminDisabled) return adminDb;
   return clientDb;
 };
 
@@ -200,6 +204,151 @@ const asyncHandler = (fn: Function) => (req: Request, res: Response, next: NextF
   Promise.resolve(fn(req, res, next)).catch(next);
 };
 
+console.log("[App] Registrando rotas de diagnóstico");
+app.get("/api/ping", (req, res) => res.json({ status: "alive", time: new Date().toISOString() }));
+
+/**
+ * Sincronização com Planilha Google Sheets (via CSV export)
+ * Rota movida ao topo para prioridade máxima e evitar 404 do SPA catch-all
+ */
+app.get("/api/excel-sync", asyncHandler(async (req: Request, res: Response) => {
+  console.log(`[ExcelSync] Request recebido: ${req.method} ${req.url}`);
+  const SHEET_ID = "1xP5Fk1iBD6a0isS6KF5DMG1ZjMbbLK2FsS6PupZVe6M";
+  const timestamp = Date.now();
+  
+  // URLs para tentar (Exportação e Publicação)
+  const urls = [
+    `https://docs.google.com/spreadsheets/d/${SHEET_ID}/export?format=csv&t=${timestamp}`,
+    `https://docs.google.com/spreadsheets/d/${SHEET_ID}/pub?output=csv&t=${timestamp}`,
+    `https://docs.google.com/spreadsheets/d/e/2PACX-1vS-something-if-published/pub?output=csv&t=${timestamp}` // Placeholder
+  ];
+  
+  let csvData = "";
+  let lastError = "";
+
+  for (const url of urls) {
+    if (url.includes('something-if-published')) continue;
+    
+    try {
+      console.log(`[ExcelSync] Tentando URL: ${url}`);
+      const response = await axios.get(url, { 
+        responseType: 'text',
+        timeout: 10000, 
+        maxRedirects: 5,
+        validateStatus: () => true, // Captura qualquer status para diagnóstico
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+          'Accept': 'text/csv,text/plain,application/vnd.ms-excel'
+        }
+      });
+      
+      if (response.status >= 400) {
+        console.warn(`[ExcelSync] URL retornou erro ${response.status}: ${response.statusText}`);
+        lastError = `Status ${response.status}: ${response.statusText || 'Erro no Google'}.`;
+        continue;
+      }
+
+      const data = response.data;
+      if (data && typeof data === 'string') {
+        const preview = data.substring(0, 150).replace(/\n/g, ' ');
+        console.log(`[ExcelSync] Resposta recebida (preview): ${preview}...`);
+
+        if (data.includes('<!DOCTYPE html>') || data.includes('<html')) {
+          console.warn("[ExcelSync] Resposta é HTML em vez de CSV. Planilha privada ou página de login.");
+          lastError = "A planilha retornou uma página de login. Certifique-se de que ela está configurada como 'Qualquer pessoa com o link' em 'Compartilhar' e também use 'Arquivo > Compartilhar > Publicar na web'.";
+        } else if (data.includes(',') || data.includes(';')) {
+          csvData = data;
+          console.log(`[ExcelSync] Sucesso com a URL: ${url.split('?')[0]}`);
+          break;
+        } else {
+          console.warn("[ExcelSync] Resposta é texto mas não parece CSV (sem delimitadores).");
+          lastError = "A planilha retornou texto simples sem o formato CSV esperado. Verifique se o conteúdo está correto.";
+        }
+      }
+    } catch (e: any) {
+      console.error(`[ExcelSyncError] Falha crítica na URL: ${e.message}`);
+      lastError = `Conexão falhou: ${e.message}`;
+    }
+  }
+
+  if (!csvData) {
+    return res.status(403).json({ 
+      error: `Não foi possível obter os dados da planilha. Verifique se o ID ${SHEET_ID} está correto e se a planilha está pública. Detalhe: ${lastError}` 
+    });
+  }
+
+  try {
+    const parsed = Papa.parse(csvData, {
+      header: true,
+      skipEmptyLines: true
+    });
+
+    const rawData = parsed.data as any[];
+    const suppliersMap: Record<string, any> = {};
+
+    rawData.forEach((row: any) => {
+      const findVal = (row: any, keywords: string[]) => {
+        const keys = Object.keys(row);
+        const match = keys.find(k => {
+          const cleanK = k.trim().toLowerCase()
+            .normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+          return keywords.some(kw => {
+            const cleanKW = kw.toLowerCase()
+              .normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+            return cleanK === cleanKW || cleanK.includes(cleanKW);
+          });
+        });
+        return match ? row[match] : null;
+      };
+
+      const sNameRaw = findVal(row, ['Empresa Razão Social', 'Fornecedor', 'Empresa', 'Razão Social', 'Nome da Empresa']);
+      const sPhone = findVal(row, ['Telefone', 'WhatsApp', 'Celular', 'Contato']) || '';
+      const pName = findVal(row, ['Produto', 'Nome', 'Nome do Produto', 'Descrição', 'Item']);
+      const rawPrice = findVal(row, ['Preço', 'Valor', 'Valor Unitário', 'Preço Unitário', 'Preço de Custo', 'Custo']);
+      const category = findVal(row, ['Categoria', 'Grupo', 'Seção']) || 'Fornecedor';
+      const lastPurchaseDate = findVal(row, ['Ultima Data Compra', 'Data Compra', 'Última Data', 'Data', 'Data de Compra', 'Ult. Compra']) || "";
+      const paymentMethod = findVal(row, ['Forma de Pagamento', 'Pagamento', 'Pagto', 'Forma Pagto', 'Meio de Pagamento', 'Tipo de Pagamento']) || "";
+
+      if (sNameRaw && pName) {
+        const sName = String(sNameRaw).trim().toUpperCase();
+        let pPrice = 0;
+        if (typeof rawPrice === 'number') {
+          pPrice = rawPrice;
+        } else if (rawPrice) {
+          const strPrice = String(rawPrice).trim();
+          if (strPrice.includes(',')) {
+            pPrice = parseFloat(strPrice.replace(/\./g, '').replace(',', '.'));
+          } else {
+            pPrice = parseFloat(strPrice);
+          }
+        }
+
+        if (!suppliersMap[sName]) {
+          suppliersMap[sName] = {
+            name: sName,
+            phone: sPhone,
+            products: []
+          };
+        }
+        suppliersMap[sName].products.push({
+          name: pName,
+          price: isNaN(pPrice) ? 0 : pPrice,
+          category: category,
+          lastPurchaseDate,
+          paymentMethod
+        });
+      }
+    });
+
+    res.json({ data: suppliersMap });
+  } catch (error) {
+    console.error('[ExcelSyncError]', error instanceof Error ? error.message : String(error));
+    res.status(500).json({ error: "Erro ao sincronizar com a planilha Google." });
+  }
+}));
+
+// asyncHandler movido para o topo
+
 // --- ROTAS DE NOTIFICAÇÃO PUSH ---
 
 /**
@@ -241,20 +390,40 @@ const startBackgroundReminderWorker = () => {
       const now = new Date();
       const nowStr = now.toISOString();
       
-      const db = getDb();
-      
-      const q = query(
-        collection(db, 'reminders'), 
-        where('notified', '==', false),
-        where('date', '<=', nowStr)
-      );
-      
+      const dbInst = getDb();
       let snapshot;
+      
+      // Detecção se estamos usando Admin SDK ou Client SDK
       try {
-        snapshot = await getDocs(q);
-      } catch (err) {
-        handleFirestoreError(err, OperationType.LIST, 'reminders');
-        throw err;
+        if (adminDb && dbInst === adminDb && !adminDisabled) {
+          // Firebase Admin SDK logic
+          snapshot = await adminDb.collection('reminders')
+            .where('notified', '==', false)
+            .where('date', '<=', nowStr)
+            .get();
+        } else {
+          // Firebase Client SDK logic
+          const q = query(
+            collection(clientDb as any, 'reminders'), 
+            where('notified', '==', false),
+            where('date', '<=', nowStr)
+          );
+          snapshot = await getDocs(q);
+        }
+      } catch (dbErr: any) {
+        if (dbErr.message?.includes("PERMISSION_DENIED") && adminDb && !adminDisabled) {
+          console.warn("[ReminderWorker] Admin SDK Permission Denied. Switching to Client SDK fallback...");
+          adminDisabled = true;
+          // Tenta novamente imediatamente com Client SDK
+          const q = query(
+            collection(clientDb as any, 'reminders'), 
+            where('notified', '==', false),
+            where('date', '<=', nowStr)
+          );
+          snapshot = await getDocs(q);
+        } else {
+          throw dbErr;
+        }
       }
 
       if (snapshot.empty) return;
@@ -558,151 +727,6 @@ app.get("/api/omie-direct/products", asyncHandler(async (req: Request, res: Resp
   });
 
   res.json({ data: mergedProducts });
-}));
-
-/**
- * Sincronização com Planilha Google Sheets (via CSV export)
- */
-app.get("/api/excel-sync", asyncHandler(async (req: Request, res: Response) => {
-  const SHEET_ID = "1xP5Fk1iBD6a0isS6KF5DMG1ZjMbbLK2FsS6PupZVe6M";
-  const timestamp = Date.now();
-  
-  // URLs para tentar (Exportação e Publicação)
-  const urls = [
-    `https://docs.google.com/spreadsheets/d/${SHEET_ID}/export?format=csv&t=${timestamp}`,
-    `https://docs.google.com/spreadsheets/d/${SHEET_ID}/pub?output=csv&t=${timestamp}`,
-    `https://docs.google.com/spreadsheets/d/e/2PACX-1vS-something-if-published/pub?output=csv&t=${timestamp}` // Placeholder
-  ];
-  
-  let csvData = "";
-  let lastError = "";
-
-  for (const url of urls) {
-    if (url.includes('something-if-published')) continue;
-    
-    try {
-      console.log(`[ExcelSync] Tentando URL: ${url}`);
-      const response = await axios.get(url, { 
-        responseType: 'text',
-        timeout: 10000, 
-        maxRedirects: 5,
-        validateStatus: () => true, // Captura qualquer status para diagnóstico
-        headers: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-          'Accept': 'text/csv,text/plain,application/vnd.ms-excel'
-        }
-      });
-      
-      if (response.status >= 400) {
-        console.warn(`[ExcelSync] URL retornou erro ${response.status}: ${response.statusText}`);
-        lastError = `Status ${response.status}: ${response.statusText || 'Erro no Google'}.`;
-        continue;
-      }
-
-      const data = response.data;
-      if (data && typeof data === 'string') {
-        // Log dos primeiros caracteres para diagnóstico
-        const preview = data.substring(0, 150).replace(/\n/g, ' ');
-        console.log(`[ExcelSync] Resposta recebida (preview): ${preview}...`);
-
-        if (data.includes('<!DOCTYPE html>') || data.includes('<html')) {
-          console.warn("[ExcelSync] Resposta é HTML em vez de CSV. Planilha privada ou página de login.");
-          lastError = "A planilha retornou uma página de login. Certifique-se de que ela está configurada como 'Qualquer pessoa com o link' em 'Compartilhar' e também use 'Arquivo > Compartilhar > Publicar na web'.";
-        } else if (data.includes(',') || data.includes(';')) {
-          csvData = data;
-          console.log(`[ExcelSync] Sucesso com a URL: ${url.split('?')[0]}`);
-          break;
-        } else {
-          console.warn("[ExcelSync] Resposta é texto mas não parece CSV (sem delimitadores).");
-          lastError = "A planilha retornou texto simples sem o formato CSV esperado. Verifique se o conteúdo está correto.";
-        }
-      }
-    } catch (e: any) {
-      console.error(`[ExcelSyncError] Falha crítica na URL: ${e.message}`);
-      lastError = `Conexão falhou: ${e.message}`;
-    }
-  }
-
-  if (!csvData) {
-    return res.status(403).json({ 
-      error: `Não foi possível obter os dados da planilha. Verifique se o ID ${SHEET_ID} está correto e se a planilha está pública. Detalhe: ${lastError}` 
-    });
-  }
-
-  try {
-    const parsed = Papa.parse(csvData, {
-      header: true,
-      skipEmptyLines: true
-    });
-
-    const rawData = parsed.data as any[];
-    const suppliersMap: Record<string, any> = {};
-
-    rawData.forEach((row: any) => {
-      // Helper para buscar valores em colunas com nomes variados
-      const findVal = (row: any, keywords: string[]) => {
-        const keys = Object.keys(row);
-        const match = keys.find(k => {
-          const cleanK = k.trim().toLowerCase()
-            .normalize("NFD").replace(/[\u0300-\u036f]/g, ""); // Remove acentos
-          return keywords.some(kw => {
-            const cleanKW = kw.toLowerCase()
-              .normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-            return cleanK === cleanKW || cleanK.includes(cleanKW);
-          });
-        });
-        return match ? row[match] : null;
-      };
-
-      let sName = (findVal(row, ['Empresa Razão Social', 'Fornecedor', 'Empresa', 'Razão Social']) || "").toString().trim();
-      const sPhone = (findVal(row, ['Telefone', 'WhatsApp', 'Celular']) || "").toString().trim();
-      const pName = (findVal(row, ['Produto', 'Descrição', 'Item', 'Nome']) || "").toString().trim();
-      
-      let pPrice = 0;
-      const rawPrice = findVal(row, ['Valor Unitário', 'Preço', 'Valor', 'Preço Unitário']);
-      if (typeof rawPrice === 'number') {
-        pPrice = rawPrice;
-      } else if (rawPrice) {
-        const strPrice = rawPrice.toString().replace('R$', '').trim();
-        if (strPrice.includes(',')) {
-          pPrice = parseFloat(strPrice.replace(/\./g, '').replace(',', '.'));
-        } else {
-          pPrice = parseFloat(strPrice);
-        }
-      }
-
-      const lastPurchaseDate = (findVal(row, ['Ultima Data Compra', 'Data Compra', 'Última Data', 'Data', 'Data de Compra', 'Ult. Compra']) || "").toString().trim();
-      const paymentMethod = (findVal(row, ['Forma de Pagamento', 'Pagamento', 'Pagto', 'Forma Pagto', 'Meio de Pagamento', 'Tipo de Pagamento']) || "").toString().trim();
-      const category = (findVal(row, ['Categoria', 'Grupo', 'Seção']) || "Fornecedor").toString().trim();
-
-      // Se não houver nome de fornecedor mas houver produto, agrupa em "DIVERSOS"
-      if (!sName && pName) {
-        sName = "DIVERSOS";
-      }
-
-      if (sName && pName) {
-        if (!suppliersMap[sName]) {
-          suppliersMap[sName] = {
-            name: sName,
-            phone: sPhone,
-            products: []
-          };
-        }
-        suppliersMap[sName].products.push({
-          name: pName,
-          price: isNaN(pPrice) ? 0 : pPrice,
-          category: category,
-          lastPurchaseDate,
-          paymentMethod
-        });
-      }
-    });
-
-    res.json({ data: suppliersMap });
-  } catch (error) {
-    console.error('[ExcelSyncError]', error instanceof Error ? error.message : String(error));
-    res.status(500).json({ error: "Erro ao sincronizar com a planilha Google." });
-  }
 }));
 
 // --- ROTAS DE API ---

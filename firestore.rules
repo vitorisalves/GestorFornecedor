@@ -5,7 +5,15 @@ service cloud.firestore {
     // ===============================================================
     // 0. Public and Background Access (Worker/Public)
     // ===============================================================
-    // Moved to top and slightly expanded for robustness
+    /** 
+     * NOTE: These collections are currently public to allow the ReminderWorker
+     * to function even if the Firebase Admin SDK fails with PERMISSION_DENIED.
+     * 
+     * ERROR IDENTIFIED: '7 PERMISSION_DENIED' in background workers usually means
+     * the Google Cloud Service Account lacks the "Cloud Datastore User" role.
+     * 
+     * FIX REQUIRED: Add 'roles/datastore.user' to the Compute Service Account.
+     */
     match /reminders/{reminderId} {
       allow read, write: if true;
     }

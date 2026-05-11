@@ -5,6 +5,7 @@
 
 import React from 'react';
 import * as XLSX from 'xlsx';
+import Papa from 'papaparse';
 import { Supplier, Product } from '../types';
 import { generateId, extractErrorMessage } from '../utils';
 
@@ -146,9 +147,107 @@ export const useExcel = (suppliers: Supplier[], saveSupplier: (s: Supplier) => P
   };
 
   const handleSyncSheets = async (onDataLoaded: (data: Record<string, Supplier>) => void) => {
+    const SHEET_ID = "1xP5Fk1iBD6a0isS6KF5DMG1ZjMbbLK2FsS6PupZVe6M";
+    
+    const parseCsvData = (csvText: string): Record<string, Supplier> => {
+      const parsed = Papa.parse(csvText, { header: true, skipEmptyLines: true });
+      const rawData = parsed.data as any[];
+      const suppliersMap: Record<string, Supplier> = {};
+
+      const findVal = (row: any, keywords: string[]) => {
+        const keys = Object.keys(row);
+        const match = keys.find(k => {
+          const cleanK = k.toString().trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+          return keywords.some(kw => {
+            const cleanKW = kw.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+            return cleanK === cleanKW || cleanK.includes(cleanKW);
+          });
+        });
+        return match ? row[match] : null;
+      };
+
+      rawData.forEach((row: any) => {
+        const sNameRaw = findVal(row, ['Empresa Razão Social', 'Fornecedor', 'Empresa', 'Razão Social', 'Nome da Empresa']);
+        const sPhone = findVal(row, ['Telefone', 'WhatsApp', 'Celular', 'Contato']) || '';
+        const pName = findVal(row, ['Produto', 'Nome', 'Nome do Produto', 'Descrição', 'Item']);
+        const rawPrice = findVal(row, ['Preço', 'Valor', 'Valor Unitário', 'Preço Unitário', 'Preço de Custo', 'Custo']);
+        const category = findVal(row, ['Categoria', 'Grupo', 'Seção']) || 'Fornecedor';
+        const lastPurchaseDate = findVal(row, ['Ultima Data Compra', 'Data Compra', 'Última Data', 'Data', 'Data de Compra', 'Ult. Compra']) || "";
+        const paymentMethod = findVal(row, ['Forma de Pagamento', 'Pagamento', 'Pagto', 'Forma Pagto', 'Meio de Pagamento', 'Tipo de Pagamento']) || "";
+
+        if (sNameRaw && pName) {
+          const sName = String(sNameRaw).trim().toUpperCase();
+          let pPrice = 0;
+          if (typeof rawPrice === 'number') {
+            pPrice = rawPrice;
+          } else if (rawPrice) {
+            const strPrice = String(rawPrice).trim();
+            if (strPrice.includes(',')) {
+              pPrice = parseFloat(strPrice.replace(/\./g, '').replace(',', '.'));
+            } else {
+              pPrice = parseFloat(strPrice);
+            }
+          }
+
+          if (!suppliersMap[sName]) {
+            suppliersMap[sName] = {
+              id: generateId(),
+              name: sName,
+              phone: String(sPhone),
+              products: []
+            };
+          }
+          suppliersMap[sName].products.push({
+            name: String(pName),
+            price: isNaN(pPrice) ? 0 : pPrice,
+            category: String(category),
+            lastPurchaseDate: String(lastPurchaseDate),
+            paymentMethod: String(paymentMethod)
+          });
+        }
+      });
+      return suppliersMap;
+    };
+
     try {
       addNotification('Sincronizando com Google Sheets...', 0);
-      const response = await fetch('/api/excel-sync');
+      let response = await fetch('/api/excel-sync');
+      
+      // Fallback: Se o backend retornar 404 (provavelmente rodando em ambiente sem backend configurado), 
+      // tenta buscar diretamente do Google Sheets via Client-Side.
+      if (response.status === 404) {
+        console.warn('[Sync] Backend não encontrado (404). Tentando sincronização direta via Client-Side...');
+        const timestamp = Date.now();
+        const urls = [
+          `https://docs.google.com/spreadsheets/d/${SHEET_ID}/export?format=csv&t=${timestamp}`,
+          `https://docs.google.com/spreadsheets/d/${SHEET_ID}/pub?output=csv&t=${timestamp}`
+        ];
+
+        let success = false;
+        for (const url of urls) {
+          try {
+            const res = await fetch(url);
+            if (res.ok) {
+              const csvText = await res.text();
+              if (csvText && !csvText.includes('<!DOCTYPE html>')) {
+                const data = parseCsvData(csvText);
+                onDataLoaded(data);
+                addNotification('Sincronização direta concluída!', 0);
+                success = true;
+                break;
+              }
+            }
+          } catch (e) {
+            console.error(`[SyncDirect] Falha ao acessar ${url}:`, e);
+          }
+        }
+
+        if (!success) {
+          throw new Error('Ambiente sem backend e falha na conexão direta com Google Sheets.');
+        }
+        return;
+      }
+
       if (!response.ok) {
         let errorMsg = 'Falha na resposta do servidor';
         try {
