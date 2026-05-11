@@ -1,6 +1,8 @@
 import express, { Request, Response, NextFunction } from "express";
 import axios, { AxiosInstance } from "axios";
 import webPush from "web-push";
+import { initializeApp as initAdminApp, getApps as getAdminApps } from 'firebase-admin/app';
+import { getFirestore as getAdminFirestore } from 'firebase-admin/firestore';
 import { 
   getFirestore, 
   collection, 
@@ -20,14 +22,39 @@ import firebaseConfig from '../../firebase-applet-config.json';
 
 // --- INITIALIZATION ---
 
+// Try to initialize Admin SDK (works in AI Studio and environments with Service Account)
+let adminDb: any = null;
+try {
+  if (getAdminApps().length === 0) {
+    // Cloud Run (AI Studio) should provide environment variables automatically
+    initAdminApp({
+      projectId: firebaseConfig.projectId,
+    });
+  }
+  
+  // Tenta conectar ao banco específico do config
+  try {
+    adminDb = getAdminFirestore(firebaseConfig.firestoreDatabaseId);
+    console.log(`[Firebase] Admin SDK initialized for database: ${firebaseConfig.firestoreDatabaseId}`);
+  } catch (dbErr) {
+    console.warn(`[Firebase] Falha ao conectar ao banco ${firebaseConfig.firestoreDatabaseId}, tentando (default)...`);
+    adminDb = getAdminFirestore();
+  }
+} catch (e) {
+  console.warn("[Firebase] Admin SDK initialization failed. Using Client SDK only.", e instanceof Error ? e.message : String(e));
+}
+
 // Initialize Client SDK (works everywhere, subject to security rules)
 const clientApp = initializeApp(firebaseConfig);
 const clientDb = getFirestore(clientApp, firebaseConfig.firestoreDatabaseId);
 
 /**
- * Returns a Firestore instance.
+ * Returns a Firestore instance. Prefers Admin SDK on backend for bypassing rules.
  */
-const getDb = () => clientDb;
+const getDb = () => {
+  if (adminDb) return adminDb;
+  return clientDb;
+};
 
 // --- ERROR HANDLING & MONITORING ---
 
@@ -51,7 +78,8 @@ function handleFirestoreError(error: unknown, operationType: OperationType, path
   const errInfo: FirestoreErrorInfo = {
     error: error instanceof Error ? error.message : String(error),
     authInfo: {
-      userId: "server-context", // No backend auth context in background worker usually
+      userId: "server-context",
+      usingAdmin: !!adminDb
     },
     operationType,
     path
@@ -65,31 +93,43 @@ function handleFirestoreError(error: unknown, operationType: OperationType, path
  */
 async function testConnection() {
   try {
-    const testPath = 'reminders/connection-test';
-    await getDocFromServer(doc(clientDb, testPath));
-    console.log("[Firestore] Connection check: SUCCESS");
-  } catch (error) {
-    if (error instanceof Error && error.message.includes('the client is offline')) {
-      console.error("[Firestore] Connection check: FAILED (offline)");
+    const db = getDb();
+    if (db.collection) {
+      // Admin SDK
+      await db.collection('reminders').limit(1).get();
+      console.log("[Firestore] Admin connection check: SUCCESS");
     } else {
-      console.warn("[Firestore] Connection check: Expected warning (or error in permissions)", error instanceof Error ? error.message : String(error));
+      // Client SDK
+      const testPath = 'reminders/connection-test';
+      await getDocFromServer(doc(clientDb, testPath));
+      console.log("[Firestore] Client connection check: SUCCESS");
     }
+  } catch (error) {
+    console.warn("[Firestore] Boot connection check warning:", error instanceof Error ? error.message : String(error));
   }
 }
 testConnection();
 
 /**
- * Helper to handle database operations using Client SDK
+ * Helper to handle database operations
  */
 const fsOps = {
   collection: (coll: string) => {
-    return collection(clientDb, coll);
+    const db: any = getDb();
+    if (db.collection) return db.collection(coll);
+    return collection(db, coll);
   },
   getDocs: async (collOrQuery: any, path: string = 'unknown') => {
     try {
-      if (typeof collOrQuery === 'string') {
-        return await getDocs(collection(clientDb, collOrQuery));
+      const db: any = getDb();
+      if (db.collection) {
+        // Se for string, é uma coleção Admin
+        if (typeof collOrQuery === 'string') return await db.collection(collOrQuery).get();
+        // Se tiver query Admin
+        if (collOrQuery.get) return await collOrQuery.get();
       }
+      // Client SDK fallback
+      if (typeof collOrQuery === 'string') return await getDocs(collection(db, collOrQuery));
       return await getDocs(collOrQuery);
     } catch (err) {
       handleFirestoreError(err, OperationType.LIST, path);
@@ -97,10 +137,13 @@ const fsOps = {
     }
   },
   doc: (coll: string, id: string) => {
-    return doc(clientDb, coll, id);
+    const db: any = getDb();
+    if (db.collection) return db.collection(coll).doc(id);
+    return doc(db, coll, id);
   },
   update: async (ref: any, data: any, path: string = 'unknown') => {
     try {
+      if (ref.update) return await ref.update(data);
       return await updateDoc(ref, data);
     } catch (err) {
       handleFirestoreError(err, OperationType.UPDATE, path);
@@ -109,6 +152,7 @@ const fsOps = {
   },
   set: async (ref: any, data: any, path: string = 'unknown') => {
     try {
+      if (ref.set) return await ref.set(data);
       return await setDoc(ref, data);
     } catch (err) {
       handleFirestoreError(err, OperationType.WRITE, path);
@@ -117,6 +161,7 @@ const fsOps = {
   },
   delete: async (ref: any, path: string = 'unknown') => {
     try {
+      if (ref.delete) return await ref.delete();
       return await deleteDoc(ref);
     } catch (err) {
       handleFirestoreError(err, OperationType.DELETE, path);
@@ -541,30 +586,46 @@ app.get("/api/excel-sync", asyncHandler(async (req: Request, res: Response) => {
         responseType: 'text',
         timeout: 10000, 
         maxRedirects: 5,
+        validateStatus: () => true, // Captura qualquer status para diagnóstico
         headers: {
           'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
           'Accept': 'text/csv,text/plain,application/vnd.ms-excel'
         }
       });
       
+      if (response.status >= 400) {
+        console.warn(`[ExcelSync] URL retornou erro ${response.status}: ${response.statusText}`);
+        lastError = `Status ${response.status}: ${response.statusText || 'Erro no Google'}.`;
+        continue;
+      }
+
       const data = response.data;
-      if (data && typeof data === 'string' && !data.includes('<!DOCTYPE html>') && data.includes(',')) {
-        csvData = data;
-        console.log(`[ExcelSync] Sucesso com a URL: ${url.split('?')[0]}`);
-        break;
-      } else if (data && typeof data === 'string' && data.includes('<!DOCTYPE html>')) {
-        console.warn(`[ExcelSync] URL ${url.split('?')[0]} retornou HTML (Login/Privado)`);
-        lastError = "A planilha retornou uma página de login. Certifique-se de que ela está configurada como 'Qualquer pessoa com o link' ou use o comando 'Publicar na web'.";
+      if (data && typeof data === 'string') {
+        // Log dos primeiros caracteres para diagnóstico
+        const preview = data.substring(0, 150).replace(/\n/g, ' ');
+        console.log(`[ExcelSync] Resposta recebida (preview): ${preview}...`);
+
+        if (data.includes('<!DOCTYPE html>') || data.includes('<html')) {
+          console.warn("[ExcelSync] Resposta é HTML em vez de CSV. Planilha privada ou página de login.");
+          lastError = "A planilha retornou uma página de login. Certifique-se de que ela está configurada como 'Qualquer pessoa com o link' em 'Compartilhar' e também use 'Arquivo > Compartilhar > Publicar na web'.";
+        } else if (data.includes(',') || data.includes(';')) {
+          csvData = data;
+          console.log(`[ExcelSync] Sucesso com a URL: ${url.split('?')[0]}`);
+          break;
+        } else {
+          console.warn("[ExcelSync] Resposta é texto mas não parece CSV (sem delimitadores).");
+          lastError = "A planilha retornou texto simples sem o formato CSV esperado. Verifique se o conteúdo está correto.";
+        }
       }
     } catch (e: any) {
-      console.error(`[ExcelSyncError] Falha na URL ${url.split('?')[0]}:`, e.message);
-      lastError = e.message;
+      console.error(`[ExcelSyncError] Falha crítica na URL: ${e.message}`);
+      lastError = `Conexão falhou: ${e.message}`;
     }
   }
 
   if (!csvData) {
     return res.status(403).json({ 
-      error: lastError || "Não foi possível obter os dados. Verifique a visibilidade da planilha." 
+      error: `Não foi possível obter os dados da planilha. Verifique se o ID ${SHEET_ID} está correto e se a planilha está pública. Detalhe: ${lastError}` 
     });
   }
 

@@ -150,11 +150,18 @@ export const useExcel = (suppliers: Supplier[], saveSupplier: (s: Supplier) => P
       addNotification('Sincronizando com Google Sheets...', 0);
       const response = await fetch('/api/excel-sync');
       if (!response.ok) {
-        const errData = await response.json().catch(() => ({}));
-        throw new Error(errData.error || 'Falha na resposta do servidor');
+        let errorMsg = 'Falha na resposta do servidor';
+        try {
+          const errData = await response.json();
+          errorMsg = errData.error || errData.message || errorMsg;
+        } catch (jsonErr) {
+          errorMsg = `Erro ${response.status}: ${response.statusText || 'Resposta inválida do servidor'}`;
+        }
+        throw new Error(errorMsg);
       }
       
-      const { data } = await response.json();
+      const resData = await response.json();
+      const { data } = resData;
       if (!data || Object.keys(data).length === 0) {
         addNotification('Nenhum dado encontrado na planilha', 0);
         return;
