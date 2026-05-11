@@ -250,11 +250,23 @@ export const useExcel = (suppliers: Supplier[], saveSupplier: (s: Supplier) => P
 
       if (!response.ok) {
         let errorMsg = 'Falha na resposta do servidor';
-        try {
-          const errData = await response.json();
-          errorMsg = errData.error || errData.message || errorMsg;
-        } catch (jsonErr) {
-          errorMsg = `Erro ${response.status}: ${response.statusText || 'Resposta inválida do servidor'}`;
+        const contentType = response.headers.get('content-type');
+        
+        if (contentType && contentType.includes('application/json')) {
+          try {
+            const errData = await response.json();
+            errorMsg = errData.error || errData.message || errorMsg;
+          } catch (jsonErr) {
+            errorMsg = `Erro ${response.status}: Resposta JSON corrompida`;
+          }
+        } else {
+          try {
+            const text = await response.text();
+            // Mostra os primeiros 100 caracteres se for HTML para ajudar a diagnosticar
+            errorMsg = `Erro ${response.status}: ${text.substring(0, 100)}...`;
+          } catch (textErr) {
+            errorMsg = `Erro ${response.status}: ${response.statusText || 'Erro desconhecido'}`;
+          }
         }
         throw new Error(errorMsg);
       }

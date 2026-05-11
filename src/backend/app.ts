@@ -18,7 +18,32 @@ import {
 } from 'firebase/firestore';
 import { initializeApp } from 'firebase/app';
 import Papa from 'papaparse';
-import firebaseConfig from '../../firebase-applet-config.json';
+import fs from "fs";
+import path from "path";
+import { fileURLToPath } from "url";
+
+// Get current directory in ESM
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// Import JSON safely for ESM
+let firebaseConfig: any;
+try {
+  const configPath = path.resolve(__dirname, "../../firebase-applet-config.json");
+  firebaseConfig = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+} catch (e) {
+  console.error("[Backend] Failed to load firebase-applet-config.json:", e);
+  // Fallback to empty config to prevent complete crash
+  firebaseConfig = {
+    projectId: process.env.VITE_FIREBASE_PROJECT_ID || "",
+    storageBucket: process.env.VITE_FIREBASE_STORAGE_BUCKET || "",
+    apiKey: process.env.VITE_FIREBASE_API_KEY || "",
+    authDomain: process.env.VITE_FIREBASE_AUTH_DOMAIN || "",
+    messagingSenderId: process.env.VITE_FIREBASE_MESSAGING_SENDER_ID || "",
+    appId: process.env.VITE_FIREBASE_APP_ID || "",
+    firestoreDatabaseId: process.env.VITE_FIREBASE_DATABASE_ID || "(default)"
+  };
+}
 
 // --- INITIALIZATION ---
 
@@ -283,14 +308,21 @@ app.get("/api/excel-sync", asyncHandler(async (req: Request, res: Response) => {
       skipEmptyLines: true
     });
 
-    const rawData = parsed.data as any[];
+    const rawData = Array.isArray(parsed.data) ? parsed.data : [];
     const suppliersMap: Record<string, any> = {};
 
+    if (rawData.length === 0) {
+      console.warn("[ExcelSync] Planilha vazia ou formato não reconhecido.");
+      return res.status(400).json({ error: "A planilha parece estar vazia ou o formato não é válido (CSV esperado)." });
+    }
+
     rawData.forEach((row: any) => {
+      if (!row || typeof row !== 'object') return;
+
       const findVal = (row: any, keywords: string[]) => {
         const keys = Object.keys(row);
         const match = keys.find(k => {
-          const cleanK = k.trim().toLowerCase()
+          const cleanK = k.toString().trim().toLowerCase()
             .normalize("NFD").replace(/[\u0300-\u036f]/g, "");
           return keywords.some(kw => {
             const cleanKW = kw.toLowerCase()
