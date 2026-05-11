@@ -171,8 +171,9 @@ export const useExcel = (suppliers: Supplier[], saveSupplier: (s: Supplier) => P
 
       onDataLoaded(sanitizedData);
     } catch (err) {
-      console.error('Erro na sincronização:', extractErrorMessage(err));
-      addNotification('Erro ao sincronizar com Google Sheets', 0);
+      const msg = extractErrorMessage(err);
+      console.error('Erro na sincronização:', msg);
+      addNotification(`Erro ao sincronizar: ${msg}`, 0);
     }
   };
 

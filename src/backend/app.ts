@@ -519,31 +519,56 @@ app.get("/api/omie-direct/products", asyncHandler(async (req: Request, res: Resp
  * Sincronização com Planilha Google Sheets (via CSV export)
  */
 app.get("/api/excel-sync", asyncHandler(async (req: Request, res: Response) => {
-  // Adiciona timestamp para evitar cache do Google Sheets
+  const SHEET_ID = "1xP5Fk1iBD6a0isS6KF5DMG1ZjMbbLK2FsS6PupZVe6M";
   const timestamp = Date.now();
-  const SHEET_URL = `https://docs.google.com/spreadsheets/d/1xP5Fk1iBD6a0isS6KF5DMG1ZjMbbLK2FsS6PupZVe6M/export?format=csv&t=${timestamp}`;
   
-  try {
-    console.log(`[ExcelSync] Iniciando sincronização com Google Sheets: ${SHEET_URL}`);
-    
-    // Google Sheets às vezes bloqueia requisições sem User-Agent em ambientes de datacenter (Vercel/Cloud Run)
-    const response = await axios.get(SHEET_URL, { 
-      responseType: 'text',
-      timeout: 15000, 
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
-      }
-    });
-    
-    const csvData = response.data;
+  // URLs para tentar (Exportação e Publicação)
+  const urls = [
+    `https://docs.google.com/spreadsheets/d/${SHEET_ID}/export?format=csv&t=${timestamp}`,
+    `https://docs.google.com/spreadsheets/d/${SHEET_ID}/pub?output=csv&t=${timestamp}`,
+    `https://docs.google.com/spreadsheets/d/e/2PACX-1vS-something-if-published/pub?output=csv&t=${timestamp}` // Placeholder
+  ];
+  
+  let csvData = "";
+  let lastError = "";
 
-    if (!csvData || csvData.includes('<!DOCTYPE html>')) {
-      console.error('[ExcelSyncError] Recebeu HTML em vez de CSV. A planilha pode não estar pública.');
-      return res.status(403).json({ 
-        error: "A planilha não parece estar pública. Certifique-se de que 'Qualquer pessoa com o link' pode visualizar." 
+  for (const url of urls) {
+    if (url.includes('something-if-published')) continue;
+    
+    try {
+      console.log(`[ExcelSync] Tentando URL: ${url}`);
+      const response = await axios.get(url, { 
+        responseType: 'text',
+        timeout: 10000, 
+        maxRedirects: 5,
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+          'Accept': 'text/csv,text/plain,application/vnd.ms-excel'
+        }
       });
+      
+      const data = response.data;
+      if (data && typeof data === 'string' && !data.includes('<!DOCTYPE html>') && data.includes(',')) {
+        csvData = data;
+        console.log(`[ExcelSync] Sucesso com a URL: ${url.split('?')[0]}`);
+        break;
+      } else if (data && typeof data === 'string' && data.includes('<!DOCTYPE html>')) {
+        console.warn(`[ExcelSync] URL ${url.split('?')[0]} retornou HTML (Login/Privado)`);
+        lastError = "A planilha retornou uma página de login. Certifique-se de que ela está configurada como 'Qualquer pessoa com o link' ou use o comando 'Publicar na web'.";
+      }
+    } catch (e: any) {
+      console.error(`[ExcelSyncError] Falha na URL ${url.split('?')[0]}:`, e.message);
+      lastError = e.message;
     }
+  }
 
+  if (!csvData) {
+    return res.status(403).json({ 
+      error: lastError || "Não foi possível obter os dados. Verifique a visibilidade da planilha." 
+    });
+  }
+
+  try {
     const parsed = Papa.parse(csvData, {
       header: true,
       skipEmptyLines: true
