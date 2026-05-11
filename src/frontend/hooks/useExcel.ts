@@ -213,10 +213,10 @@ export const useExcel = (suppliers: Supplier[], saveSupplier: (s: Supplier) => P
       addNotification('Sincronizando com Google Sheets...', 0);
       let response = await fetch('/api/excel-sync');
       
-      // Fallback: Se o backend retornar 404 (provavelmente rodando em ambiente sem backend configurado), 
+      // Fallback: Se o backend retornar 404 ou 500 (provavelmente erro no Vercel ou ambiente sem backend), 
       // tenta buscar diretamente do Google Sheets via Client-Side.
-      if (response.status === 404) {
-        console.warn('[Sync] Backend não encontrado (404). Tentando sincronização direta via Client-Side...');
+      if (response.status === 404 || response.status === 500) {
+        console.warn(`[Sync] Backend retornou ${response.status}. Tentando sincronização direta via Client-Side...`);
         const timestamp = Date.now();
         const urls = [
           `https://docs.google.com/spreadsheets/d/${SHEET_ID}/export?format=csv&t=${timestamp}`,

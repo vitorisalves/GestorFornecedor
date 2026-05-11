@@ -18,31 +18,25 @@ import {
 } from 'firebase/firestore';
 import { initializeApp } from 'firebase/app';
 import Papa from 'papaparse';
-import fs from "fs";
-import path from "path";
-import { fileURLToPath } from "url";
 
-// Get current directory in ESM
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+// --- CONFIG LOADING ---
+let firebaseConfig: any = {
+  projectId: process.env.VITE_FIREBASE_PROJECT_ID || "",
+  storageBucket: process.env.VITE_FIREBASE_STORAGE_BUCKET || "",
+  apiKey: process.env.VITE_FIREBASE_API_KEY || "",
+  authDomain: process.env.VITE_FIREBASE_AUTH_DOMAIN || "",
+  messagingSenderId: process.env.VITE_FIREBASE_MESSAGING_SENDER_ID || "",
+  appId: process.env.VITE_FIREBASE_APP_ID || "",
+  firestoreDatabaseId: process.env.VITE_FIREBASE_DATABASE_ID || "(default)"
+};
 
-// Import JSON safely for ESM
-let firebaseConfig: any;
+// Top-level await to load config if available
 try {
-  const configPath = path.resolve(__dirname, "../../firebase-applet-config.json");
-  firebaseConfig = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+  const configModule = await import('../../firebase-applet-config.json', { assert: { type: 'json' } });
+  firebaseConfig = { ...firebaseConfig, ...configModule.default };
+  console.log("[Backend] Firebase config loaded from JSON file.");
 } catch (e) {
-  console.error("[Backend] Failed to load firebase-applet-config.json:", e);
-  // Fallback to empty config to prevent complete crash
-  firebaseConfig = {
-    projectId: process.env.VITE_FIREBASE_PROJECT_ID || "",
-    storageBucket: process.env.VITE_FIREBASE_STORAGE_BUCKET || "",
-    apiKey: process.env.VITE_FIREBASE_API_KEY || "",
-    authDomain: process.env.VITE_FIREBASE_AUTH_DOMAIN || "",
-    messagingSenderId: process.env.VITE_FIREBASE_MESSAGING_SENDER_ID || "",
-    appId: process.env.VITE_FIREBASE_APP_ID || "",
-    firestoreDatabaseId: process.env.VITE_FIREBASE_DATABASE_ID || "(default)"
-  };
+  console.warn("[Backend] Failed to load firebase-applet-config.json from root. Using environment variables/fallbacks.");
 }
 
 // --- INITIALIZATION ---
@@ -73,8 +67,20 @@ try {
 }
 
 // Initialize Client SDK (works everywhere, subject to security rules)
-const clientApp = initializeApp(firebaseConfig);
-const clientDb = getFirestore(clientApp, firebaseConfig.firestoreDatabaseId);
+let clientApp: any;
+let clientDb: any;
+
+if (firebaseConfig.apiKey && firebaseConfig.projectId) {
+  try {
+    clientApp = initializeApp(firebaseConfig);
+    clientDb = getFirestore(clientApp, firebaseConfig.firestoreDatabaseId);
+    console.log("[Firebase] Client SDK initialized.");
+  } catch (err) {
+    console.error("[Firebase] Client SDK initialization failed:", err);
+  }
+} else {
+  console.warn("[Firebase] Skipping Client SDK initialization (missing config).");
+}
 
 /**
  * Returns a Firestore instance. Prefers Admin SDK on backend for bypassing rules.
@@ -230,7 +236,12 @@ const asyncHandler = (fn: Function) => (req: Request, res: Response, next: NextF
 };
 
 console.log("[App] Registrando rotas de diagnóstico");
-app.get("/api/ping", (req, res) => res.json({ status: "alive", time: new Date().toISOString() }));
+app.get("/api/ping", (req, res) => res.json({ 
+  status: "alive", 
+  time: new Date().toISOString(),
+  env: process.env.NODE_ENV,
+  hasFirebaseConfig: !!firebaseConfig.projectId
+}));
 
 /**
  * Sincronização com Planilha Google Sheets (via CSV export)
@@ -258,9 +269,9 @@ app.get("/api/excel-sync", asyncHandler(async (req: Request, res: Response) => {
       console.log(`[ExcelSync] Tentando URL: ${url}`);
       const response = await axios.get(url, { 
         responseType: 'text',
-        timeout: 10000, 
-        maxRedirects: 5,
-        validateStatus: () => true, // Captura qualquer status para diagnóstico
+        timeout: 6000, 
+        maxRedirects: 3,
+        validateStatus: () => true,
         headers: {
           'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
           'Accept': 'text/csv,text/plain,application/vnd.ms-excel'
@@ -489,8 +500,14 @@ const startBackgroundReminderWorker = () => {
   }, 30000); 
 };
 
-// Inicia o worker
-startBackgroundReminderWorker();
+// Inicia o worker apenas fora do Vercel
+const isVercel = process.env.VERCEL === '1' || process.env.VERCEL_ENV !== undefined;
+if (!isVercel) {
+  console.log("[App] Iniciando ReminderWorker...");
+  startBackgroundReminderWorker();
+} else {
+  console.log("[App] No Vercel environment: ReminderWorker is disabled.");
+}
 
 /**
  * Retorna a chave pública VAPID para o frontend se inscrever.
