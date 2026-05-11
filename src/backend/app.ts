@@ -430,11 +430,30 @@ app.get("/api/omie-direct/products", asyncHandler(async (req: Request, res: Resp
  * Sincronização com Planilha Google Sheets (via CSV export)
  */
 app.get("/api/excel-sync", asyncHandler(async (req: Request, res: Response) => {
-  const SHEET_URL = "https://docs.google.com/spreadsheets/d/1xP5Fk1iBD6a0isS6KF5DMG1ZjMbbLK2FsS6PupZVe6M/export?format=csv";
+  // Adiciona timestamp para evitar cache do Google Sheets
+  const timestamp = Date.now();
+  const SHEET_URL = `https://docs.google.com/spreadsheets/d/1xP5Fk1iBD6a0isS6KF5DMG1ZjMbbLK2FsS6PupZVe6M/export?format=csv&t=${timestamp}`;
   
   try {
-    const response = await axios.get(SHEET_URL, { responseType: 'text' });
+    console.log(`[ExcelSync] Iniciando sincronização com Google Sheets: ${SHEET_URL}`);
+    
+    // Google Sheets às vezes bloqueia requisições sem User-Agent em ambientes de datacenter (Vercel/Cloud Run)
+    const response = await axios.get(SHEET_URL, { 
+      responseType: 'text',
+      timeout: 15000, 
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+      }
+    });
+    
     const csvData = response.data;
+
+    if (!csvData || csvData.includes('<!DOCTYPE html>')) {
+      console.error('[ExcelSyncError] Recebeu HTML em vez de CSV. A planilha pode não estar pública.');
+      return res.status(403).json({ 
+        error: "A planilha não parece estar pública. Certifique-se de que 'Qualquer pessoa com o link' pode visualizar." 
+      });
+    }
 
     const parsed = Papa.parse(csvData, {
       header: true,

@@ -149,7 +149,10 @@ export const useExcel = (suppliers: Supplier[], saveSupplier: (s: Supplier) => P
     try {
       addNotification('Sincronizando com Google Sheets...', 0);
       const response = await fetch('/api/excel-sync');
-      if (!response.ok) throw new Error('Falha na resposta do servidor');
+      if (!response.ok) {
+        const errData = await response.json().catch(() => ({}));
+        throw new Error(errData.error || 'Falha na resposta do servidor');
+      }
       
       const { data } = await response.json();
       if (!data || Object.keys(data).length === 0) {
