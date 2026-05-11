@@ -347,7 +347,7 @@ app.get("/api/excel-sync", asyncHandler(async (req: Request, res: Response) => {
       const sNameRaw = findVal(row, ['Empresa Razão Social', 'Fornecedor', 'Empresa', 'Razão Social', 'Nome da Empresa']);
       const sPhone = findVal(row, ['Telefone', 'WhatsApp', 'Celular', 'Contato']) || '';
       const pName = findVal(row, ['Produto', 'Nome', 'Nome do Produto', 'Descrição', 'Item']);
-      const rawPrice = findVal(row, ['Preço', 'Valor', 'Valor Unitário', 'Preço Unitário', 'Preço de Custo', 'Custo']);
+      const rawPrice = findVal(row, ['Valor Unitário', 'Preço Unitário', 'Preço', 'Valor', 'Preço de Custo', 'Custo']);
       const category = findVal(row, ['Categoria', 'Grupo', 'Seção']) || 'Fornecedor';
       const lastPurchaseDate = findVal(row, ['Ultima Data Compra', 'Data Compra', 'Última Data', 'Data', 'Data de Compra', 'Ult. Compra']) || "";
       const paymentMethod = findVal(row, ['Forma de Pagamento', 'Pagamento', 'Pagto', 'Forma Pagto', 'Meio de Pagamento', 'Tipo de Pagamento']) || "";
@@ -358,9 +358,16 @@ app.get("/api/excel-sync", asyncHandler(async (req: Request, res: Response) => {
         if (typeof rawPrice === 'number') {
           pPrice = rawPrice;
         } else if (rawPrice) {
-          const strPrice = String(rawPrice).trim();
-          if (strPrice.includes(',')) {
+          const strPrice = String(rawPrice).trim()
+            .replace('R$', '')
+            .replace(/\s/g, '');
+          
+          if (strPrice.includes(',') && strPrice.includes('.')) {
+            // Formato europeu/brasileiro (ex: 1.234,56)
             pPrice = parseFloat(strPrice.replace(/\./g, '').replace(',', '.'));
+          } else if (strPrice.includes(',')) {
+            // Formato simples com vírgula (ex: 1234,56)
+            pPrice = parseFloat(strPrice.replace(',', '.'));
           } else {
             pPrice = parseFloat(strPrice);
           }

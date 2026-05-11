@@ -122,23 +122,63 @@ export const useExcel = (suppliers: Supplier[], saveSupplier: (s: Supplier) => P
         await deleteAllSuppliers();
       }
 
-      const existingNames = new Set(suppliers.map(s => s.name.trim().toUpperCase()));
+      const existingSuppliersMap = new Map(suppliers.map(s => [s.name.trim().toUpperCase(), s]));
       const importedSuppliers = Object.values(data);
       let addedCount = 0;
+      let updatedCount = 0;
 
       for (const supplier of importedSuppliers) {
-        // Se não for substituir, verificamos duplicatas pelo nome
-        if (!replace && existingNames.has(supplier.name.trim().toUpperCase())) {
+        const normalizedName = supplier.name.trim().toUpperCase();
+        const existingSupplier = existingSuppliersMap.get(normalizedName);
+
+        // Se não for substituir e o fornecedor já existir, mesclamos os produtos
+        if (!replace && existingSupplier) {
+          const updatedSupplier: Supplier = { ...existingSupplier };
+          const pMap = new Map<string, number>(); 
+          updatedSupplier.products.forEach((p, idx) => pMap.set(p.name.trim().toUpperCase(), idx));
+
+          let changed = false;
+          supplier.products.forEach(newP => {
+            const pKey = newP.name.trim().toUpperCase();
+            if (pMap.has(pKey)) {
+              const existingIdx = pMap.get(pKey)!;
+              const oldP = updatedSupplier.products[existingIdx];
+              
+              // Verifica se houve mudança real nos dados do produto
+              if (oldP.price !== newP.price || 
+                  oldP.category !== newP.category || 
+                  oldP.paymentMethod !== newP.paymentMethod ||
+                  oldP.lastPurchaseDate !== newP.lastPurchaseDate) {
+                updatedSupplier.products[existingIdx] = { ...newP };
+                changed = true;
+              }
+            } else {
+              // Produto novo para fornecedor existente
+              updatedSupplier.products.push({ ...newP });
+              changed = true;
+            }
+          });
+
+          if (changed) {
+            await saveSupplier(updatedSupplier);
+            updatedCount++;
+          }
           continue;
         }
+
+        // Se for substituir ou se for um fornecedor totalmente novo
         await saveSupplier(supplier);
         addedCount++;
       }
 
-      if (addedCount === 0 && !replace) {
-        addNotification('Todos os fornecedores já existem na lista.', 0);
+      if (addedCount === 0 && updatedCount === 0 && !replace) {
+        addNotification('Nenhuma alteração necessária. Tudo está atualizado.', 0);
       } else {
-        addNotification(replace ? 'Lista substituída com sucesso!' : 'Importação concluída com sucesso!', addedCount);
+        let msg = replace ? 'Lista substituída com sucesso!' : 'Sincronização concluída!';
+        if (!replace) {
+          msg = `Sincronização: ${addedCount} novos e ${updatedCount} atualizados.`;
+        }
+        addNotification(msg, addedCount + updatedCount);
       }
     } catch (err) {
       console.error('Erro na execução da importação:', extractErrorMessage(err));
@@ -170,7 +210,7 @@ export const useExcel = (suppliers: Supplier[], saveSupplier: (s: Supplier) => P
         const sNameRaw = findVal(row, ['Empresa Razão Social', 'Fornecedor', 'Empresa', 'Razão Social', 'Nome da Empresa']);
         const sPhone = findVal(row, ['Telefone', 'WhatsApp', 'Celular', 'Contato']) || '';
         const pName = findVal(row, ['Produto', 'Nome', 'Nome do Produto', 'Descrição', 'Item']);
-        const rawPrice = findVal(row, ['Preço', 'Valor', 'Valor Unitário', 'Preço Unitário', 'Preço de Custo', 'Custo']);
+        const rawPrice = findVal(row, ['Valor Unitário', 'Preço Unitário', 'Preço', 'Valor', 'Preço de Custo', 'Custo']);
         const category = findVal(row, ['Categoria', 'Grupo', 'Seção']) || 'Fornecedor';
         const lastPurchaseDate = findVal(row, ['Ultima Data Compra', 'Data Compra', 'Última Data', 'Data', 'Data de Compra', 'Ult. Compra']) || "";
         const paymentMethod = findVal(row, ['Forma de Pagamento', 'Pagamento', 'Pagto', 'Forma Pagto', 'Meio de Pagamento', 'Tipo de Pagamento']) || "";
@@ -181,9 +221,16 @@ export const useExcel = (suppliers: Supplier[], saveSupplier: (s: Supplier) => P
           if (typeof rawPrice === 'number') {
             pPrice = rawPrice;
           } else if (rawPrice) {
-            const strPrice = String(rawPrice).trim();
-            if (strPrice.includes(',')) {
+            const strPrice = String(rawPrice).trim()
+              .replace('R$', '')
+              .replace(/\s/g, '');
+            
+            if (strPrice.includes(',') && strPrice.includes('.')) {
+              // Formato europeu/brasileiro (ex: 1.234,56)
               pPrice = parseFloat(strPrice.replace(/\./g, '').replace(',', '.'));
+            } else if (strPrice.includes(',')) {
+              // Formato simples com vírgula (ex: 1234,56)
+              pPrice = parseFloat(strPrice.replace(',', '.'));
             } else {
               pPrice = parseFloat(strPrice);
             }
