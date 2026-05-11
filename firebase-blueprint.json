@@ -71,6 +71,29 @@
         "quantity": { "type": "number" }
       },
       "required": ["id", "name", "supplierName", "purchaseDate", "delivered"]
+    },
+    "Reminder": {
+      "title": "Reminder",
+      "description": "A reminder for a product",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "productName": { "type": "string" },
+        "date": { "type": "string" },
+        "notified": { "type": "boolean" }
+      },
+      "required": ["productName", "date", "notified"]
+    },
+    "PushSubscription": {
+      "title": "Push Subscription",
+      "description": "Browser push subscription data",
+      "type": "object",
+      "properties": {
+        "endpoint": { "type": "string" },
+        "keys": { "type": "object" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["endpoint", "keys"]
     }
   },
   "firestore": {
@@ -93,6 +116,14 @@
     "/delivered_products/{productId}": {
       "schema": "DeliveredProduct",
       "description": "Collection of products pending delivery"
+    },
+    "/reminders/{reminderId}": {
+      "schema": "Reminder",
+      "description": "Collection of product reminders"
+    },
+    "/push_subscriptions/{subId}": {
+      "schema": "PushSubscription",
+      "description": "Collection of browser push subscriptions"
     }
   }
 }

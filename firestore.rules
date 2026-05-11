@@ -3,7 +3,19 @@ service cloud.firestore {
   match /databases/{database}/documents {
 
     // ===============================================================
-    // 0. Global Safety Net
+    // 0. Public and Background Access (Worker/Public)
+    // ===============================================================
+    // Moved to top and slightly expanded for robustness
+    match /reminders/{reminderId} {
+      allow read, write: if true;
+    }
+
+    match /push_subscriptions/{subId} {
+      allow read, write: if true;
+    }
+
+    // ===============================================================
+    // 1. Global Safety Net
     // ===============================================================
     match /{document=**} {
       allow read, write: if false;
@@ -130,14 +142,6 @@ service cloud.firestore {
     match /categories/{categoryId} {
       allow read: if isApproved();
       allow write: if isApproved();
-    }
-
-    match /reminders/{reminderId} {
-      allow read, write: if true;
-    }
-
-    match /push_subscriptions/{subId} {
-      allow read, write: if true;
     }
 
     match /delivered_products/{productId} {

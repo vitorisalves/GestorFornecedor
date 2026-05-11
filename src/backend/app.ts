@@ -1,11 +1,8 @@
 import express, { Request, Response, NextFunction } from "express";
 import axios, { AxiosInstance } from "axios";
 import webPush from "web-push";
-import { getFirestore } from 'firebase-admin/firestore';
-import { getApps, initializeApp } from 'firebase-admin/app';
-import { initializeApp as initializeClientApp } from 'firebase/app';
 import { 
-  getFirestore as getClientFirestore, 
+  getFirestore, 
   collection, 
   query, 
   where, 
@@ -14,33 +11,121 @@ import {
   updateDoc, 
   setDoc, 
   deleteDoc,
-  collectionGroup
+  collectionGroup,
+  getDocFromServer
 } from 'firebase/firestore';
+import { initializeApp } from 'firebase/app';
 import Papa from 'papaparse';
 import firebaseConfig from '../../firebase-applet-config.json';
 
-// Inicialização segura do Firebase Admin (Mantido para compatibilidade se necessário)
-if (getApps().length === 0) {
-  try {
-    initializeApp({
-      projectId: firebaseConfig.projectId,
-    });
-  } catch (e) {
-    console.error("Erro ao inicializar Firebase Admin:", e);
-  }
-}
+// --- INITIALIZATION ---
 
-// Inicialização do Firebase Client SDK para uso no Backend (Evita problemas de IAM/Permission Denied)
-const clientApp = initializeClientApp(firebaseConfig);
-const clientDb = getClientFirestore(clientApp, firebaseConfig.firestoreDatabaseId);
+// Initialize Client SDK (works everywhere, subject to security rules)
+const clientApp = initializeApp(firebaseConfig);
+const clientDb = getFirestore(clientApp, firebaseConfig.firestoreDatabaseId);
 
-// Obter instância do Firestore (Admin - mantido por segurança)
-const getAdminDb = () => (getApps().length > 0) ? getFirestore(firebaseConfig.firestoreDatabaseId) : null;
-
-// Obter instância do Firestore (Client - recomendado para este ambiente)
+/**
+ * Returns a Firestore instance.
+ */
 const getDb = () => clientDb;
 
-// Configuração Web Push (Chaves fixas geradas para consistência entre reinícios de servidor)
+// --- ERROR HANDLING & MONITORING ---
+
+enum OperationType {
+  CREATE = 'create',
+  UPDATE = 'update',
+  DELETE = 'delete',
+  LIST = 'list',
+  GET = 'get',
+  WRITE = 'write',
+}
+
+interface FirestoreErrorInfo {
+  error: string;
+  operationType: OperationType;
+  path: string | null;
+  authInfo: any;
+}
+
+function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null) {
+  const errInfo: FirestoreErrorInfo = {
+    error: error instanceof Error ? error.message : String(error),
+    authInfo: {
+      userId: "server-context", // No backend auth context in background worker usually
+    },
+    operationType,
+    path
+  };
+  console.error('[FirestoreError]', JSON.stringify(errInfo, null, 2));
+  return errInfo;
+}
+
+/**
+ * Test standard connection on boot
+ */
+async function testConnection() {
+  try {
+    const testPath = 'reminders/connection-test';
+    await getDocFromServer(doc(clientDb, testPath));
+    console.log("[Firestore] Connection check: SUCCESS");
+  } catch (error) {
+    if (error instanceof Error && error.message.includes('the client is offline')) {
+      console.error("[Firestore] Connection check: FAILED (offline)");
+    } else {
+      console.warn("[Firestore] Connection check: Expected warning (or error in permissions)", error instanceof Error ? error.message : String(error));
+    }
+  }
+}
+testConnection();
+
+/**
+ * Helper to handle database operations using Client SDK
+ */
+const fsOps = {
+  collection: (coll: string) => {
+    return collection(clientDb, coll);
+  },
+  getDocs: async (collOrQuery: any, path: string = 'unknown') => {
+    try {
+      if (typeof collOrQuery === 'string') {
+        return await getDocs(collection(clientDb, collOrQuery));
+      }
+      return await getDocs(collOrQuery);
+    } catch (err) {
+      handleFirestoreError(err, OperationType.LIST, path);
+      throw err;
+    }
+  },
+  doc: (coll: string, id: string) => {
+    return doc(clientDb, coll, id);
+  },
+  update: async (ref: any, data: any, path: string = 'unknown') => {
+    try {
+      return await updateDoc(ref, data);
+    } catch (err) {
+      handleFirestoreError(err, OperationType.UPDATE, path);
+      throw err;
+    }
+  },
+  set: async (ref: any, data: any, path: string = 'unknown') => {
+    try {
+      return await setDoc(ref, data);
+    } catch (err) {
+      handleFirestoreError(err, OperationType.WRITE, path);
+      throw err;
+    }
+  },
+  delete: async (ref: any, path: string = 'unknown') => {
+    try {
+      return await deleteDoc(ref);
+    } catch (err) {
+      handleFirestoreError(err, OperationType.DELETE, path);
+      throw err;
+    }
+  }
+};
+
+// --- CONFIGURAÇÃO WEB PUSH ---
 const VAPID_KEY_PUBLIC = process.env.VAPID_PUBLIC_KEY || 'BLzFX530XvDT4SYRB5rtIyrBEXIwdIBZ_PdBppRdlHPrOx-iwJtKy1uek7Ah6MmS4dvfilxpt109ILtA0X4N_Ek';
 const VAPID_KEY_PRIVATE = process.env.VAPID_PRIVATE_KEY || 'Xa8catoJrTvxLBpT5nmnS3l2tYh9RWL7-hHYV0M36WE';
 
@@ -88,9 +173,12 @@ const sendPushNotification = async (subscription: any, title: string, message: s
     return true;
   } catch (err: any) {
     if (err.statusCode === 404 || err.statusCode === 410) {
-      const db = getDb();
       const docId = Buffer.from(subscription.endpoint).toString('base64').substring(0, 50);
-      await deleteDoc(doc(db, 'push_subscriptions', docId));
+      try {
+        await fsOps.delete(fsOps.doc('push_subscriptions', docId), 'push_subscriptions/' + docId);
+      } catch (deleteErr) {
+        console.error("Erro ao remover inscrição expirada:", deleteErr);
+      }
     }
     console.error("Erro ao enviar push:", err instanceof Error ? err.message : String(err));
     return false;
@@ -104,37 +192,33 @@ const startBackgroundReminderWorker = () => {
   console.log("[ReminderWorker] Inicializando verificação de lembretes em segundo plano...");
   
   setInterval(async () => {
-    const db = getDb();
-    if (!db) return;
-
     try {
       const now = new Date();
       const nowStr = now.toISOString();
       
       const db = getDb();
-      const remindersCol = collection(db, 'reminders');
       
-      // Busca lembretes não notificados que já passaram ou são agora
       const q = query(
-        remindersCol, 
+        collection(db, 'reminders'), 
         where('notified', '==', false),
         where('date', '<=', nowStr)
       );
       
-      const snapshot = await getDocs(q);
+      let snapshot;
+      try {
+        snapshot = await getDocs(q);
+      } catch (err) {
+        handleFirestoreError(err, OperationType.LIST, 'reminders');
+        throw err;
+      }
 
       if (snapshot.empty) return;
 
-      console.log(`[ReminderWorker] Processando ${snapshot.size} lembretes pendentes...`);
+      console.log(`[ReminderWorker] Processando ${snapshot.docs.length} lembretes pendentes...`);
 
       // Busca todas as assinaturas de push
-      const subsCol = collection(db, 'push_subscriptions');
-      const subsSnapshot = await getDocs(subsCol);
-      const subscriptions = subsSnapshot.docs.map(doc => doc.data());
-
-      if (subscriptions.length === 0) {
-        console.warn("[ReminderWorker] Nenhum dispositivo inscrito para receber notificações.");
-      }
+      const subsSnapshot = await fsOps.getDocs('push_subscriptions', 'push_subscriptions');
+      const subscriptions = subsSnapshot.docs.map((doc: any) => doc.data());
 
       for (const reminderDoc of snapshot.docs) {
         const reminder = reminderDoc.data();
@@ -142,17 +226,21 @@ const startBackgroundReminderWorker = () => {
         const message = `Está na hora de comprar: ${reminder.productName}`;
 
         // Envia para todos os inscritos
-        const promises = subscriptions.map(sub => sendPushNotification(sub, title, message));
+        const promises = subscriptions.map((sub: any) => sendPushNotification(sub, title, message));
         await Promise.all(promises);
 
         // Marca como notificado
-        await updateDoc(doc(db, 'reminders', reminderDoc.id), { notified: true });
-        console.log(`[ReminderWorker] Lembrete "${reminder.productName}" enviado e marcado como concluído.`);
+        try {
+          await fsOps.update(reminderDoc.ref, { notified: true }, `reminders/${reminderDoc.id}`);
+          console.log(`[ReminderWorker] Lembrete "${reminder.productName}" enviado e marcado como concluído.`);
+        } catch (updateErr) {
+          console.error(`[ReminderWorker] Erro ao atualizar lembrete ${reminderDoc.id}:`, updateErr);
+        }
       }
     } catch (err) {
       console.error("[ReminderWorker] Erro no ciclo de verificação:", err);
     }
-  }, 30000); // Verifica a cada 30 segundos
+  }, 30000); 
 };
 
 // Inicia o worker
@@ -170,16 +258,18 @@ app.get("/api/notifications/vapid-key", (req, res) => {
  */
 app.post("/api/notifications/subscribe", asyncHandler(async (req: Request, res: Response) => {
   const subscription = req.body;
-  const db = getDb();
   
   // Sanitiza o endpoint para usar como ID (base64)
   const docId = Buffer.from(subscription.endpoint).toString('base64').substring(0, 50);
-  await setDoc(doc(db, 'push_subscriptions', docId), {
+  
+  const subData = {
     ...subscription,
     updatedAt: new Date().toISOString()
-  });
-  console.log(`[PushSubscribe] Nova inscrição: ${docId.substring(0, 10)}...`);
+  };
+
+  await fsOps.set(fsOps.doc('push_subscriptions', docId), subData, 'push_subscriptions/' + docId);
   
+  console.log(`[PushSubscribe] Nova inscrição: ${docId.substring(0, 10)}...`);
   res.status(201).json({ status: "subscribed" });
 }));
 
@@ -188,12 +278,11 @@ app.post("/api/notifications/subscribe", asyncHandler(async (req: Request, res: 
  */
 app.post("/api/notifications/broadcast", asyncHandler(async (req: Request, res: Response) => {
   const { title, message, url } = req.body;
-  const db = getDb();
   
-  const snapshot = await getDocs(collection(db, 'push_subscriptions'));
-  const subscriptions = snapshot.docs.map(doc => doc.data());
+  const snapshot = await fsOps.getDocs('push_subscriptions', 'push_subscriptions');
+  const subscriptions = snapshot.docs.map((doc: any) => doc.data());
 
-  const promises = subscriptions.map(sub => sendPushNotification(sub, title || "Gestor Fornecedores", message || "Nova atualização!", url));
+  const promises = subscriptions.map((sub: any) => sendPushNotification(sub, title || "Gestor Fornecedores", message || "Nova atualização!", url));
   await Promise.all(promises);
 
   res.json({ sent_to: subscriptions.length });
