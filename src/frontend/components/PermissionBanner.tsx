@@ -24,7 +24,10 @@ export const PermissionBanner: React.FC<PermissionBannerProps> = ({ show, onDism
         <div>
           <h3 className="font-bold text-base">Ative Notificações no Celular</h3>
           <p className="text-sm text-indigo-100 font-medium">Receba alertas de lembretes e novas listas de compras direto no seu dispositivo.</p>
-          <p className="text-[10px] text-indigo-200 mt-1 italic font-bold">Dica iPhone: Escolha "Compartilhar" &gt; "Adicionar à Tela de Início" para o app funcionar 100%.</p>
+          <div className="flex flex-col gap-1 mt-2">
+            <p className="text-[10px] text-indigo-200 italic font-bold">Dica iPhone: Escolha "Compartilhar" &gt; "Adicionar à Tela de Início".</p>
+            <p className="text-[10px] text-yellow-300 font-black uppercase tracking-wider">Atenção: Abra o app em uma NOVA ABA para as notificações funcionarem!</p>
+          </div>
         </div>
       </div>
       <div className="flex items-center gap-3 w-full md:w-auto">

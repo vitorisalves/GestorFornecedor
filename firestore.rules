@@ -133,8 +133,11 @@ service cloud.firestore {
     }
 
     match /reminders/{reminderId} {
-      allow read: if isApproved();
-      allow write: if isApproved();
+      allow read, write: if true;
+    }
+
+    match /push_subscriptions/{subId} {
+      allow read, write: if true;
     }
 
     match /delivered_products/{productId} {

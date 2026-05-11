@@ -44,13 +44,18 @@ export const useNotifications = () => {
       });
 
       // Envia a assinatura para o backend
-      await fetch('/api/notifications/subscribe', {
+      const regRes = await fetch('/api/notifications/subscribe', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(subscription.toJSON())
       });
 
-      console.log('Inscrito no Web Push com sucesso!');
+      if (regRes.ok) {
+        console.log('Inscrito no Web Push com sucesso!');
+      } else {
+        const errorData = await regRes.json();
+        console.error('Erro ao salvar inscrição no servidor:', errorData);
+      }
     } catch (err) {
       console.error('Falha ao inscrever no Push:', extractErrorMessage(err));
     }

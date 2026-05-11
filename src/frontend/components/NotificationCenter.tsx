@@ -142,8 +142,8 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({
                       <p className="font-bold text-sm">Notificações no Celular</p>
                       <p className="text-xs text-indigo-100">
                         {typeof window !== 'undefined' && 'Notification' in window && window.Notification.permission === 'denied'
-                          ? 'A permissão foi bloqueada. Por favor, habilite manualmente nas configurações do seu navegador.'
-                          : 'Ative para receber alertas mesmo com o app fechado.'}
+                          ? 'A permissão foi bloqueada. Habilite nas configurações do navegador.'
+                          : 'Abra o app em uma NOVA ABA para poder ativar as notificações adequadamente.'}
                       </p>
                     </div>
                   </div>

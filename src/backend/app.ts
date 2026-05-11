@@ -3,16 +3,46 @@ import axios, { AxiosInstance } from "axios";
 import webPush from "web-push";
 import { getFirestore } from 'firebase-admin/firestore';
 import { getApps, initializeApp } from 'firebase-admin/app';
+import { initializeApp as initializeClientApp } from 'firebase/app';
+import { 
+  getFirestore as getClientFirestore, 
+  collection, 
+  query, 
+  where, 
+  getDocs, 
+  doc, 
+  updateDoc, 
+  setDoc, 
+  deleteDoc,
+  collectionGroup
+} from 'firebase/firestore';
 import Papa from 'papaparse';
+import firebaseConfig from '../../firebase-applet-config.json';
 
-// Inicialização segura do Firebase Admin
+// Inicialização segura do Firebase Admin (Mantido para compatibilidade se necessário)
 if (getApps().length === 0) {
-  initializeApp();
+  try {
+    initializeApp({
+      projectId: firebaseConfig.projectId,
+    });
+  } catch (e) {
+    console.error("Erro ao inicializar Firebase Admin:", e);
+  }
 }
+
+// Inicialização do Firebase Client SDK para uso no Backend (Evita problemas de IAM/Permission Denied)
+const clientApp = initializeClientApp(firebaseConfig);
+const clientDb = getClientFirestore(clientApp, firebaseConfig.firestoreDatabaseId);
+
+// Obter instância do Firestore (Admin - mantido por segurança)
+const getAdminDb = () => (getApps().length > 0) ? getFirestore(firebaseConfig.firestoreDatabaseId) : null;
+
+// Obter instância do Firestore (Client - recomendado para este ambiente)
+const getDb = () => clientDb;
 
 // Configuração Web Push (Chaves fixas geradas para consistência entre reinícios de servidor)
 const VAPID_KEY_PUBLIC = process.env.VAPID_PUBLIC_KEY || 'BLzFX530XvDT4SYRB5rtIyrBEXIwdIBZ_PdBppRdlHPrOx-iwJtKy1uek7Ah6MmS4dvfilxpt109ILtA0X4N_Ek';
-const VAPID_KEY_PRIVATE = process.env.VAPID_PRIVATE_KEY || 'Xa8catoJrTvxLPgT5nmnS3l2tYh9RWL7-hHYV0M36WE';
+const VAPID_KEY_PRIVATE = process.env.VAPID_PRIVATE_KEY || 'Xa8catoJrTvxLBpT5nmnS3l2tYh9RWL7-hHYV0M36WE';
 
 // Utilizamos as chaves fixas para que o navegador se mantenha autenticado mesmo se o servidor reiniciar
 const finalVapidKeys = { publicKey: VAPID_KEY_PUBLIC, privateKey: VAPID_KEY_PRIVATE };
@@ -22,9 +52,6 @@ webPush.setVapidDetails(
   finalVapidKeys.publicKey,
   finalVapidKeys.privateKey
 );
-
-// Obter instância do Firestore
-const getDb = () => (getApps().length > 0) ? getFirestore() : null;
 
 /**
  * Interface para configuração da API externa
@@ -46,6 +73,92 @@ const asyncHandler = (fn: Function) => (req: Request, res: Response, next: NextF
 // --- ROTAS DE NOTIFICAÇÃO PUSH ---
 
 /**
+ * Helper para envio de notificações Push
+ */
+const sendPushNotification = async (subscription: any, title: string, message: string, url: string = '/') => {
+  const payload = JSON.stringify({
+    title,
+    body: message,
+    url,
+    tag: 'gestor-update-' + Date.now()
+  });
+
+  try {
+    await webPush.sendNotification(subscription, payload);
+    return true;
+  } catch (err: any) {
+    if (err.statusCode === 404 || err.statusCode === 410) {
+      const db = getDb();
+      const docId = Buffer.from(subscription.endpoint).toString('base64').substring(0, 50);
+      await deleteDoc(doc(db, 'push_subscriptions', docId));
+    }
+    console.error("Erro ao enviar push:", err instanceof Error ? err.message : String(err));
+    return false;
+  }
+};
+
+/**
+ * Worker em segundo plano para verificar lembretes
+ */
+const startBackgroundReminderWorker = () => {
+  console.log("[ReminderWorker] Inicializando verificação de lembretes em segundo plano...");
+  
+  setInterval(async () => {
+    const db = getDb();
+    if (!db) return;
+
+    try {
+      const now = new Date();
+      const nowStr = now.toISOString();
+      
+      const db = getDb();
+      const remindersCol = collection(db, 'reminders');
+      
+      // Busca lembretes não notificados que já passaram ou são agora
+      const q = query(
+        remindersCol, 
+        where('notified', '==', false),
+        where('date', '<=', nowStr)
+      );
+      
+      const snapshot = await getDocs(q);
+
+      if (snapshot.empty) return;
+
+      console.log(`[ReminderWorker] Processando ${snapshot.size} lembretes pendentes...`);
+
+      // Busca todas as assinaturas de push
+      const subsCol = collection(db, 'push_subscriptions');
+      const subsSnapshot = await getDocs(subsCol);
+      const subscriptions = subsSnapshot.docs.map(doc => doc.data());
+
+      if (subscriptions.length === 0) {
+        console.warn("[ReminderWorker] Nenhum dispositivo inscrito para receber notificações.");
+      }
+
+      for (const reminderDoc of snapshot.docs) {
+        const reminder = reminderDoc.data();
+        const title = "Lembrete de Produto";
+        const message = `Está na hora de comprar: ${reminder.productName}`;
+
+        // Envia para todos os inscritos
+        const promises = subscriptions.map(sub => sendPushNotification(sub, title, message));
+        await Promise.all(promises);
+
+        // Marca como notificado
+        await updateDoc(doc(db, 'reminders', reminderDoc.id), { notified: true });
+        console.log(`[ReminderWorker] Lembrete "${reminder.productName}" enviado e marcado como concluído.`);
+      }
+    } catch (err) {
+      console.error("[ReminderWorker] Erro no ciclo de verificação:", err);
+    }
+  }, 30000); // Verifica a cada 30 segundos
+};
+
+// Inicia o worker
+startBackgroundReminderWorker();
+
+/**
  * Retorna a chave pública VAPID para o frontend se inscrever.
  */
 app.get("/api/notifications/vapid-key", (req, res) => {
@@ -59,15 +172,13 @@ app.post("/api/notifications/subscribe", asyncHandler(async (req: Request, res: 
   const subscription = req.body;
   const db = getDb();
   
-  if (db) {
-    const subsCol = db.collection('push_subscriptions');
-    // Sanitiza o endpoint para usar como ID (base64)
-    const docId = Buffer.from(subscription.endpoint).toString('base64').substring(0, 50);
-    await subsCol.doc(docId).set({
-      ...subscription,
-      updatedAt: new Date().toISOString()
-    });
-  }
+  // Sanitiza o endpoint para usar como ID (base64)
+  const docId = Buffer.from(subscription.endpoint).toString('base64').substring(0, 50);
+  await setDoc(doc(db, 'push_subscriptions', docId), {
+    ...subscription,
+    updatedAt: new Date().toISOString()
+  });
+  console.log(`[PushSubscribe] Nova inscrição: ${docId.substring(0, 10)}...`);
   
   res.status(201).json({ status: "subscribed" });
 }));
@@ -79,33 +190,13 @@ app.post("/api/notifications/broadcast", asyncHandler(async (req: Request, res: 
   const { title, message, url } = req.body;
   const db = getDb();
   
-  let targetSubscriptions: any[] = [];
-  if (db) {
-    const snapshot = await db.collection('push_subscriptions').get();
-    targetSubscriptions = snapshot.docs.map(doc => doc.data());
-  }
-  
-  const payload = JSON.stringify({
-    title: title || "Gestor Fornecedores",
-    body: message || "Nova atualização!",
-    url: url || "/",
-    tag: 'gestor-update-' + Date.now()
-  });
+  const snapshot = await getDocs(collection(db, 'push_subscriptions'));
+  const subscriptions = snapshot.docs.map(doc => doc.data());
 
-  const promises = targetSubscriptions.map(sub => 
-    webPush.sendNotification(sub, payload).catch(async err => {
-      if (err.statusCode === 404 || err.statusCode === 410) {
-        if (db) {
-          const docId = Buffer.from(sub.endpoint).toString('base64').substring(0, 50);
-          await db.collection('push_subscriptions').doc(docId).delete();
-        }
-      }
-      console.error("Erro ao enviar push:", err instanceof Error ? err.message : String(err));
-    })
-  );
-
+  const promises = subscriptions.map(sub => sendPushNotification(sub, title || "Gestor Fornecedores", message || "Nova atualização!", url));
   await Promise.all(promises);
-  res.json({ sent_to: targetSubscriptions.length });
+
+  res.json({ sent_to: subscriptions.length });
 }));
 
 /**
