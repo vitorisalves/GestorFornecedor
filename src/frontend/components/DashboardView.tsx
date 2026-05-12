@@ -41,6 +41,7 @@ import { domToCanvas } from 'modern-screenshot';
 
 import { SavedList } from '../types';
 import { formatCurrency, normalizeText } from '../utils';
+import { matchDashboardWithAI } from '../../services/geminiService';
 
 interface SpreadsheetItem {
   id: string;
@@ -117,19 +118,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ savedLists }) => {
         return;
       }
 
-      const response = await fetch('/api/ai/match-dashboard', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ spreadsheetNames, shoppingItemNames })
-      });
-
-      if (!response.ok) {
-        const errData = await response.json().catch(() => ({}));
-        throw new Error(errData.error || `Erro AI: ${response.status}`);
-      }
-
-      const { mapping } = await response.json();
-      console.log('AI Logic - New Product Mappings (via API):', mapping);
+      const mapping = await matchDashboardWithAI(spreadsheetNames, shoppingItemNames);
+      console.log('AI Logic - New Product Mappings (Direct):', mapping);
       setAiMappings(prev => ({ ...prev, ...mapping }));
     } catch (error) {
       console.error('Error during AI product matching:', error);
