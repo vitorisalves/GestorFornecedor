@@ -155,7 +155,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ savedLists }) => {
     try {
       // Use export format with timestamp to avoid cache
       const timestamp = new Date().getTime();
-      const SHEET_ID = '1EarQhvZBT65Ptf-LULWnAfS844WSL7i8mryNRmt-qDY';
+      const SHEET_ID = '1LaE1o-zv0ZSaQHo1-_Z7LZZZxgCehi-kO2nzYt1AQHo';
       const SPREADSHEET_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/export?format=csv&t=${timestamp}`;
       
       const response = await fetch(SPREADSHEET_URL);
