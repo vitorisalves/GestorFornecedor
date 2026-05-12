@@ -8,7 +8,8 @@ import { ExcelService } from "./services/excelService";
 import { startBackgroundReminderWorker } from "./reminderWorker";
 
 const app = express();
-app.use(express.json());
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ limit: '10mb', extended: true }));
 
 // --- INICIALIZAÇÃO ---
 initFirebase().then(() => {
@@ -22,7 +23,10 @@ initFirebase().then(() => {
  * Wrapper para rotas assíncronas capturarem erros.
  */
 const asyncHandler = (fn: Function) => (req: Request, res: Response, next: NextFunction) => {
-  Promise.resolve(fn(req, res, next)).catch(next);
+  Promise.resolve(fn(req, res, next)).catch((err) => {
+    console.error(`[AsyncHandler Error] ${req.method} ${req.url}:`, err);
+    next(err);
+  });
 };
 
 // --- ROTAS DE DIAGNÓSTICO ---
@@ -117,9 +121,18 @@ app.all("/api/v1/*", asyncHandler(async (req: Request, res: Response) => {
 // --- TRATAMENTO DE ERROS ---
 app.use((err: any, req: Request, res: Response, next: NextFunction) => {
   console.error('[ErrorHandler]', err.message);
-  res.status(500).json({ 
-    error: 'Erro no servidor',
-    message: err.message
+  
+  // Se for erro de timeout ou conexão do axios/ai
+  if (err.code === 'ECONNABORTED' || err.message?.includes('timeout')) {
+    return res.status(504).json({
+      error: 'Timeout na requisição',
+      message: 'O servidor demorou muito para responder. Tente novamente com um arquivo menor.'
+    });
+  }
+
+  res.status(err.status || 500).json({ 
+    error: err.name || 'Erro no servidor',
+    message: err.message || 'Ocorreu um erro inesperado.'
   });
 });
 

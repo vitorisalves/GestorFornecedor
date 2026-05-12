@@ -76,7 +76,8 @@ export class AIService {
       }
     });
 
-    return this.parseJson(response.text);
+    const text = response.candidates && response.candidates[0]?.content?.parts?.[0]?.text;
+    return this.parseJson(text);
   }
 
   /**
@@ -140,7 +141,8 @@ export class AIService {
       }
     });
 
-    const parsed = this.parseJson(response.text);
+    const text = response.candidates && response.candidates[0]?.content?.parts?.[0]?.text;
+    const parsed = this.parseJson(text);
     return parsed.products || [];
   }
 }

@@ -45,10 +45,26 @@ export const processDocumentWithAI = async (
   existingProductNames?: string[]
 ): Promise<ExtractedProduct[]> => {
   try {
+    let processedFileData = fileData;
+    
+    // Compress image if provided
+    if (fileData?.mimeType.startsWith('image/')) {
+      try {
+        const fullBase64 = `data:${fileData.mimeType};base64,${fileData.data}`;
+        const compressedData = await compressImage(fullBase64);
+        processedFileData = {
+          mimeType: 'image/jpeg',
+          data: compressedData
+        };
+      } catch (e) {
+        console.warn("Failed to compress image, sending original", e);
+      }
+    }
+
     const response = await fetch('/api/ai/process-document', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ fileData, promptText, existingProductNames })
+      body: JSON.stringify({ fileData: processedFileData, promptText, existingProductNames })
     });
 
     if (!response.ok) {
