@@ -1,4 +1,4 @@
-import { GoogleGenAI, Type } from "@google/genai";
+import { GoogleGenAI, Type, GenerateContentResponse } from "@google/genai";
 
 export interface ExtractedProduct {
   name: string;
@@ -42,7 +42,7 @@ const compressImage = async (base64Str: string, maxWidth = 1024): Promise<string
  */
 export const processDocumentWithAI = async (
   fileData?: { mimeType: string; data: string },
-  prompt?: string,
+  promptText?: string,
   existingProductNames?: string[]
 ): Promise<ExtractedProduct[]> => {
   // Use the platform-provided GEMINI_API_KEY
@@ -53,25 +53,7 @@ export const processDocumentWithAI = async (
   }
 
   const ai = new GoogleGenAI({ apiKey });
-  // Using gemini-3-flash-preview for maximum speed and accuracy in extraction
-  const model = "gemini-3-flash-preview"; 
   
-  const productsContext = existingProductNames && existingProductNames.length > 0 
-    ? `\n\nLISTA DE PRODUTOS EXISTENTES (PARA MATCHING):\n${existingProductNames.join(", ")}`
-    : "";
-
-  const systemInstruction = `
-    Aja como um extrator de dados ultra-rápido de notas fiscais.
-    
-    META: Retornar JSON de produtos com preço unitário.
-    ${productsContext}
-    
-    REGRAS:
-    1. "name": Se o item for similar a um da "LISTA DE PRODUTOS EXISTENTES", use EXATAMENTE o nome da lista. Caso contrário, use o nome lido.
-    2. "rawName": Nome bruto como está no documento.
-    3. Seja conciso. Ignore cabeçalhos e rodapés não relacionados a itens.
-  `;
-
   const parts: any[] = [];
   
   if (fileData) {
@@ -95,61 +77,71 @@ export const processDocumentWithAI = async (
     });
   }
 
-  if (prompt) {
-    parts.push({ text: prompt });
+  if (promptText) {
+    parts.push({ text: promptText });
   } else {
     parts.push({ text: "Extraia itens e preços." });
   }
 
   try {
-    const genConfig = {
-      systemInstruction,
-      responseMimeType: "application/json",
-      // Reduced topP and temperature for faster, more deterministic output
-      temperature: 0.1,
-      topP: 0.8,
-      responseSchema: {
-        type: Type.OBJECT,
-        properties: {
-          products: {
-            type: Type.ARRAY,
-            items: {
-              type: Type.OBJECT,
-              properties: {
-                name: { type: Type.STRING },
-                rawName: { type: Type.STRING },
-                price: { type: Type.NUMBER },
-                quantity: { type: Type.NUMBER },
-                category: { type: Type.STRING },
-                supplierName: { type: Type.STRING }
-              },
-              required: ["name", "rawName", "price"]
-            }
-          }
-        },
-        required: ["products"]
-      }
-    };
-
-    const response = await ai.models.generateContent({
-      model,
+    const response: GenerateContentResponse = await ai.models.generateContent({
+      model: "gemini-3-flash-preview",
       contents: { parts },
-      config: genConfig
+      config: {
+        systemInstruction: `
+          Aja como um extrator de dados ultra-rápido de notas fiscais.
+          
+          META: Retornar JSON de produtos com preço unitário.
+          ${existingProductNames && existingProductNames.length > 0 ? `\n\nLISTA DE PRODUTOS EXISTENTES (PARA MATCHING):\n${existingProductNames.join(", ")}` : ""}
+          
+          REGRAS:
+          1. "name": Se o item for similar a um da "LISTA DE PRODUTOS EXISTENTES", use EXATAMENTE o nome da lista. Caso contrário, use o nome lido.
+          2. "rawName": Nome bruto como está no documento.
+          3. Seja conciso. Ignore cabeçalhos e rodapés não relacionados a itens.
+        `,
+        responseMimeType: "application/json",
+        temperature: 0.1,
+        topP: 0.8,
+        responseSchema: {
+          type: Type.OBJECT,
+          properties: {
+            products: {
+              type: Type.ARRAY,
+              items: {
+                type: Type.OBJECT,
+                properties: {
+                  name: { type: Type.STRING },
+                  rawName: { type: Type.STRING },
+                  price: { type: Type.NUMBER },
+                  quantity: { type: Type.NUMBER },
+                  category: { type: Type.STRING },
+                  supplierName: { type: Type.STRING }
+                },
+                required: ["name", "rawName", "price"]
+              }
+            }
+          },
+          required: ["products"]
+        }
+      }
     });
 
     const text = response.text;
+    
     if (!text) {
       throw new Error("O modelo não retornou nenhum texto.");
     }
 
-    const result = JSON.parse(text.trim());
-    return result.products || [];
+    try {
+      const parsed = JSON.parse(text.trim());
+      return parsed.products || [];
+    } catch (parseError) {
+      console.error("Erro ao analisar JSON da AI:", text);
+      throw new Error("Resposta da AI em formato inválido.");
+    }
   } catch (error: any) {
-    // Log safe message instead of whole object if possible
     const msg = error?.message || String(error);
-    console.error("AI Processing Error:", msg);
-    
-    // Throw a simple error to avoid circular structure issues in UI
+    console.error("Erro no processamento AI:", msg);
     throw new Error(msg);
   }
 };

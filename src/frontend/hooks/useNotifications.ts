@@ -34,7 +34,10 @@ export const useNotifications = () => {
       
       // Busca a chave pública do servidor
       const response = await fetch('/api/notifications/vapid-key');
-      const { publicKey } = await response.json();
+      const responseText = await response.text();
+      if (!responseText) return;
+      
+      const { publicKey } = JSON.parse(responseText);
 
       if (!publicKey) return;
 
@@ -53,7 +56,11 @@ export const useNotifications = () => {
       if (regRes.ok) {
         console.log('Inscrito no Web Push com sucesso!');
       } else {
-        const errorData = await regRes.json();
+        const errorText = await regRes.text();
+        let errorData = errorText;
+        try {
+          if (errorText) errorData = JSON.parse(errorText);
+        } catch (e) {}
         console.error('Erro ao salvar inscrição no servidor:', errorData);
       }
     } catch (err) {

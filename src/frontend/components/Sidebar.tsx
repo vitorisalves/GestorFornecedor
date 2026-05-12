@@ -16,7 +16,8 @@ import {
   Store,
   Hammer,
   Sparkles,
-  X
+  X,
+  LayoutDashboard
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -41,6 +42,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onClose
 }) => {
   const menuItems = [
+    { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { id: 'suppliers', label: 'Fornecedores', icon: Building2 },
     { id: 'mercado', label: 'Mercado', icon: Store },
     { id: 'materiais', label: 'Materiais', icon: Hammer },

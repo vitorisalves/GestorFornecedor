@@ -187,7 +187,7 @@ export const useExcel = (suppliers: Supplier[], saveSupplier: (s: Supplier) => P
   };
 
   const handleSyncSheets = async (onDataLoaded: (data: Record<string, Supplier>) => void) => {
-    const SHEET_ID = "1xP5Fk1iBD6a0isS6KF5DMG1ZjMbbLK2FsS6PupZVe6M";
+    const SHEET_ID = "1EarQhvZBT65Ptf-LULWnAfS844WSL7i8mryNRmt-qDY";
     
     const parseCsvData = (csvText: string): Record<string, Supplier> => {
       const parsed = Papa.parse(csvText, { header: true, skipEmptyLines: true });
@@ -301,8 +301,11 @@ export const useExcel = (suppliers: Supplier[], saveSupplier: (s: Supplier) => P
         
         if (contentType && contentType.includes('application/json')) {
           try {
-            const errData = await response.json();
-            errorMsg = errData.error || errData.message || errorMsg;
+            const body = await response.text();
+            if (body) {
+              const errData = JSON.parse(body);
+              errorMsg = errData.error || errData.message || errorMsg;
+            }
           } catch (jsonErr) {
             errorMsg = `Erro ${response.status}: Resposta JSON corrompida`;
           }
@@ -318,7 +321,11 @@ export const useExcel = (suppliers: Supplier[], saveSupplier: (s: Supplier) => P
         throw new Error(errorMsg);
       }
       
-      const resData = await response.json();
+      const responseBody = await response.text();
+      if (!responseBody) {
+        throw new Error('Resposta vazia do servidor');
+      }
+      const resData = JSON.parse(responseBody);
       const { data } = resData;
       if (!data || Object.keys(data).length === 0) {
         addNotification('Nenhum dado encontrado na planilha', 0);

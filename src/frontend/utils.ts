@@ -59,8 +59,9 @@ export function handleFirestoreError(error: unknown, operationType: OperationTyp
     operationType,
     path
   }
-  console.error('Firestore Error: ', JSON.stringify(errInfo));
-  throw new Error(JSON.stringify(errInfo));
+  const stringified = safeStringify(errInfo);
+  console.error('Firestore Error: ', stringified);
+  throw new Error(stringified);
 }
 
 export const formatCurrency = (value: number) => {
@@ -128,9 +129,13 @@ export const safeStringify = (obj: any, maxDepth: number = 3): string => {
       }
 
       const result: any = {};
-      for (const key in val) {
-        if (Object.prototype.hasOwnProperty.call(val, key)) {
+      // Use Object.keys to avoid pulling in non-enumerable properties that might cause issues with libraries like Firestore
+      const keys = Object.keys(val);
+      for (const key of keys) {
+        try {
           result[key] = handleValue(val[key], depth + 1);
+        } catch (e) {
+          result[key] = '[Property Unreadable]';
         }
       }
       return result;
@@ -202,5 +207,19 @@ export const normalizeText = (text: string): string => {
     .toLowerCase()
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "");
+};
+
+/**
+ * Copia um texto para a área de transferência
+ */
+export const copyToClipboard = async (text: string): Promise<boolean> => {
+  if (!text) return false;
+  try {
+    await navigator.clipboard.writeText(text);
+    return true;
+  } catch (err) {
+    console.error('Falha ao copiar para o clipboard:', err);
+    return false;
+  }
 };
 

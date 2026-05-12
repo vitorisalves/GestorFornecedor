@@ -159,8 +159,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                             </span>
                           </div>
                           <div>
-                            <p className="font-bold text-slate-700 text-xs truncate max-w-[120px]">{user.name || 'Sem nome'}</p>
-                            <p className="text-[9px] text-slate-400 font-bold">CPF: {user.cpf}</p>
+                            <p className="font-bold text-slate-700 text-[14px] truncate max-w-[120px]">{user.name || 'Sem nome'}</p>
+                            <p className="text-[13px] text-black font-bold">CPF: {user.cpf}</p>
                           </div>
                         </div>
                         <button

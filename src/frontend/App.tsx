@@ -26,6 +26,7 @@ import { HistoryView } from './components/HistoryView';
 import { DeliveredProductsView } from './components/DeliveredProductsView';
 import { RemindersView } from './components/RemindersView';
 import { UpdatePricesView } from './components/UpdatePricesView';
+import { DashboardView } from './components/DashboardView';
 import { Modals } from './components/Modals';
 import { Header } from './components/Header';
 import { AppLayout } from './components/AppLayout';
@@ -219,7 +220,7 @@ export default function App() {
     }
   }, [activeTargetListId, activeTargetListName, addItemToList, addNotification, addToCart]);
 
-  const [currentPage, setCurrentPage] = useState<'suppliers' | 'mercado' | 'materiais' | 'shopping' | 'history' | 'delivered' | 'reminders' | 'update-prices'>('suppliers');
+  const [currentPage, setCurrentPage] = useState<'dashboard' | 'suppliers' | 'mercado' | 'materiais' | 'shopping' | 'history' | 'delivered' | 'reminders' | 'update-prices'>('dashboard');
   
   const {
     handleExportExcel,
@@ -617,6 +618,12 @@ export default function App() {
       />
 
       <AnimatePresence mode="wait">
+        {currentPage === 'dashboard' && (
+          <DashboardView 
+            key="dashboard"
+            savedLists={savedLists}
+          />
+        )}
         {(currentPage === 'suppliers' || currentPage === 'mercado' || currentPage === 'materiais') && (
           <SuppliersView 
             key={currentPage}
@@ -635,6 +642,7 @@ export default function App() {
             handleSyncSheets={onSyncSheets}
             activeTab={currentPage === 'suppliers' ? 'fornecedores' : currentPage as any}
             onTabChange={(tab) => setCurrentPage(tab === 'fornecedores' ? 'suppliers' : tab)}
+            addNotification={addNotification}
           />
         )}
         {currentPage === 'shopping' && (

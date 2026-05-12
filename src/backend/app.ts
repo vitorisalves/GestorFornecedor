@@ -109,6 +109,37 @@ interface FirestoreErrorInfo {
   authInfo: any;
 }
 
+/**
+ * Serialização segura para evitar erros de estrutura circular em logs do Firestore
+ */
+function safeStringify(obj: any, maxDepth: number = 2): string {
+  if (obj === undefined) return 'undefined';
+  if (obj === null) return 'null';
+  if (typeof obj !== 'object') return String(obj);
+  
+  const seen = new WeakSet();
+  function handle(val: any, depth: number): any {
+    if (depth > maxDepth) return '[Max Depth]';
+    if (!val || typeof val !== 'object') return val;
+    if (seen.has(val)) return '[Circular]';
+    seen.add(val);
+    
+    if (Array.isArray(val)) return val.map(i => handle(i, depth + 1));
+    
+    const res: any = {};
+    Object.keys(val).forEach(k => {
+      try { res[k] = handle(val[k], depth + 1); } catch(e) { res[k] = '[Error]'; }
+    });
+    return res;
+  }
+  
+  try {
+    return JSON.stringify(handle(obj, 0), null, 2);
+  } catch (e) {
+    return '[Serialization Error]';
+  }
+}
+
 function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null) {
   const errInfo: FirestoreErrorInfo = {
     error: error instanceof Error ? error.message : String(error),
@@ -119,7 +150,7 @@ function handleFirestoreError(error: unknown, operationType: OperationType, path
     operationType,
     path
   };
-  console.error('[FirestoreError]', JSON.stringify(errInfo, null, 2));
+  console.error('[FirestoreError]', safeStringify(errInfo));
   return errInfo;
 }
 
@@ -249,7 +280,7 @@ app.get("/api/ping", (req, res) => res.json({
  */
 app.get("/api/excel-sync", asyncHandler(async (req: Request, res: Response) => {
   console.log(`[ExcelSync] Request recebido: ${req.method} ${req.url}`);
-  const SHEET_ID = "1xP5Fk1iBD6a0isS6KF5DMG1ZjMbbLK2FsS6PupZVe6M";
+  const SHEET_ID = "1EarQhvZBT65Ptf-LULWnAfS844WSL7i8mryNRmt-qDY";
   const timestamp = Date.now();
   
   // URLs para tentar (Exportação e Publicação)

@@ -17,10 +17,12 @@ import {
   ChevronUp,
   Download,
   Upload,
-  RefreshCcw
+  RefreshCcw,
+  Copy,
+  ExternalLink
 } from 'lucide-react';
 import { Supplier, Product } from '../types';
-import { formatCurrency, normalizeText } from '../utils';
+import { formatCurrency, normalizeText, copyToClipboard } from '../utils';
 
 interface SuppliersViewProps {
   suppliers: Supplier[];
@@ -38,6 +40,7 @@ interface SuppliersViewProps {
   handleSyncSheets?: () => void;
   activeTab?: 'fornecedores' | 'mercado' | 'materiais';
   onTabChange?: (tab: 'fornecedores' | 'mercado' | 'materiais') => void;
+  addNotification?: (message: string, count: number, type?: 'cart' | 'info') => void;
 }
 
 export const SuppliersView: React.FC<SuppliersViewProps> = ({
@@ -55,7 +58,8 @@ export const SuppliersView: React.FC<SuppliersViewProps> = ({
   handleImportExcel,
   handleSyncSheets,
   activeTab: externalTab,
-  onTabChange
+  onTabChange,
+  addNotification
 }) => {
   const [internalTab, setInternalTab] = React.useState<'fornecedores' | 'mercado' | 'materiais'>('fornecedores');
   const activeSubTab = externalTab || internalTab;
@@ -111,6 +115,17 @@ export const SuppliersView: React.FC<SuppliersViewProps> = ({
     if (isNaN(qty) || qty < 1) return;
     addToCart(product, supplierName, qty);
     setQuantities(prev => ({ ...prev, [key]: '1' }));
+  };
+
+  const handleCopy = async (text: string, type: string) => {
+    const success = await copyToClipboard(text);
+    if (success && addNotification) {
+      addNotification(`${type} copiado!`, 1, 'info');
+    }
+  };
+
+  const isLink = (text: string) => {
+    return text.includes('http://') || text.includes('https://') || text.includes('www.');
   };
 
   const filteredSuppliers = suppliers
@@ -222,24 +237,43 @@ export const SuppliersView: React.FC<SuppliersViewProps> = ({
                   onClick={() => setExpandedSupplier(expandedSupplier === supplier.id ? null : supplier.id)}
                   className="p-6 flex flex-col md:flex-row md:items-center justify-between gap-4 cursor-pointer hover:bg-slate-50/50 transition-colors"
                 >
-                  <div className="flex items-center gap-5">
-                    <div className="w-12 h-12 md:w-14 md:h-14 bg-slate-900 rounded-xl flex items-center justify-center border border-slate-800 shadow-sm">
-                      <Building2 className="w-6 h-6 md:w-7 md:h-7 text-white" />
-                    </div>
-                    <div>
-                      <h3 className="text-xl font-bold text-slate-800 mb-0.5 md:mb-1 tracking-tight uppercase">{supplier.name}</h3>
-                      <div className="flex items-center gap-3 text-slate-400 font-bold text-[10px] uppercase tracking-tight">
-                        <span className="flex items-center gap-1">
-                          <Phone className="w-3 h-3" />
-                          {supplier.phone}
-                        </span>
-                        <span className="flex items-center gap-1">
-                          <Package className="w-3 h-3" />
-                          {supplier.products.length} itens
-                        </span>
+                    <div className="flex items-center gap-5">
+                      <div className="w-12 h-12 md:w-14 md:h-14 bg-slate-900 rounded-xl flex items-center justify-center border border-slate-800 shadow-sm">
+                        <Building2 className="w-6 h-6 md:w-7 md:h-7 text-white" />
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <h3 
+                            className={`text-xl font-bold mb-0.5 md:mb-1 tracking-tight uppercase ${isLink(supplier.name) ? 'text-indigo-600 hover:underline cursor-pointer' : 'text-slate-800'}`}
+                            onClick={(e) => {
+                              if (isLink(supplier.name)) {
+                                e.stopPropagation();
+                                handleCopy(supplier.name, 'Link');
+                              }
+                            }}
+                          >
+                            {supplier.name}
+                          </h3>
+                        </div>
+                        <div className="flex items-center gap-3 text-slate-400 font-bold text-[10px] uppercase tracking-tight">
+                          <span 
+                            className="flex items-center gap-1 hover:text-indigo-500 transition-colors cursor-pointer"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleCopy(supplier.phone, 'Telefone');
+                            }}
+                            title="Clique para copiar"
+                          >
+                            <Phone className="w-3 h-3" />
+                            {supplier.phone}
+                          </span>
+                          <span className="flex items-center gap-1">
+                            <Package className="w-3 h-3" />
+                            {supplier.products.length} itens
+                          </span>
+                        </div>
                       </div>
                     </div>
-                  </div>
                   
                   <div className="flex items-center justify-between md:justify-end gap-2" onClick={(e) => e.stopPropagation()}>
                     <div className="flex items-center gap-1">
@@ -299,20 +333,30 @@ export const SuppliersView: React.FC<SuppliersViewProps> = ({
                                     {formatCurrency(product.price)}
                                   </span>
                                 </div>
-                                <h4 className="font-bold text-slate-900 mb-3">{product.name}</h4>
+                                <h4 
+                                  className={`font-bold mb-3 transition-colors ${isLink(product.name) ? 'text-indigo-600 hover:underline cursor-pointer' : 'text-slate-900'}`}
+                                  onClick={(e) => {
+                                    if (isLink(product.name)) {
+                                      e.stopPropagation();
+                                      handleCopy(product.name, 'Link');
+                                    }
+                                  }}
+                                >
+                                  {product.name}
+                                </h4>
                                 <div className="space-y-1.5 mb-6">
                                   {product.lastPurchaseDate && (
                                     <div className="flex items-center gap-2 bg-indigo-50/50 px-2 py-1 rounded-lg border border-indigo-100/50">
                                       <div className="w-1.5 h-1.5 bg-indigo-500 rounded-full" />
-                                      <span className="text-[9px] text-slate-500 font-bold uppercase">Última Compra:</span>
-                                      <span className="text-[9px] text-indigo-700 font-black">{product.lastPurchaseDate}</span>
+                                      <span className="text-[11px] text-slate-500 font-bold uppercase">Última Compra:</span>
+                                      <span className="text-[11px] text-indigo-700 font-black">{product.lastPurchaseDate}</span>
                                     </div>
                                   )}
                                   {product.paymentMethod && (
                                     <div className="flex items-center gap-2 bg-emerald-50/50 px-2 py-1 rounded-lg border border-emerald-100/50">
                                       <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full" />
-                                      <span className="text-[9px] text-slate-500 font-bold uppercase">Pagamento:</span>
-                                      <span className="text-[9px] text-emerald-700 font-black">{product.paymentMethod}</span>
+                                      <span className="text-[11px] text-slate-500 font-bold uppercase">Pagamento:</span>
+                                      <span className="text-[11px] text-emerald-700 font-black">{product.paymentMethod}</span>
                                     </div>
                                   )}
                                 </div>
@@ -423,7 +467,7 @@ export const SuppliersView: React.FC<SuppliersViewProps> = ({
                 .map((product, idx) => {
                   const qKey = `MERCADO-${String(product.name)}-${idx}`;
                   return (
-                    <div key={qKey} className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm flex flex-col justify-between group hover:border-indigo-100 transition-all">
+                    <div key={qKey} className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm flex flex-col justify-between group hover:border-indigo-200 transition-all">
                       <div>
                         <div className="flex justify-between items-start mb-4">
                           <span className="px-3 py-1 bg-slate-50 text-slate-400 border border-slate-100 rounded-lg text-[9px] font-bold uppercase tracking-wider">
@@ -433,20 +477,30 @@ export const SuppliersView: React.FC<SuppliersViewProps> = ({
                             {formatCurrency(product.price)}
                           </span>
                         </div>
-                        <h4 className="text-lg font-bold text-slate-700 mb-3 uppercase tracking-tight">{product.name}</h4>
+                        <h4 
+                          className={`text-lg font-bold mb-3 uppercase tracking-tight transition-colors ${isLink(product.name) ? 'text-indigo-600 hover:underline cursor-pointer' : 'text-slate-700'}`}
+                          onClick={(e) => {
+                            if (isLink(product.name)) {
+                              e.stopPropagation();
+                              handleCopy(product.name, 'Link');
+                            }
+                          }}
+                        >
+                          {product.name}
+                        </h4>
                         <div className="space-y-1.5 mb-6">
                           {product.lastPurchaseDate && (
                             <div className="flex items-center gap-2 bg-indigo-50/50 px-2 py-1 rounded-lg border border-indigo-100/50">
                               <div className="w-1.5 h-1.5 bg-indigo-500 rounded-full" />
-                              <span className="text-[9px] text-slate-500 font-bold uppercase">Última Compra:</span>
-                              <span className="text-[9px] text-indigo-700 font-black">{product.lastPurchaseDate}</span>
+                              <span className="text-[11px] text-slate-500 font-bold uppercase">Última Compra:</span>
+                              <span className="text-[11px] text-indigo-700 font-black">{product.lastPurchaseDate}</span>
                             </div>
                           )}
                           {product.paymentMethod && (
                             <div className="flex items-center gap-2 bg-emerald-50/50 px-2 py-1 rounded-lg border border-emerald-100/50">
                               <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full" />
-                              <span className="text-[9px] text-slate-500 font-bold uppercase">Pagamento:</span>
-                              <span className="text-[9px] text-emerald-700 font-black">{product.paymentMethod}</span>
+                              <span className="text-[11px] text-slate-500 font-bold uppercase">Pagamento:</span>
+                              <span className="text-[11px] text-emerald-700 font-black">{product.paymentMethod}</span>
                             </div>
                           )}
                         </div>
@@ -563,20 +617,30 @@ export const SuppliersView: React.FC<SuppliersViewProps> = ({
                             {formatCurrency(product.price)}
                           </span>
                         </div>
-                        <h4 className="text-lg font-bold text-slate-700 mb-3 uppercase tracking-tight">{product.name}</h4>
+                        <h4 
+                          className={`text-lg font-bold mb-3 uppercase tracking-tight transition-colors ${isLink(product.name) ? 'text-indigo-600 hover:underline cursor-pointer' : 'text-slate-700'}`}
+                          onClick={(e) => {
+                            if (isLink(product.name)) {
+                              e.stopPropagation();
+                              handleCopy(product.name, 'Link');
+                            }
+                          }}
+                        >
+                          {product.name}
+                        </h4>
                         <div className="space-y-1.5 mb-6">
                           {product.lastPurchaseDate && (
                             <div className="flex items-center gap-2 bg-indigo-50/50 px-2 py-1 rounded-lg border border-indigo-100/50">
                               <div className="w-1.5 h-1.5 bg-indigo-500 rounded-full" />
-                              <span className="text-[9px] text-slate-500 font-bold uppercase">Última Compra:</span>
-                              <span className="text-[9px] text-indigo-700 font-black">{product.lastPurchaseDate}</span>
+                              <span className="text-[11px] text-slate-500 font-bold uppercase">Última Compra:</span>
+                              <span className="text-[11px] text-indigo-700 font-black">{product.lastPurchaseDate}</span>
                             </div>
                           )}
                           {product.paymentMethod && (
                             <div className="flex items-center gap-2 bg-emerald-50/50 px-2 py-1 rounded-lg border border-emerald-100/50">
                               <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full" />
-                              <span className="text-[9px] text-slate-500 font-bold uppercase">Pagamento:</span>
-                              <span className="text-[9px] text-emerald-700 font-black">{product.paymentMethod}</span>
+                              <span className="text-[11px] text-slate-500 font-bold uppercase">Pagamento:</span>
+                              <span className="text-[11px] text-emerald-700 font-black">{product.paymentMethod}</span>
                             </div>
                           )}
                         </div>

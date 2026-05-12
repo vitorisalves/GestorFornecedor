@@ -498,138 +498,151 @@ export const UpdatePricesView: React.FC<UpdatePricesViewProps> = ({
             {matchResults.map((res, i) => (
               <div 
                 key={i}
-                className={`bg-white p-5 rounded-2xl border flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6 transition-all ${
+                className={`bg-white p-6 rounded-3xl border flex flex-col gap-6 transition-all ${
                   res.isNew ? 'border-indigo-100' : 'border-emerald-100'
                 } shadow-sm hover:shadow-md`}
               >
-                {/* Left: Product Info */}
-                <div className="flex gap-4 items-center flex-1 w-full min-w-0">
-                  <div className={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 ${
-                    res.isNew ? 'bg-indigo-50 text-indigo-600' : 'bg-emerald-50 text-emerald-600'
-                  }`}>
-                    {res.isNew ? <Plus className="w-6 h-6" /> : <Check className="w-6 h-6" />}
-                  </div>
-                  
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 group/name max-w-full">
-                      <input 
-                        type="text"
-                        className="font-black text-slate-900 text-lg uppercase tracking-tight bg-transparent border-b-2 border-transparent hover:border-slate-200 focus:border-indigo-500 outline-none w-full transition-all"
-                        value={res.extracted.name}
-                        onChange={(e) => updateItemConfig(i, { extracted: { ...res.extracted, name: e.target.value } })}
-                      />
-                      <Pencil className="w-4 h-4 text-black group-hover/name:text-indigo-400 transition-colors shrink-0" />
+                {/* UP ROW: Icon + Name Input + Info + Remove */}
+                <div className="flex items-start justify-between gap-4">
+                  <div className="flex items-center gap-4 flex-1 min-w-0">
+                    <div className={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 ${
+                      res.isNew ? 'bg-indigo-50 text-indigo-600' : 'bg-emerald-50 text-emerald-600'
+                    }`}>
+                      {res.isNew ? <Plus className="w-6 h-6" /> : <Check className="w-6 h-6" />}
                     </div>
                     
-                    <div className="flex flex-wrap items-center gap-3 mt-1">
-                       {res.isNew ? (
-                         <span className="text-[10px] font-black text-indigo-600 uppercase tracking-widest px-2 py-0.5 bg-indigo-50 rounded">Novo Produto</span>
-                       ) : (
-                         <span className="text-[10px] font-black text-emerald-600 uppercase tracking-widest px-2 py-0.5 bg-emerald-50 rounded">Sugestão de Vínculo</span>
-                       )}
-                       {res.supplier && <span className="text-slate-400 font-bold text-xs shrink-0">· {res.supplier.name}</span>}
-                       
-                       <div className="flex gap-4">
-                         <button 
-                          onClick={() => {
-                            setLinkingIndex(i);
-                            setSearchProductQuery('');
-                          }}
-                          className="text-[10px] font-black text-indigo-600 uppercase tracking-widest flex items-center gap-1 hover:underline whitespace-nowrap"
-                         >
-                           <LinkIcon className="w-3 h-3" />
-                           {res.existingProduct ? 'Trocar Vínculo' : 'Vincular Existente'}
-                         </button>
-
-                         {!res.isNew && (
-                           <button 
-                             onClick={() => {
-                               updateItemConfig(i, {
-                                 existingProduct: undefined,
-                                 supplier: undefined,
-                                 isNew: true,
-                                 extracted: { ...res.extracted, name: res.originalReadName }
-                               });
-                             }}
-                             className="text-[10px] font-black text-red-500 uppercase tracking-widest flex items-center gap-1 hover:underline whitespace-nowrap"
-                           >
-                             <Link2Off className="w-3 h-3" />
-                             Remover Vínculo
-                           </button>
-                         )}
-                       </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Right: Price and Config */}
-                <div className="flex flex-col sm:flex-row items-center gap-4 md:gap-8 w-full lg:w-auto shrink-0">
-                  <div className="flex items-center gap-4 bg-slate-50 px-6 py-3 rounded-2xl border-2 border-slate-100 shrink-0 w-full sm:w-auto">
-                    {!res.isNew && res.existingProduct && (
-                      <>
-                        <div className="text-right">
-                          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Antigo</p>
-                          <p className="text-slate-500 line-through font-bold">{formatCurrency(res.existingProduct.price)}</p>
-                        </div>
-                        <ArrowRight className="w-4 h-4 text-slate-300" />
-                      </>
-                    )}
-                    <div className="text-right flex-1 sm:flex-initial">
-                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Novo</p>
-                      <p className="text-xl font-black text-slate-900">{formatCurrency(res.extracted.price)}</p>
-                    </div>
-                  </div>
-
-                  <div className="flex flex-col sm:flex-row lg:flex-col gap-2 w-full sm:w-auto min-w-0 sm:min-w-[250px] shrink-0">
-                    <div className="flex items-center gap-2 bg-white border-2 border-slate-200 p-2 rounded-xl">
-                      <ListChecks className="w-4 h-4 text-slate-400 shrink-0" />
-                      <select 
-                        className="text-xs font-black uppercase tracking-tight outline-none w-full bg-transparent"
-                        value={res.selectedContext}
-                        onChange={(e) => updateItemConfig(i, { selectedContext: e.target.value as any })}
-                      >
-                        <option value="suppliers">Fornecedores</option>
-                        <option value="mercado">Mercado</option>
-                        <option value="materiais">Materiais</option>
-                      </select>
-                    </div>
-
-                    {res.selectedContext === 'suppliers' && (
-                      <div className="flex items-center gap-2 bg-white border-2 border-slate-200 p-2 rounded-xl animate-in fade-in slide-in-from-top-1">
-                        <Building2 className="w-4 h-4 text-slate-400 shrink-0" />
-                        <select 
-                          className="text-xs font-black uppercase tracking-tight outline-none w-full bg-transparent"
-                          value={res.selectedSupplierId || ''}
-                          onChange={(e) => updateItemConfig(i, { selectedSupplierId: e.target.value })}
-                        >
-                          <option value="">Selecionar Fornecedor</option>
-                          {suppliers.filter(s => s.name.toUpperCase() !== 'MERCADO' && s.name.toUpperCase() !== 'MATERIAIS').map(s => (
-                            <option key={s.id} value={s.id}>{s.name}</option>
-                          ))}
-                        </select>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-3 group/name w-full">
+                        <input 
+                          type="text"
+                          className="font-black text-slate-900 text-xl md:text-2xl uppercase tracking-tight bg-transparent border-b-2 border-transparent hover:border-slate-200 focus:border-indigo-500 outline-none w-full transition-all py-1"
+                          value={res.extracted.name}
+                          onChange={(e) => updateItemConfig(i, { extracted: { ...res.extracted, name: e.target.value } })}
+                        />
+                        <Pencil className="w-4 h-4 text-slate-300 group-hover/name:text-indigo-400 transition-colors shrink-0" />
                       </div>
-                    )}
+                      
+                      <div className="flex flex-wrap items-center gap-3 mt-2">
+                         {res.isNew ? (
+                           <span className="text-[10px] font-black text-indigo-600 uppercase tracking-widest px-2 py-0.5 bg-indigo-50 rounded">Novo Produto</span>
+                         ) : (
+                           <span className="text-[10px] font-black text-emerald-600 uppercase tracking-widest px-2 py-0.5 bg-emerald-50 rounded">Sugestão de Vínculo</span>
+                         )}
+                         {res.supplier && <span className="text-slate-400 font-bold text-xs shrink-0">· {res.supplier.name}</span>}
+                         
+                         <div className="flex gap-4 ml-2">
+                           <button 
+                            onClick={() => {
+                              setLinkingIndex(i);
+                              setSearchProductQuery('');
+                            }}
+                            className="text-[10px] font-black text-indigo-600 uppercase tracking-widest flex items-center gap-1 hover:underline whitespace-nowrap"
+                           >
+                             <LinkIcon className="w-3 h-3" />
+                             {res.existingProduct ? 'Trocar Vínculo' : 'Vincular Existente'}
+                           </button>
 
-                    <div className="flex items-center gap-2 bg-white border-2 border-slate-200 p-2 rounded-xl">
-                      <Tag className="w-4 h-4 text-slate-400 shrink-0" />
-                      <select 
-                        className="text-xs font-black uppercase tracking-tight outline-none w-full bg-transparent"
-                        value={res.selectedCategory || ''}
-                        onChange={(e) => updateItemConfig(i, { selectedCategory: e.target.value })}
-                      >
-                        <option value="">Selecionar Categoria</option>
-                        {categories.map(c => <option key={c} value={c}>{c}</option>)}
-                      </select>
+                           {!res.isNew && (
+                             <button 
+                               onClick={() => {
+                                 updateItemConfig(i, {
+                                   existingProduct: undefined,
+                                   supplier: undefined,
+                                   isNew: true,
+                                   extracted: { ...res.extracted, name: res.originalReadName }
+                                 });
+                               }}
+                               className="text-[10px] font-black text-red-500 uppercase tracking-widest flex items-center gap-1 hover:underline whitespace-nowrap"
+                             >
+                               <Link2Off className="w-3 h-3" />
+                               Remover Vínculo
+                             </button>
+                           )}
+                         </div>
+                      </div>
                     </div>
                   </div>
 
                   <button 
                     onClick={() => removeItem(i)}
-                    className="p-4 bg-red-50 text-black rounded-2xl border-2 border-red-100 hover:bg-red-500 hover:text-white hover:border-red-600 transition-all shrink-0 w-full sm:w-auto flex items-center justify-center"
+                    className="p-3 bg-red-50 text-red-500 rounded-xl border border-red-100 hover:bg-red-500 hover:text-white transition-all shrink-0"
                     title="Remover produto da extração"
                   >
-                    <Trash2 className="w-6 h-6" />
+                    <Trash2 className="w-5 h-5" />
                   </button>
+                </div>
+
+                {/* BOTTOM ROW: Price and Config */}
+                <div className="flex flex-wrap items-end justify-between gap-6 pt-6 border-t border-slate-50">
+                  <div className="flex flex-wrap items-center gap-4 md:gap-8 flex-1">
+                    <div className="flex items-center gap-4 bg-slate-50 px-6 py-4 rounded-2xl border border-slate-100 shrink-0">
+                      {!res.isNew && res.existingProduct && (
+                        <>
+                          <div className="text-right">
+                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none mb-1">Antigo</p>
+                            <p className="text-slate-400 line-through font-bold text-sm">{formatCurrency(res.existingProduct.price)}</p>
+                          </div>
+                          <ArrowRight className="w-4 h-4 text-slate-300" />
+                        </>
+                      )}
+                      <div className="text-right">
+                        <p className="text-[10px] font-black text-indigo-400 uppercase tracking-widest leading-none mb-1">Novo</p>
+                        <p className="text-2xl font-black text-slate-900 leading-none">{formatCurrency(res.extracted.price)}</p>
+                      </div>
+                    </div>
+
+                    <div className="flex flex-col sm:flex-row gap-3 flex-1 min-w-[300px]">
+                      <div className="flex-1 flex flex-col gap-1.5">
+                        <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Contexto Destino</span>
+                        <div className="flex items-center gap-2 bg-white border-2 border-slate-100 p-3 rounded-xl focus-within:border-indigo-200 transition-colors">
+                          <ListChecks className="w-4 h-4 text-slate-400 shrink-0" />
+                          <select 
+                            className="text-xs font-black uppercase tracking-tight outline-none w-full bg-transparent cursor-pointer"
+                            value={res.selectedContext}
+                            onChange={(e) => updateItemConfig(i, { selectedContext: e.target.value as any })}
+                          >
+                            <option value="suppliers">Fornecedores</option>
+                            <option value="mercado">Mercado</option>
+                            <option value="materiais">Materiais</option>
+                          </select>
+                        </div>
+                      </div>
+
+                      {res.selectedContext === 'suppliers' && (
+                        <div className="flex-1 flex flex-col gap-1.5 animate-in fade-in slide-in-from-top-1">
+                          <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Fornecedor</span>
+                          <div className="flex items-center gap-2 bg-white border-2 border-slate-100 p-3 rounded-xl focus-within:border-indigo-200 transition-colors">
+                            <Building2 className="w-4 h-4 text-slate-400 shrink-0" />
+                            <select 
+                              className="text-xs font-black uppercase tracking-tight outline-none w-full bg-transparent cursor-pointer"
+                              value={res.selectedSupplierId || ''}
+                              onChange={(e) => updateItemConfig(i, { selectedSupplierId: e.target.value })}
+                            >
+                              <option value="">Selecionar Fornecedor</option>
+                              {suppliers.filter(s => s.name.toUpperCase() !== 'MERCADO' && s.name.toUpperCase() !== 'MATERIAIS').map(s => (
+                                <option key={s.id} value={s.id}>{s.name}</option>
+                              ))}
+                            </select>
+                          </div>
+                        </div>
+                      )}
+
+                      <div className="flex-1 flex flex-col gap-1.5">
+                        <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Categoria</span>
+                        <div className="flex items-center gap-2 bg-white border-2 border-slate-100 p-3 rounded-xl focus-within:border-indigo-200 transition-colors">
+                          <Tag className="w-4 h-4 text-slate-400 shrink-0" />
+                          <select 
+                            className="text-xs font-black uppercase tracking-tight outline-none w-full bg-transparent cursor-pointer"
+                            value={res.selectedCategory || ''}
+                            onChange={(e) => updateItemConfig(i, { selectedCategory: e.target.value })}
+                          >
+                            <option value="">Selecionar Categoria</option>
+                            {categories.map(c => <option key={c} value={c}>{c}</option>)}
+                          </select>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </div>
             ))}
