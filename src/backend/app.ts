@@ -18,6 +18,7 @@ import {
 } from 'firebase/firestore';
 import { initializeApp } from 'firebase/app';
 import Papa from 'papaparse';
+import { GoogleGenAI, Type } from "@google/genai";
 
 // --- CONFIG LOADING ---
 let firebaseConfig: any = {
@@ -750,6 +751,7 @@ app.get(["/api/health", "/health"], asyncHandler(async (req: Request, res: Respo
     status: "ok", 
     external_api: externalStatus,
     env_set: !!(process.env.OMIE_BASE_URL || process.env.EXTERNAL_API_URL || process.env.OMIE_APP_KEY),
+    ai_status: !!process.env.GEMINI_API_KEY ? "configured" : "missing",
     timestamp: new Date().toISOString(),
     config: {
       baseUrl: baseUrl,
@@ -757,6 +759,144 @@ app.get(["/api/health", "/health"], asyncHandler(async (req: Request, res: Respo
       hasSecret: !!EXTERNAL_API_CONFIG.appSecret
     }
   });
+}));
+
+/**
+ * AI Proxy for Dashboard Matching
+ */
+app.post("/api/ai/match-dashboard", asyncHandler(async (req: Request, res: Response) => {
+  const { spreadsheetNames, shoppingItemNames } = req.body;
+  const rawApiKey = process.env.G_API_KEY || process.env.GEMINI_API_KEY;
+  const apiKey = rawApiKey?.trim();
+
+  if (!apiKey) {
+    console.error("[AI Match Dashboard Error] GEMINI_API_KEY ausente no ambiente.");
+    return res.status(500).json({ error: "GEMINI_API_KEY não configurada no servidor. Adicione-a em Settings > Secrets." });
+  }
+
+  // Avisa sobre placeholders mas tenta prosseguir
+  if (apiKey.includes("sua_chave") || apiKey.includes("MY_GEMINI_API_KEY")) {
+    console.warn("[AI Match Dashboard Warning] Chave detectada como placeholder:", apiKey);
+  }
+
+  const ai = new GoogleGenAI({ apiKey });
+  const prompt = `
+    Mapeie os nomes dos itens da LISTA DE COMPRAS para os nomes oficiais da PLANILHA DE METAS.
+    
+    RETORNE APENAS UM JSON no seguinte formato:
+    {
+      "NOME_NA_LISTA": "NOME_OFICIAL_NA_PLANILHA"
+    }
+
+    PLANILHA (Nomes Oficiais):
+    ${spreadsheetNames.join('\n')}
+
+    LISTA (Nomes Manuais):
+    ${shoppingItemNames.join('\n')}
+  `;
+
+  try {
+    const response = await ai.models.generateContent({
+      model: "gemini-3-flash-preview",
+      contents: prompt,
+      config: {
+        responseMimeType: "application/json",
+        temperature: 0.1
+      }
+    });
+
+    res.json({ mapping: JSON.parse(response.text || '{}') });
+  } catch (error: any) {
+    console.error("[AI Match Dashboard Error]", error.message);
+    res.status(500).json({ error: error.message });
+  }
+}));
+
+/**
+ * AI Proxy for Document Extraction (Update Prices)
+ */
+app.post("/api/ai/process-document", asyncHandler(async (req: Request, res: Response) => {
+  const { fileData, promptText, existingProductNames } = req.body;
+  const rawApiKey = process.env.G_API_KEY || process.env.GEMINI_API_KEY;
+  const apiKey = rawApiKey?.trim();
+
+  if (!apiKey) {
+    console.error("[AI Process Document Error] GEMINI_API_KEY ausente no ambiente.");
+    return res.status(500).json({ error: "GEMINI_API_KEY não configurada no servidor. Adicione-a em Settings > Secrets." });
+  }
+
+  // Avisa sobre placeholders mas tenta prosseguir
+  if (apiKey.includes("sua_chave") || apiKey.includes("MY_GEMINI_API_KEY")) {
+    console.warn("[AI Process Document Warning] Chave detectada como placeholder:", apiKey);
+  }
+
+  const ai = new GoogleGenAI({ apiKey });
+  const parts: any[] = [];
+  
+  if (fileData) {
+    parts.push({
+      inlineData: {
+        mimeType: fileData.mimeType,
+        data: fileData.data
+      }
+    });
+  }
+
+  if (promptText) {
+    parts.push({ text: promptText });
+  } else {
+    parts.push({ text: "Extraia itens e preços." });
+  }
+
+  try {
+    const response = await ai.models.generateContent({
+      model: "gemini-3-flash-preview",
+      contents: { parts },
+      config: {
+        systemInstruction: `
+          Aja como um extrator de dados ultra-rápido de notas fiscais.
+          
+          META: Retornar JSON de produtos com preço unitário.
+          ${existingProductNames && existingProductNames.length > 0 ? `\n\nLISTA DE PRODUTOS EXISTENTES (PARA MATCHING):\n${existingProductNames.join(", ")}` : ""}
+          
+          REGRAS:
+          1. "name": Se o item for similar a um da "LISTA DE PRODUTOS EXISTENTES", use EXATAMENTE o nome da lista. Caso contrário, use o nome lido.
+          2. "rawName": Nome bruto como está no documento.
+          3. Seja conciso. Ignore cabeçalhos e rodapés não relacionados a itens.
+        `,
+        responseMimeType: "application/json",
+        temperature: 0.1,
+        topP: 0.8,
+        responseSchema: {
+          type: Type.OBJECT,
+          properties: {
+            products: {
+              type: Type.ARRAY,
+              items: {
+                type: Type.OBJECT,
+                properties: {
+                  name: { type: Type.STRING },
+                  rawName: { type: Type.STRING },
+                  price: { type: Type.NUMBER },
+                  quantity: { type: Type.NUMBER },
+                  category: { type: Type.STRING },
+                  supplierName: { type: Type.STRING }
+                },
+                required: ["name", "rawName", "price"]
+              }
+            }
+          },
+          required: ["products"]
+        }
+      }
+    });
+
+    const parsed = JSON.parse(response.text || '{"products":[]}');
+    res.json(parsed.products || []);
+  } catch (error: any) {
+    console.error("[AI Process Document Error]", error.message);
+    res.status(500).json({ error: error.message });
+  }
 }));
 
 /**

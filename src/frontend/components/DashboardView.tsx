@@ -39,8 +39,6 @@ import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { domToCanvas } from 'modern-screenshot';
 
-import { GoogleGenAI, Type } from "@google/genai";
-
 import { SavedList } from '../types';
 import { formatCurrency, normalizeText } from '../utils';
 
@@ -58,11 +56,35 @@ interface DashboardViewProps {
 export const DashboardView: React.FC<DashboardViewProps> = ({ savedLists }) => {
   const [startDate, setStartDate] = useState<string>(format(startOfMonth(new Date()), 'yyyy-MM-dd'));
   const [endDate, setEndDate] = useState<string>(format(endOfMonth(new Date()), 'yyyy-MM-dd'));
-  const [spreadsheetData, setSpreadsheetData] = useState<SpreadsheetItem[]>([]);
+  const [spreadsheetData, setSpreadsheetData] = useState<SpreadsheetItem[]>(() => {
+    const saved = localStorage.getItem('dashboard_spreadsheet_data');
+    return saved ? JSON.parse(saved) : [];
+  });
   const [isLoadingSpreadsheet, setIsLoadingSpreadsheet] = useState(false);
-  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
-  const [aiMappings, setAiMappings] = useState<Record<string, string>>({});
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(() => {
+    const saved = localStorage.getItem('dashboard_last_updated');
+    return saved ? new Date(saved) : null;
+  });
+  const [aiMappings, setAiMappings] = useState<Record<string, string>>(() => {
+    const saved = localStorage.getItem('dashboard_ai_mappings');
+    return saved ? JSON.parse(saved) : {};
+  });
   const [isMatchingAI, setIsMatchingAI] = useState(false);
+  
+  // Persist data when changed
+  useEffect(() => {
+    localStorage.setItem('dashboard_spreadsheet_data', JSON.stringify(spreadsheetData));
+  }, [spreadsheetData]);
+
+  useEffect(() => {
+    localStorage.setItem('dashboard_ai_mappings', JSON.stringify(aiMappings));
+  }, [aiMappings]);
+
+  useEffect(() => {
+    if (lastUpdated) {
+      localStorage.setItem('dashboard_last_updated', lastUpdated.toISOString());
+    }
+  }, [lastUpdated]);
   
   const expenseChartRef = useRef<HTMLDivElement>(null);
   const quantityChartRef = useRef<HTMLDivElement>(null);
@@ -84,9 +106,6 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ savedLists }) => {
     
     setIsMatchingAI(true);
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY! });
-      
-      // Limit total tokens/names to avoid 500 errors on extremely large datasets
       const spreadsheetNames = Array.from(new Set(currentSpreadsheetData.map(d => d.name.trim()))).slice(0, 150);
       const shoppingItemNames = Array.from(new Set(
         currentLists.flatMap(l => l.items.filter(i => i.bought).map(i => i.name.trim()))
@@ -94,54 +113,24 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ savedLists }) => {
 
       if (shoppingItemNames.length === 0) {
         setAiMappings({});
+        setIsMatchingAI(false);
         return;
       }
 
-      const prompt = `
-        Mapeie os nomes dos itens da LISTA DE COMPRAS para os nomes oficiais da PLANILHA DE METAS.
-        
-        RETORNE APENAS UM JSON no seguinte formato:
-        {
-          "NOME_NA_LISTA": "NOME_OFICIAL_NA_PLANILHA"
-        }
-
-        PLANILHA (Nomes Oficiais):
-        ${spreadsheetNames.join('\n')}
-
-        LISTA (Nomes Manuais):
-        ${shoppingItemNames.join('\n')}
-      `;
-
-      // Try with a small timeout/retry or just catch and provide silent fallback
-      const response = await ai.models.generateContent({
-        model: "gemini-3-flash-preview",
-        contents: prompt,
-        config: {
-          responseMimeType: "application/json",
-          temperature: 0.1
-        }
+      const response = await fetch('/api/ai/match-dashboard', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ spreadsheetNames, shoppingItemNames })
       });
 
-      const responseText = response.text;
-      
-      let mapping = {};
-      try {
-        mapping = JSON.parse(responseText || '{}');
-      } catch (parseError) {
-        console.error('Falha ao analisar JSON da AI:', responseText);
-        // Tenta extrair JSON se houver markdown ou outros textos
-        const jsonMatch = responseText.match(/\{[\s\S]*\}/);
-        if (jsonMatch) {
-          try {
-            mapping = JSON.parse(jsonMatch[0]);
-          } catch (e) {
-            console.error('Falha na segunda tentativa de parse JSON');
-          }
-        }
+      if (!response.ok) {
+        const errData = await response.json().catch(() => ({}));
+        throw new Error(errData.error || `Erro AI: ${response.status}`);
       }
-      
-      console.log('AI Logic - New Product Mappings:', mapping);
-      setAiMappings(mapping);
+
+      const { mapping } = await response.json();
+      console.log('AI Logic - New Product Mappings (via API):', mapping);
+      setAiMappings(prev => ({ ...prev, ...mapping }));
     } catch (error) {
       console.error('Error during AI product matching:', error);
     } finally {
@@ -205,15 +194,24 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ savedLists }) => {
   };
 
   useEffect(() => {
-    fetchSpreadsheet();
+    // Only auto-fetch if we don't have data yet
+    if (spreadsheetData.length === 0) {
+      fetchSpreadsheet();
+    }
   }, []);
 
-  // Sync AI when dates or lists change
+  // Sync AI when dates or lists change - but only if we don't have enough mappings
   useEffect(() => {
-    if (spreadsheetData.length > 0 && filteredLists.length > 0) {
+    const shoppingItemNames = Array.from(new Set(
+      filteredLists.flatMap(l => l.items.filter(i => i.bought).map(i => i.name.trim()))
+    ));
+
+    const needsSync = shoppingItemNames.some(name => !aiMappings[name]);
+
+    if (needsSync && spreadsheetData.length > 0 && shoppingItemNames.length > 0) {
       const timer = setTimeout(() => {
         performAIMatching(spreadsheetData, filteredLists);
-      }, 1000);
+      }, 2000); // Wait bit longer for auto-sync
       return () => clearTimeout(timer);
     }
   }, [filteredLists, spreadsheetData.length]);
@@ -385,18 +383,25 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ savedLists }) => {
             {isMatchingAI ? 'Mapeando com IA...' : 'Sincronizar com IA'}
           </button>
 
-          <button
-            onClick={fetchSpreadsheet}
-            disabled={isLoadingSpreadsheet}
-            className={`flex items-center gap-2 px-4 py-2 rounded-2xl text-[10px] font-black uppercase transition-all border ${
-              isLoadingSpreadsheet 
-                ? 'bg-slate-50 text-slate-400 border-slate-100 cursor-not-allowed' 
-                : 'bg-white text-emerald-600 border-emerald-100 hover:bg-emerald-50 shadow-sm'
-            }`}
-          >
-            <RefreshCcw className={`w-3 h-3 ${isLoadingSpreadsheet ? 'animate-spin' : ''}`} />
-            Sincronizar Planilha
-          </button>
+          <div className="flex flex-col items-end gap-1">
+            <button
+              onClick={fetchSpreadsheet}
+              disabled={isLoadingSpreadsheet}
+              className={`flex items-center gap-2 px-4 py-2 rounded-2xl text-[10px] font-black uppercase transition-all border ${
+                isLoadingSpreadsheet 
+                  ? 'bg-slate-50 text-slate-400 border-slate-100 cursor-not-allowed' 
+                  : 'bg-white text-emerald-600 border-emerald-100 hover:bg-emerald-50 shadow-sm'
+              }`}
+            >
+              <RefreshCcw className={`w-3 h-3 ${isLoadingSpreadsheet ? 'animate-spin' : ''}`} />
+              Sincronizar Planilha
+            </button>
+            {lastUpdated && !isLoadingSpreadsheet && (
+              <span className="text-[9px] font-bold text-slate-400 uppercase tracking-tighter mr-2">
+                Última sincronização: {format(lastUpdated, 'dd/MM HH:mm')}
+              </span>
+            )}
+          </div>
           
           <div className="flex items-center gap-3 bg-slate-50 p-2 rounded-2xl border border-slate-100">
             <div className="flex items-center gap-2 px-3">
