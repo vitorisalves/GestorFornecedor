@@ -130,7 +130,9 @@ export class AIService {
                   price: { type: Type.NUMBER },
                   quantity: { type: Type.NUMBER },
                   category: { type: Type.STRING },
-                  supplierName: { type: Type.STRING }
+                  supplierName: { type: Type.STRING },
+                  lastPurchaseDate: { type: Type.STRING, description: "Data da compra/emissão" },
+                  paymentMethod: { type: Type.STRING, description: "Dinheiro, Cartão, Pix, Boleto, etc" }
                 },
                 required: ["name", "rawName", "price"]
               }

@@ -263,14 +263,18 @@ export const UpdatePricesView: React.FC<UpdatePricesViewProps> = ({
               ...s.products[pIdx], 
               name: res.extracted.name, // Update name if user edited it
               price: res.extracted.price,
-              category: res.selectedCategory || s.products[pIdx].category
+              category: res.selectedCategory || s.products[pIdx].category,
+              lastPurchaseDate: res.extracted.lastPurchaseDate || s.products[pIdx].lastPurchaseDate,
+              paymentMethod: res.extracted.paymentMethod || s.products[pIdx].paymentMethod
             };
           } else {
             // Found by name match elsewhere or fuzzy match that was user-confirmed
             s.products.push({
               name: res.extracted.name,
               price: res.extracted.price,
-              category: res.selectedCategory || 'Fornecedor'
+              category: res.selectedCategory || 'Fornecedor',
+              lastPurchaseDate: res.extracted.lastPurchaseDate,
+              paymentMethod: res.extracted.paymentMethod
             });
           }
         } else {
@@ -278,7 +282,9 @@ export const UpdatePricesView: React.FC<UpdatePricesViewProps> = ({
           s.products.push({
             name: res.extracted.name,
             price: res.extracted.price,
-            category: res.selectedCategory || 'Fornecedor'
+            category: res.selectedCategory || 'Fornecedor',
+            lastPurchaseDate: res.extracted.lastPurchaseDate,
+            paymentMethod: res.extracted.paymentMethod
           });
         }
         updatedSuppliers.set(sId, s);

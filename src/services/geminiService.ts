@@ -6,6 +6,8 @@ export interface ExtractedProduct {
   quantity?: number;
   category?: string;
   supplierName?: string;
+  lastPurchaseDate?: string;
+  paymentMethod?: string;
 }
 
 /**

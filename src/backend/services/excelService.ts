@@ -67,6 +67,8 @@ export class ExcelService {
       const pName = findVal(row, ['Produto', 'Nome', 'Descrição', 'Item']);
       const rawPrice = findVal(row, ['Valor Unitário', 'Preço Unitário', 'Preço', 'Custo']);
       const category = findVal(row, ['Categoria', 'Grupo']) || 'Geral';
+      const lastPurchaseDate = findVal(row, ['Ultima Data Compra', 'Data Compra', 'Última Data', 'Data', 'Data de Compra', 'Ult. Compra', 'Compra', 'Dt Compra']) || "";
+      const paymentMethod = findVal(row, ['Forma de Pagamento', 'Pagamento', 'Pagto', 'Forma Pagto', 'Meio de Pagamento', 'Tipo de Pagamento', 'Condicao', 'Condição de Pagamento']) || "";
 
       if (sNameRaw && pName) {
         const sName = String(sNameRaw).trim().toUpperCase();
@@ -81,7 +83,9 @@ export class ExcelService {
         suppliersMap[sName].products.push({
           name: pName,
           price: isNaN(pPrice) ? 0 : pPrice,
-          category
+          category,
+          lastPurchaseDate,
+          paymentMethod
         });
       }
     });
