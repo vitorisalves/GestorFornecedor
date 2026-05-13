@@ -111,7 +111,8 @@ export default function App() {
     finalizeList,
     toggleSavedListItemBought,
     deleteSavedList,
-    addItemToList
+    addItemToList,
+    updateProductPriceInLists
   } = useCart(isAuthReady, isApproved, loggedName, addAppNotification);
 
   const {
@@ -381,7 +382,6 @@ export default function App() {
       if (formState.productName.trim()) {
         const parsePrice = (val: string) => {
           if (!val) return 0;
-          // Suporte para decimal com vírgula ou ponto
           const normalized = val.replace(',', '.');
           const parsed = parseFloat(normalized);
           return isNaN(parsed) ? 0 : parsed;
@@ -409,9 +409,22 @@ export default function App() {
       
       const supplierId = editingSupplierId || Math.random().toString(36).substring(2, 11);
       
-      // Close modal immediately and reset as requested, but keep isSaving until done
+      // Close modal immediately
       setIsAdding(false);
       
+      // Update prices in lists if editing
+      if (editingSupplierId) {
+        const oldSupplier = suppliers.find(s => s.id === editingSupplierId);
+        if (oldSupplier) {
+          for (const newProduct of finalProductList) {
+            const oldProduct = oldSupplier.products.find(p => p.name === newProduct.name);
+            if (oldProduct && oldProduct.price !== newProduct.price) {
+              await updateProductPriceInLists(newProduct.name, oldSupplier.name, newProduct.price);
+            }
+          }
+        }
+      }
+
       await saveSupplier({
         id: supplierId,
         name: formState.name,
@@ -424,12 +437,10 @@ export default function App() {
     } catch (err) {
       console.error("Erro ao salvar fornecedor:", err);
       addNotification("Erro ao salvar", 0, 'info');
-      // If it failed, we might want to let the user see the modal again, 
-      // but the user specifically asked to close it on save.
     } finally {
       setIsSaving(false);
     }
-  }, [productList, formState, editingProductIndex, editingSupplierId, saveSupplier, resetForm, isSaving, addNotification]);
+  }, [productList, formState, editingProductIndex, editingSupplierId, saveSupplier, resetForm, isSaving, addNotification, suppliers, updateProductPriceInLists]);
 
   const onEditSupplier = React.useCallback((supplier: Supplier) => {
     setEditingSupplierId(supplier.id);
@@ -713,6 +724,7 @@ export default function App() {
             deliveredProducts={deliveredProducts}
             saveSupplier={saveSupplier}
             updateForecastDate={updateForecastDate}
+            updateProductPriceInLists={updateProductPriceInLists}
             addToCart={handleAddToCart}
             addNotification={addNotification}
           />

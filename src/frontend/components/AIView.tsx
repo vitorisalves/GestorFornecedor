@@ -34,6 +34,7 @@ interface AIViewProps {
   deliveredProducts: DeliveredProduct[];
   saveSupplier: (s: Supplier) => Promise<void>;
   updateForecastDate: (id: string, date: string) => Promise<void>;
+  updateProductPriceInLists: (productName: string, supplierName: string, newPrice: number) => Promise<void>;
   addToCart: (product: Product, supplierName: string, quantity: number) => void;
   addNotification: (msg: string, qty: number, type?: 'cart' | 'info') => void;
 }
@@ -55,6 +56,7 @@ export const AIView: React.FC<AIViewProps> = ({
   deliveredProducts,
   saveSupplier,
   updateForecastDate,
+  updateProductPriceInLists,
   addToCart,
   addNotification
 }) => {
@@ -252,6 +254,15 @@ export const AIView: React.FC<AIViewProps> = ({
     }
 
     for (const s of Array.from(updatedSuppliers.values())) {
+      const oldSupplier = suppliers.find(sup => sup.id === s.id);
+      if (oldSupplier) {
+        for (const newProduct of s.products) {
+          const oldProduct = oldSupplier.products.find(p => p.name === newProduct.name);
+          if (oldProduct && oldProduct.price !== newProduct.price) {
+            await updateProductPriceInLists(newProduct.name, s.name, newProduct.price);
+          }
+        }
+      }
       await saveSupplier(s);
     }
 

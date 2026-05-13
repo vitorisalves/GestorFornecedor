@@ -237,6 +237,47 @@ export const useCart = (
     addAppNotification('Lista Atualizada', `O produto "${product.name}" foi adicionado à lista "${list.name}".`);
   };
 
+  const updateProductPriceInLists = async (productName: string, supplierName: string, newPrice: number) => {
+    let affected = false;
+    const updatedLists = savedLists.map(list => {
+      const updatedItems = list.items.map(item => {
+        if (item.name === productName && item.supplierName === supplierName && !item.bought && item.price !== newPrice) {
+          affected = true;
+          return { ...item, price: newPrice };
+        }
+        return item;
+      });
+
+      if (affected) {
+        return {
+          ...list,
+          items: updatedItems,
+          total: updatedItems.reduce((acc, item) => acc + (item.price * item.quantity), 0)
+        };
+      }
+      return list;
+    });
+
+    if (!affected) return;
+
+    setSavedLists(updatedLists);
+
+    // Sync to Firestore
+    for (const list of updatedLists) {
+      if (!list.id.startsWith('temp-')) {
+        try {
+          await updateDoc(doc(db, 'shopping_lists', list.id), {
+            items: list.items,
+            total: list.total
+          });
+        } catch (err: any) {
+          handleFirestoreError(err, OperationType.UPDATE, `shopping_lists/${list.id}`);
+          console.warn("Cloud sync failed during price update:", err.message);
+        }
+      }
+    }
+  };
+
   return {
     cart,
     setCart,
@@ -250,6 +291,7 @@ export const useCart = (
     finalizeList,
     toggleSavedListItemBought,
     deleteSavedList,
-    addItemToList
+    addItemToList,
+    updateProductPriceInLists
   };
 };
