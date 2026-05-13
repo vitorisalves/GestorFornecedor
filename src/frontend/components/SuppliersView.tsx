@@ -94,8 +94,8 @@ export const SuppliersView: React.FC<SuppliersViewProps> = ({
   };
 
   const handleQuantityBlur = (key: string) => {
-    // Se estiver vazio ou zero, volta para 1
-    if (!quantities[key] || parseInt(quantities[key]) === 0) {
+    // Se estiver vazio volta para 1
+    if (!quantities[key]) {
       setQuantities(prev => ({ ...prev, [key]: '1' }));
     }
   };
@@ -104,7 +104,7 @@ export const SuppliersView: React.FC<SuppliersViewProps> = ({
     setQuantities(prev => {
       const val = prev[key];
       const current = (val && !isNaN(parseInt(val))) ? parseInt(val) : 1;
-      const newVal = Math.max(1, current + delta);
+      const newVal = Math.max(0, current + delta);
       return { ...prev, [key]: newVal.toString() };
     });
   };

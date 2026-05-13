@@ -27,18 +27,22 @@ interface DeliveredProductsViewProps {
   toggleDeliveryStatus: (productId: string) => void;
   deleteDeliveredProduct: (productId: string) => void;
   updatePurchaseDate: (productId: string, newDate: string) => void;
+  updateForecastDate: (productId: string, newDate: string) => void;
 }
 
 export const DeliveredProductsView: React.FC<DeliveredProductsViewProps> = ({
   deliveredProducts,
   toggleDeliveryStatus,
   deleteDeliveredProduct,
-  updatePurchaseDate
+  updatePurchaseDate,
+  updateForecastDate
 }) => {
   const [searchTerm, setSearchTerm] = React.useState('');
   const [productToDelete, setProductToDelete] = React.useState<string | null>(null);
   const [editingDateId, setEditingDateId] = React.useState<string | null>(null);
   const [tempDate, setTempDate] = React.useState('');
+  const [editingForecastId, setEditingForecastId] = React.useState<string | null>(null);
+  const [tempForecastDate, setTempForecastDate] = React.useState('');
 
   const toISODate = (dateStr: string) => {
     try {
@@ -71,6 +75,32 @@ export const DeliveredProductsView: React.FC<DeliveredProductsViewProps> = ({
       updatePurchaseDate(id, formattedDate);
     }
     setEditingDateId(null);
+  };
+
+  const handleStartEditForecast = (product: DeliveredProduct) => {
+    setEditingForecastId(product.id);
+    setTempForecastDate(product.forecastDate ? toISODate(product.forecastDate) : new Date().toISOString().split('T')[0]);
+  };
+
+  const handleSaveForecast = (id: string) => {
+    const formattedDate = fromISODate(tempForecastDate);
+    if (formattedDate) {
+      updateForecastDate(id, formattedDate);
+    }
+    setEditingForecastId(null);
+  };
+
+  const isLate = (forecastDate?: string) => {
+    if (!forecastDate) return false;
+    try {
+      const parts = forecastDate.split('/');
+      if (parts.length !== 3) return false;
+      const [day, month, year] = parts.map(Number);
+      const forecast = new Date(year, month - 1, day, 23, 59, 59);
+      return forecast < new Date();
+    } catch {
+      return false;
+    }
   };
 
   const filteredProducts = deliveredProducts
@@ -135,6 +165,7 @@ export const DeliveredProductsView: React.FC<DeliveredProductsViewProps> = ({
                 <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Fornecedor</th>
                 <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">Qtd</th>
                 <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Data Compra</th>
+                <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Previsão Entrega</th>
                 <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">Tempo</th>
                 <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">Ações</th>
               </tr>
@@ -142,7 +173,7 @@ export const DeliveredProductsView: React.FC<DeliveredProductsViewProps> = ({
             <tbody className="divide-y divide-slate-50">
               {filteredProducts.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="py-20 text-center">
+                  <td colSpan={8} className="py-20 text-center">
                     <div className="flex flex-col items-center justify-center">
                       <Package className="w-12 h-12 text-slate-200 mb-4" />
                       <p className="text-slate-400 font-bold uppercase text-xs tracking-widest">Nenhum produto encontrado</p>
@@ -215,6 +246,45 @@ export const DeliveredProductsView: React.FC<DeliveredProductsViewProps> = ({
                             <span className="text-sm font-bold uppercase tracking-tight">{p.purchaseDate}</span>
                             <button
                               onClick={() => handleStartEditDate(p)}
+                              className="p-1 text-black border border-slate-200 hover:text-indigo-700 hover:bg-slate-100 rounded transition-all bg-white shadow-sm"
+                            >
+                              <Pencil className="w-3 h-3" />
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="flex items-center gap-2 text-slate-500">
+                        <Clock className="w-3.5 h-3.5" />
+                        {editingForecastId === p.id ? (
+                          <div className="flex items-center gap-1">
+                            <input
+                              type="date"
+                              value={tempForecastDate}
+                              onChange={(e) => setTempForecastDate(e.target.value)}
+                              className="bg-white border border-slate-200 rounded px-1 py-0.5 text-[11px] font-bold outline-none focus:border-indigo-500"
+                            />
+                            <button 
+                              onClick={() => handleSaveForecast(p.id)}
+                              className="p-1 text-emerald-500 hover:bg-emerald-50 rounded"
+                            >
+                              <Check className="w-3 h-3" />
+                            </button>
+                            <button 
+                              onClick={() => setEditingForecastId(null)}
+                              className="p-1 text-red-400 hover:bg-red-50 rounded"
+                            >
+                              <X className="w-3 h-3" />
+                            </button>
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-2 group/date">
+                            <span className={`text-sm font-bold uppercase tracking-tight ${!p.delivered && isLate(p.forecastDate) ? 'text-red-500 animate-pulse' : ''}`}>
+                              {p.forecastDate || 'Definir'}
+                            </span>
+                            <button
+                              onClick={() => handleStartEditForecast(p)}
                               className="p-1 text-black border border-slate-200 hover:text-indigo-700 hover:bg-slate-100 rounded transition-all bg-white shadow-sm"
                             >
                               <Pencil className="w-3 h-3" />

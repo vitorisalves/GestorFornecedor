@@ -76,7 +76,7 @@ export const ShoppingView: React.FC<ShoppingViewProps> = ({
   const handleQtyChange = (uniqueId: string, delta: number) => {
     setShoppingQuantities(prev => {
       const current = Number(prev[uniqueId] || 1);
-      const nextValue = Math.max(1, current + delta);
+      const nextValue = Math.max(0, current + delta);
       return { ...prev, [uniqueId]: nextValue };
     });
   };

@@ -54,6 +54,7 @@ export interface DeliveredProduct {
   purchaseDate: string;
   delivered: boolean;
   deliveryDate?: string;
+  forecastDate?: string;
   quantity?: number;
   deliveryTimeDays?: number;
 }

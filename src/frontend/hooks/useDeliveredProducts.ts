@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { 
   collection, 
   onSnapshot, 
@@ -17,10 +17,15 @@ import { db } from '../firebase';
 import { DeliveredProduct } from '../types';
 import { extractErrorMessage, handleFirestoreError, OperationType, cleanObject } from '../utils';
 
-export function useDeliveredProducts(isAuthReady: boolean, isApproved: boolean) {
+export function useDeliveredProducts(
+  isAuthReady: boolean, 
+  isApproved: boolean, 
+  addAppNotification?: (title: string, message: string) => void
+) {
   const [deliveredProducts, setDeliveredProducts] = useState<DeliveredProduct[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const notifiedRefs = useRef<Set<string>>(new Set());
 
   useEffect(() => {
     if (!isAuthReady || !isApproved) return;
@@ -41,6 +46,31 @@ export function useDeliveredProducts(isAuthReady: boolean, isApproved: boolean) 
 
     return () => unsubscribe();
   }, [isAuthReady, isApproved]);
+
+  useEffect(() => {
+    if (!addAppNotification || deliveredProducts.length === 0) return;
+
+    deliveredProducts.forEach(p => {
+      if (!p.delivered && p.forecastDate && !notifiedRefs.current.has(p.id)) {
+        try {
+          const parts = p.forecastDate.split('/');
+          if (parts.length === 3) {
+            const [day, month, year] = parts.map(Number);
+            const forecast = new Date(year, month - 1, day, 23, 59, 59);
+            if (forecast < new Date()) {
+              addAppNotification(
+                'Entrega Atrasada!',
+                `O produto "${p.name}" do fornecedor ${p.supplierName} está com a entrega atrasada (Previsão: ${p.forecastDate}).`
+              );
+              notifiedRefs.current.add(p.id);
+            }
+          }
+        } catch (e) {
+          console.error("Error checking notification for delay:", e);
+        }
+      }
+    });
+  }, [deliveredProducts, addAppNotification]);
 
   const saveDeliveredProduct = useCallback(async (product: DeliveredProduct) => {
     try {
@@ -121,6 +151,18 @@ export function useDeliveredProducts(isAuthReady: boolean, isApproved: boolean) 
     await saveDeliveredProduct(updatedProduct);
   }, [deliveredProducts, saveDeliveredProduct]);
 
+  const updateForecastDate = useCallback(async (id: string, newDate: string) => {
+    const product = deliveredProducts.find(p => p.id === id);
+    if (!product) return;
+
+    const updatedProduct: DeliveredProduct = {
+      ...product,
+      forecastDate: newDate
+    };
+
+    await saveDeliveredProduct(updatedProduct);
+  }, [deliveredProducts, saveDeliveredProduct]);
+
   return {
     deliveredProducts,
     isLoading,
@@ -128,6 +170,7 @@ export function useDeliveredProducts(isAuthReady: boolean, isApproved: boolean) 
     saveDeliveredProduct,
     deleteDeliveredProduct,
     toggleDeliveryStatus,
-    updatePurchaseDate
+    updatePurchaseDate,
+    updateForecastDate
   };
 }

@@ -119,8 +119,9 @@ export default function App() {
     saveDeliveredProduct,
     deleteDeliveredProduct,
     toggleDeliveryStatus,
-    updatePurchaseDate
-  } = useDeliveredProducts(isAuthReady, isApproved);
+    updatePurchaseDate,
+    updateForecastDate
+  } = useDeliveredProducts(isAuthReady, isApproved, addAppNotification);
 
   const handleToggleSavedListItemBought = React.useCallback(async (listId: string, productName: string, supplierName: string) => {
     const list = savedLists.find(l => l.id === listId);
@@ -675,6 +676,7 @@ export default function App() {
             toggleDeliveryStatus={toggleDeliveryStatus}
             deleteDeliveredProduct={deleteDeliveredProduct}
             updatePurchaseDate={updatePurchaseDate}
+            updateForecastDate={updateForecastDate}
           />
         )}
         {currentPage === 'reminders' && (
