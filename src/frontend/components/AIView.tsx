@@ -125,8 +125,8 @@ export const AIView: React.FC<AIViewProps> = ({
       setAiResponse(response);
       setEditableAIData(response.data);
 
-      // Se a ação for UPDATE_PRICES ou CREATE_PRODUCTS, processamos os matchResults
-      if (response.action === 'UPDATE_PRICES' || response.action === 'CREATE_PRODUCTS') {
+      // Se a ação for UPDATE_PRICES, CREATE_PRODUCTS ou CREATE_SHOPPING_LIST, processamos os matchResults
+      if (response.action === 'UPDATE_PRICES' || response.action === 'CREATE_PRODUCTS' || response.action === 'CREATE_SHOPPING_LIST') {
         const extracted = response.data?.products || [];
         const results: MatchResult[] = extracted.map(item => {
           let matchedProduct: Product | undefined;
@@ -307,6 +307,11 @@ export const AIView: React.FC<AIViewProps> = ({
         }
         addNotification("Datas de entrega atualizadas!", updates.length, 'info');
       } else if (aiResponse.action === 'CREATE_SHOPPING_LIST') {
+        // Primeiro, cria/atualiza os produtos (se houver)
+        if (matchResults.length > 0) {
+          await handleUpdate();
+        }
+
         const items = editableAIData.shoppingItems || [];
         for (const item of items) {
           // Tentar encontrar o produto para pegar o ID/obj
@@ -319,7 +324,7 @@ export const AIView: React.FC<AIViewProps> = ({
             addToCart({ name: item.name, price: 0, category: 'AI' }, item.supplierName || 'AI', item.quantity);
           }
         }
-        addNotification("Itens adicionados à lista de compras!", items.length, 'cart');
+        addNotification("Operação concluída!", items.length, 'cart');
       }
       
       setAiResponse(null);
@@ -499,7 +504,7 @@ export const AIView: React.FC<AIViewProps> = ({
         )}
 
         {/* Note: UPDATE_PRICES and CREATE_PRODUCTS use the existing matchResults rendering flow */}
-        {aiResponse.action !== 'UPDATE_PRICES' && aiResponse.action !== 'CREATE_PRODUCTS' && (
+        {aiResponse.action !== 'UPDATE_PRICES' && aiResponse.action !== 'CREATE_PRODUCTS' && aiResponse.action !== 'CREATE_SHOPPING_LIST' && (
            <div className="flex gap-4">
             <button 
               onClick={() => setAiResponse(null)}
@@ -693,7 +698,7 @@ export const AIView: React.FC<AIViewProps> = ({
               >
                 Cancelar
               </button>
-              {(aiResponse.action === 'UPDATE_PRICES' || aiResponse.action === 'CREATE_PRODUCTS') && (
+              {(aiResponse.action === 'UPDATE_PRICES' || aiResponse.action === 'CREATE_PRODUCTS' || aiResponse.action === 'CREATE_SHOPPING_LIST') && (
                 <button 
                   onClick={handleConfirmAction}
                   className="px-6 py-3 bg-indigo-600 text-white font-black uppercase tracking-widest text-[10px] rounded-2xl shadow-xl shadow-indigo-100 hover:bg-indigo-700 transition-all flex items-center gap-2"
@@ -707,7 +712,7 @@ export const AIView: React.FC<AIViewProps> = ({
 
           {renderAIResponseContent()}
 
-          {(aiResponse.action === 'UPDATE_PRICES' || aiResponse.action === 'CREATE_PRODUCTS') && (
+          {(aiResponse.action === 'UPDATE_PRICES' || aiResponse.action === 'CREATE_PRODUCTS' || aiResponse.action === 'CREATE_SHOPPING_LIST') && (
             <div className="grid grid-cols-1 gap-4">
               {matchResults.map((res, i) => (
                 <div 
