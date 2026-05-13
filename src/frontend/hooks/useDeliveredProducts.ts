@@ -163,6 +163,14 @@ export function useDeliveredProducts(
     await saveDeliveredProduct(updatedProduct);
   }, [deliveredProducts, saveDeliveredProduct]);
 
+  const updateDeliveredQuantity = useCallback(async (name: string, supplierName: string, newQuantity: number) => {
+    const productsToUpdate = deliveredProducts.filter(p => p.name === name && p.supplierName === supplierName && !p.delivered);
+    
+    for (const p of productsToUpdate) {
+      await saveDeliveredProduct({ ...p, quantity: newQuantity });
+    }
+  }, [deliveredProducts, saveDeliveredProduct]);
+
   return {
     deliveredProducts,
     isLoading,
@@ -171,6 +179,7 @@ export function useDeliveredProducts(
     deleteDeliveredProduct,
     toggleDeliveryStatus,
     updatePurchaseDate,
-    updateForecastDate
+    updateForecastDate,
+    updateDeliveredQuantity
   };
 }

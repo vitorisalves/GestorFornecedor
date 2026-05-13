@@ -120,8 +120,19 @@ export default function App() {
     deleteDeliveredProduct,
     toggleDeliveryStatus,
     updatePurchaseDate,
-    updateForecastDate
+    updateForecastDate,
+    updateDeliveredQuantity
   } = useDeliveredProducts(isAuthReady, isApproved, addAppNotification);
+
+  const handleUpdateCartQuantity = React.useCallback((name: string, supplierName: string, delta: number) => {
+    // 1. Update cart
+    updateCartQuantity(name, supplierName, delta);
+    
+    const item = cart.find(i => i.name === name && i.supplierName === supplierName);
+    if(item) {
+       updateDeliveredQuantity(name, supplierName, item.quantity + delta);
+    }
+  }, [updateCartQuantity, cart, updateDeliveredQuantity]);
 
   const handleToggleSavedListItemBought = React.useCallback(async (listId: string, productName: string, supplierName: string) => {
     const list = savedLists.find(l => l.id === listId);
@@ -761,7 +772,7 @@ export default function App() {
         cart={cart}
         listName={listName}
         setListName={setListName}
-        updateCartQuantity={updateCartQuantity}
+        updateCartQuantity={handleUpdateCartQuantity}
         removeFromCart={removeFromCart}
         finalizeList={onFinalizeList}
         isFinalizing={isFinalizing}

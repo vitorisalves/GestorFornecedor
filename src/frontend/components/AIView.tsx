@@ -65,6 +65,7 @@ export const AIView: React.FC<AIViewProps> = ({
   const [quotaError, setQuotaError] = useState(false);
   const [matchResults, setMatchResults] = useState<MatchResult[]>([]);
   const [aiResponse, setAiResponse] = useState<AIResponse | null>(null);
+  const [editableAIData, setEditableAIData] = useState<any>(null);
   const [showConfirm, setShowConfirm] = useState(false);
   const [searchProductQuery, setSearchProductQuery] = useState('');
   const [linkingIndex, setLinkingIndex] = useState<number | null>(null);
@@ -122,6 +123,7 @@ export const AIView: React.FC<AIViewProps> = ({
       });
 
       setAiResponse(response);
+      setEditableAIData(response.data);
 
       // Se a ação for UPDATE_PRICES ou CREATE_PRODUCTS, processamos os matchResults
       if (response.action === 'UPDATE_PRICES' || response.action === 'CREATE_PRODUCTS') {
@@ -277,6 +279,10 @@ export const AIView: React.FC<AIViewProps> = ({
     }));
   };
 
+  const updateEditableAIData = (updates: any) => {
+    setEditableAIData((prev: any) => ({ ...prev, ...updates }));
+  };
+
   const removeItem = (index: number) => {
     setItemToRemoveIndex(index);
   };
@@ -289,19 +295,19 @@ export const AIView: React.FC<AIViewProps> = ({
   };
 
   const handleConfirmAction = async () => {
-    if (!aiResponse) return;
+    if (!aiResponse || !editableAIData) return;
 
     try {
       if (aiResponse.action === 'UPDATE_PRICES' || aiResponse.action === 'CREATE_PRODUCTS') {
         await handleUpdate();
       } else if (aiResponse.action === 'UPDATE_DELIVERY_DATES') {
-        const updates = aiResponse.data?.deliveryUpdates || [];
+        const updates = editableAIData.deliveryUpdates || [];
         for (const update of updates) {
           await updateForecastDate(update.id, update.forecastDate);
         }
         addNotification("Datas de entrega atualizadas!", updates.length, 'info');
       } else if (aiResponse.action === 'CREATE_SHOPPING_LIST') {
-        const items = aiResponse.data?.shoppingItems || [];
+        const items = editableAIData.shoppingItems || [];
         for (const item of items) {
           // Tentar encontrar o produto para pegar o ID/obj
           const found = flatProducts.find(p => p.name === item.name && (!item.supplierName || p.supplier.name === item.supplierName));
@@ -317,6 +323,7 @@ export const AIView: React.FC<AIViewProps> = ({
       }
       
       setAiResponse(null);
+      setEditableAIData(null);
       setMatchResults([]);
     } catch (err) {
       console.error("Action Confirm Error:", err);
@@ -415,10 +422,21 @@ export const AIView: React.FC<AIViewProps> = ({
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-50">
-                {aiResponse.data?.deliveryUpdates?.map((u, idx) => (
+                {editableAIData?.deliveryUpdates?.map((u: any, idx: number) => (
                   <tr key={idx}>
                     <td className="px-6 py-4 font-bold text-slate-700 text-sm uppercase">{u.name}</td>
-                    <td className="px-6 py-4 font-black text-indigo-600 text-sm text-right">{u.forecastDate}</td>
+                    <td className="px-6 py-4 text-right">
+                      <input 
+                        type="date"
+                        className="font-black text-indigo-600 text-sm text-right bg-transparent border-b border-indigo-200"
+                        value={u.forecastDate.split('/').reverse().join('-')}
+                        onChange={(e) => {
+                          const newUpdates = [...editableAIData.deliveryUpdates];
+                          newUpdates[idx] = { ...newUpdates[idx], forecastDate: e.target.value.split('-').reverse().join('/') };
+                          updateEditableAIData({ deliveryUpdates: newUpdates });
+                        }}
+                      />
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -437,11 +455,42 @@ export const AIView: React.FC<AIViewProps> = ({
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-50">
-                {aiResponse.data?.shoppingItems?.map((item, idx) => (
+                {editableAIData?.shoppingItems?.map((item: any, idx: number) => (
                   <tr key={idx}>
-                    <td className="px-6 py-4 font-bold text-slate-700 text-sm uppercase">{item.name}</td>
-                    <td className="px-6 py-4 font-black text-indigo-600 text-center">{item.quantity}</td>
-                    <td className="px-6 py-4 font-bold text-slate-400 text-xs text-right uppercase">{item.supplierName || 'Qualquer'}</td>
+                    <td className="px-6 py-4 font-bold text-slate-700 text-sm uppercase">
+                      <input 
+                        className="bg-transparent border-b border-slate-200 w-full"
+                        value={item.name}
+                        onChange={(e) => {
+                          const newItems = [...editableAIData.shoppingItems];
+                          newItems[idx] = { ...newItems[idx], name: e.target.value };
+                          updateEditableAIData({ shoppingItems: newItems });
+                        }}
+                      />
+                    </td>
+                    <td className="px-6 py-4">
+                      <input 
+                        type="number"
+                        className="font-black text-indigo-600 text-center w-full bg-transparent border-b border-indigo-200"
+                        value={item.quantity}
+                        onChange={(e) => {
+                          const newItems = [...editableAIData.shoppingItems];
+                          newItems[idx] = { ...newItems[idx], quantity: parseInt(e.target.value) || 0 };
+                          updateEditableAIData({ shoppingItems: newItems });
+                        }}
+                      />
+                    </td>
+                    <td className="px-6 py-4 font-bold text-slate-400 text-xs text-right uppercase">
+                      <input 
+                        className="bg-transparent border-b border-slate-200 w-full text-right"
+                        value={item.supplierName || ''}
+                        onChange={(e) => {
+                          const newItems = [...editableAIData.shoppingItems];
+                          newItems[idx] = { ...newItems[idx], supplierName: e.target.value };
+                          updateEditableAIData({ shoppingItems: newItems });
+                        }}
+                      />
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -687,6 +736,27 @@ export const AIView: React.FC<AIViewProps> = ({
                           <Pencil className="w-4 h-4 text-slate-300 group-hover/name:text-indigo-400 transition-colors shrink-0" />
                         </div>
                         
+                        <div className="flex items-center gap-3 w-full mt-2">
+                          <input
+                            type="number"
+                            className="w-24 font-bold text-slate-700 bg-slate-50 border border-slate-200 rounded-lg px-2 py-1 text-sm outline-none focus:border-indigo-500"
+                            value={res.extracted.price}
+                            onChange={(e) => updateItemConfig(i, { extracted: { ...res.extracted, price: parseFloat(e.target.value) || 0 } })}
+                          />
+                          <input
+                            type="number"
+                            className="w-20 font-bold text-slate-700 bg-slate-50 border border-slate-200 rounded-lg px-2 py-1 text-sm outline-none focus:border-indigo-500"
+                            value={res.extracted.quantity || 1}
+                            onChange={(e) => updateItemConfig(i, { extracted: { ...res.extracted, quantity: parseInt(e.target.value) || 1 } })}
+                          />
+                          <select
+                            className="flex-1 font-bold text-slate-700 bg-slate-50 border border-slate-200 rounded-lg px-2 py-1 text-sm outline-none focus:border-indigo-500"
+                            value={res.selectedCategory || ''}
+                            onChange={(e) => updateItemConfig(i, { selectedCategory: e.target.value })}
+                          >
+                            {categories.map(c => <option key={c} value={c}>{c}</option>)}
+                          </select>
+                        </div>
                         <div className="flex flex-wrap items-center gap-3 mt-2">
                            {res.isNew ? (
                              <span className="text-[10px] font-black text-indigo-600 uppercase tracking-widest px-2 py-0.5 bg-indigo-50 rounded">Novo Produto</span>
