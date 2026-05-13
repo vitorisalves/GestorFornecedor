@@ -32,11 +32,18 @@ interface FirestoreErrorInfo {
 }
 
 export function cleanObject<T extends object>(obj: T): T {
-  const result = { ...obj };
+  const result = { ...obj } as any;
   Object.keys(result).forEach(key => {
-    const k = key as keyof T;
-    if (result[k] === undefined) {
-      delete result[k];
+    if (result[key] === undefined) {
+      delete result[key];
+    } else if (typeof result[key] === 'object' && result[key] !== null) {
+      if (Array.isArray(result[key])) {
+        result[key] = result[key].map((item: any) =>
+          typeof item === 'object' && item !== null ? cleanObject(item) : item
+        );
+      } else {
+        result[key] = cleanObject(result[key]);
+      }
     }
   });
   return result;
@@ -60,6 +67,13 @@ export function handleFirestoreError(error: unknown, operationType: OperationTyp
     path
   }
   const stringified = safeStringify(errInfo);
+  
+  // Skip throwing for NOT_FOUND / 404
+  if (errInfo.error.toLowerCase().includes('not found') || errInfo.error.includes('404')) {
+    console.warn('Firestore Warn (Not Found): ', stringified);
+    return;
+  }
+  
   console.error('Firestore Error: ', stringified);
   throw new Error(stringified);
 }

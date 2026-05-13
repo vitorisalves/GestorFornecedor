@@ -102,6 +102,13 @@ export const handleFirestoreError = (error: unknown, operationType: OperationTyp
     operationType,
     path
   };
+  
+  // Skip throwing for NOT_FOUND / 404
+  if (errInfo.error.toLowerCase().includes('not found') || errInfo.error.includes('404')) {
+    console.warn('[FirestoreWarn]', safeStringify(errInfo));
+    return errInfo;
+  }
+  
   console.error('[FirestoreError]', safeStringify(errInfo));
   return errInfo;
 };
@@ -123,7 +130,11 @@ export const fsOps = {
       }
       if (typeof collOrQuery === 'string') return await getDocs(collection(db, collOrQuery));
       return await getDocs(collOrQuery);
-    } catch (err) {
+    } catch (err: any) {
+      if (typeof err.message === 'string' && (err.message.toLowerCase().includes('not found') || err.message.includes('404'))) {
+        console.warn(`[FirestoreWarn] List operation failed (Not Found) at ${path}`);
+        return { docs: [] };
+      }
       handleFirestoreError(err, OperationType.LIST, path);
       throw err;
     }
@@ -135,7 +146,11 @@ export const fsOps = {
   update: async (ref: any, data: any, path: string = 'unknown') => {
     try {
       return ref.update ? await ref.update(data) : await updateDoc(ref, data);
-    } catch (err) {
+    } catch (err: any) {
+      if (typeof err.message === 'string' && (err.message.toLowerCase().includes('not found') || err.message.includes('404'))) {
+        console.warn(`[FirestoreWarn] Update operation failed (Not Found) at ${path}`);
+        return;
+      }
       handleFirestoreError(err, OperationType.UPDATE, path);
       throw err;
     }
@@ -143,7 +158,11 @@ export const fsOps = {
   set: async (ref: any, data: any, path: string = 'unknown') => {
     try {
       return ref.set ? await ref.set(data) : await setDoc(ref, data);
-    } catch (err) {
+    } catch (err: any) {
+      if (typeof err.message === 'string' && (err.message.toLowerCase().includes('not found') || err.message.includes('404'))) {
+        console.warn(`[FirestoreWarn] Set operation failed (Not Found) at ${path}`);
+        return;
+      }
       handleFirestoreError(err, OperationType.WRITE, path);
       throw err;
     }
@@ -151,7 +170,11 @@ export const fsOps = {
   delete: async (ref: any, path: string = 'unknown') => {
     try {
       return ref.delete ? await ref.delete() : await deleteDoc(ref);
-    } catch (err) {
+    } catch (err: any) {
+      if (typeof err.message === 'string' && (err.message.toLowerCase().includes('not found') || err.message.includes('404'))) {
+        console.warn(`[FirestoreWarn] Delete operation failed (Not Found) at ${path}`);
+        return;
+      }
       handleFirestoreError(err, OperationType.DELETE, path);
       throw err;
     }

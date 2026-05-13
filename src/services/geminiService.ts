@@ -116,7 +116,7 @@ export const processDocumentWithAI = async (
     parts.push({ text: promptText || "Extraia itens e preços." });
 
     const response = await ai.models.generateContent({
-      model: "gemini-3-flash-preview",
+      model: "gemini-2.0-flash",
       contents: { parts },
       config: {
         systemInstruction: `
@@ -128,7 +128,7 @@ export const processDocumentWithAI = async (
           2. "rawName": Nome bruto como está no documento.
         `,
         responseMimeType: "application/json",
-        temperature: 0.1,
+        temperature: 0.0,
         topP: 0.8,
         responseSchema: {
           type: Type.OBJECT,
@@ -196,11 +196,11 @@ export const matchDashboardWithAI = async (
     `;
 
     const response = await ai.models.generateContent({
-      model: "gemini-3-flash-preview",
+      model: "gemini-2.0-flash",
       contents: prompt,
       config: {
         responseMimeType: "application/json",
-        temperature: 0.1
+        temperature: 0.0
       }
     });
 
@@ -245,7 +245,7 @@ export const processCommandWithAI = async (
     const deliveredSummary = context.deliveredProducts?.filter(p => !p.delivered).map(p => `- [${p.id}] ${p.name} (Fornecedor: ${p.supplierName}, Previsão: ${p.forecastDate})`).join('\n') || "Nenhuma entrega pendente.";
 
     const response = await ai.models.generateContent({
-      model: "gemini-3-flash-preview",
+      model: "gemini-2.0-flash",
       contents: { parts },
       config: {
         systemInstruction: `
@@ -268,7 +268,7 @@ export const processCommandWithAI = async (
           REGRA DE RESPOSTA: RETORNE APENAS JSON.
         `,
         responseMimeType: "application/json",
-        temperature: 0.1,
+        temperature: 0.0,
         responseSchema: {
           type: Type.OBJECT,
           properties: {

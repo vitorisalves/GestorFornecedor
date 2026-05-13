@@ -271,6 +271,10 @@ export const useCart = (
             total: list.total
           });
         } catch (err: any) {
+          if (err.code === 'not-found' || err.message.toLowerCase().includes('not found') || err.message.includes('404')) {
+            console.warn("Shopping list document not found in Firestore, skipping update:", list.id);
+            continue;
+          }
           handleFirestoreError(err, OperationType.UPDATE, `shopping_lists/${list.id}`);
           console.warn("Cloud sync failed during price update:", err.message);
         }
