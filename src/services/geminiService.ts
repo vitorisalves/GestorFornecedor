@@ -1,5 +1,6 @@
 
 import { GoogleGenAI, Type } from "@google/genai";
+import { Supplier, DeliveredProduct } from "../frontend/types";
 
 export interface ExtractedProduct {
   name: string;
@@ -10,6 +11,20 @@ export interface ExtractedProduct {
   supplierName?: string;
   lastPurchaseDate?: string;
   paymentMethod?: string;
+}
+
+export type AIActionType = 'UPDATE_PRICES' | 'CREATE_PRODUCTS' | 'UPDATE_DELIVERY_DATES' | 'CREATE_SHOPPING_LIST' | 'CHAT';
+
+export interface AIResponse {
+  action: AIActionType;
+  explanation: string;
+  data?: {
+    products?: ExtractedProduct[];
+    supplierName?: string;
+    listName?: string;
+    deliveryUpdates?: Array<{ id: string; forecastDate: string; name: string }>;
+    shoppingItems?: Array<{ name: string; quantity: number; supplierName?: string }>;
+  };
 }
 
 /**
@@ -193,5 +208,129 @@ export const matchDashboardWithAI = async (
   } catch (error) {
     console.error("Match AI Error:", error);
     return {};
+  }
+};
+
+/**
+ * Advanced general-purpose AI assistant
+ */
+export const processCommandWithAI = async (
+  command: string,
+  context: {
+    suppliers?: Supplier[];
+    deliveredProducts?: DeliveredProduct[];
+    fileData?: { mimeType: string, data: string };
+  }
+): Promise<AIResponse> => {
+  try {
+    const ai = getAI();
+    const parts: any[] = [];
+    
+    if (context.fileData) {
+      let data = context.fileData.data;
+      if (context.fileData.mimeType.startsWith('image/')) {
+        data = await compressImage(`data:${context.fileData.mimeType};base64,${data}`);
+      }
+      parts.push({
+        inlineData: {
+          mimeType: context.fileData.mimeType.startsWith('image/') ? 'image/jpeg' : context.fileData.mimeType,
+          data
+        }
+      });
+    }
+
+    parts.push({ text: `Comando do usuário: "${command}"` });
+
+    const suppliersSummary = context.suppliers?.map(s => `- ${s.name} (${s.products.length} produtos)`).join('\n') || "Nenhum fornecedor.";
+    const deliveredSummary = context.deliveredProducts?.filter(p => !p.delivered).map(p => `- [${p.id}] ${p.name} (Fornecedor: ${p.supplierName}, Previsão: ${p.forecastDate})`).join('\n') || "Nenhuma entrega pendente.";
+
+    const response = await ai.models.generateContent({
+      model: "gemini-3-flash-preview",
+      contents: { parts },
+      config: {
+        systemInstruction: `
+          Você é o cérebro do sistema LABARR. Você deve interpretar o comando do usuário e decidir qual ação tomar.
+          
+          CONTEXTO DO SISTEMA:
+          FORNECEDORES:
+          ${suppliersSummary}
+          
+          ENTREGAS PENDENTES:
+          ${deliveredSummary}
+          
+          AÇÕES DISPONÍVEIS:
+          1. UPDATE_PRICES: Use quando o usuário enviar uma nota fiscal (arquivo/foto) para atualizar preços ou quando pedir para mudar o preço de um item específico.
+          2. CREATE_PRODUCTS: Use quando o usuário pedir para cadastrar novos produtos. Pode ser para um fornecedor novo ou existente.
+          3. UPDATE_DELIVERY_DATES: Use quando o usuário pedir para mudar a previsão de entrega de itens específicos.
+          4. CREATE_SHOPPING_LIST: Use quando o usuário pedir para montar uma lista de compras.
+          5. CHAT: Use para conversas gerais ou dúvidas sobre o sistema.
+          
+          REGRA DE RESPOSTA: RETORNE APENAS JSON.
+        `,
+        responseMimeType: "application/json",
+        temperature: 0.1,
+        responseSchema: {
+          type: Type.OBJECT,
+          properties: {
+            action: { type: Type.STRING, enum: ["UPDATE_PRICES", "CREATE_PRODUCTS", "UPDATE_DELIVERY_DATES", "CREATE_SHOPPING_LIST", "CHAT"] },
+            explanation: { type: Type.STRING, description: "O que você está fazendo ou resposta ao chat." },
+            data: {
+              type: Type.OBJECT,
+              properties: {
+                products: {
+                  type: Type.ARRAY,
+                  items: {
+                    type: Type.OBJECT,
+                    properties: {
+                      name: { type: Type.STRING },
+                      rawName: { type: Type.STRING },
+                      price: { type: Type.NUMBER },
+                      quantity: { type: Type.NUMBER },
+                      category: { type: Type.STRING },
+                      supplierName: { type: Type.STRING },
+                      lastPurchaseDate: { type: Type.STRING },
+                      paymentMethod: { type: Type.STRING }
+                    },
+                    required: ["name", "price"]
+                  }
+                },
+                supplierName: { type: Type.STRING },
+                listName: { type: Type.STRING },
+                deliveryUpdates: {
+                  type: Type.ARRAY,
+                  items: {
+                    type: Type.OBJECT,
+                    properties: {
+                      id: { type: Type.STRING, description: "ID exato do produto entregue do contexto fornecido" },
+                      name: { type: Type.STRING },
+                      forecastDate: { type: Type.STRING, description: "Nova data no formato DD/MM/AAAA" }
+                    },
+                    required: ["id", "forecastDate"]
+                  }
+                },
+                shoppingItems: {
+                  type: Type.ARRAY,
+                  items: {
+                    type: Type.OBJECT,
+                    properties: {
+                      name: { type: Type.STRING },
+                      quantity: { type: Type.NUMBER },
+                      supplierName: { type: Type.STRING }
+                    },
+                    required: ["name", "quantity"]
+                  }
+                }
+              }
+            }
+          },
+          required: ["action", "explanation"]
+        }
+      }
+    });
+
+    return parseJson(response.text);
+  } catch (error) {
+    console.error("AI Assistant Error:", error);
+    throw error;
   }
 };

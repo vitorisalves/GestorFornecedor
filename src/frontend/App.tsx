@@ -25,7 +25,7 @@ import { ShoppingView } from './components/ShoppingView';
 import { HistoryView } from './components/HistoryView';
 import { DeliveredProductsView } from './components/DeliveredProductsView';
 import { RemindersView } from './components/RemindersView';
-import { UpdatePricesView } from './components/UpdatePricesView';
+import { AIView } from './components/AIView';
 import { DashboardView } from './components/DashboardView';
 import { Modals } from './components/Modals';
 import { Header } from './components/Header';
@@ -221,7 +221,7 @@ export default function App() {
     }
   }, [activeTargetListId, activeTargetListName, addItemToList, addNotification, addToCart]);
 
-  const [currentPage, setCurrentPage] = useState<'dashboard' | 'suppliers' | 'mercado' | 'materiais' | 'shopping' | 'history' | 'delivered' | 'reminders' | 'update-prices'>('dashboard');
+  const [currentPage, setCurrentPage] = useState<'dashboard' | 'suppliers' | 'mercado' | 'materiais' | 'shopping' | 'history' | 'delivered' | 'reminders' | 'ai'>('dashboard');
   
   const {
     handleExportExcel,
@@ -692,12 +692,15 @@ export default function App() {
             deleteReminder={(id) => setDeletions(prev => ({ ...prev, reminder: id }))}
           />
         )}
-        {currentPage === 'update-prices' && (
-          <UpdatePricesView 
-            key="update-prices"
+        {currentPage === 'ai' && (
+          <AIView 
+            key="ai"
             suppliers={suppliers}
             categories={categories}
+            deliveredProducts={deliveredProducts}
             saveSupplier={saveSupplier}
+            updateForecastDate={updateForecastDate}
+            addToCart={handleAddToCart}
             addNotification={addNotification}
           />
         )}

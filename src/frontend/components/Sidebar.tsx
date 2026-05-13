@@ -50,7 +50,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     { id: 'history', label: 'Minhas Listas', icon: ListChecks },
     { id: 'delivered', label: 'Produtos Entregues', icon: Truck },
     { id: 'reminders', label: 'Lembretes', icon: Bell },
-    { id: 'update-prices', label: 'Atualizar Preços', icon: Sparkles },
+    { id: 'ai', label: 'I.A.', icon: Sparkles },
   ];
 
   return (
