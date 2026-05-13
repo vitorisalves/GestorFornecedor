@@ -163,6 +163,18 @@ export function useDeliveredProducts(
     await saveDeliveredProduct(updatedProduct);
   }, [deliveredProducts, saveDeliveredProduct]);
 
+  const updateDeliveryDate = useCallback(async (id: string, newDate: string) => {
+    const product = deliveredProducts.find(p => p.id === id);
+    if (!product) return;
+
+    const updatedProduct: DeliveredProduct = {
+      ...product,
+      deliveryDate: newDate
+    };
+
+    await saveDeliveredProduct(updatedProduct);
+  }, [deliveredProducts, saveDeliveredProduct]);
+
   const updateDeliveredQuantity = useCallback(async (name: string, supplierName: string, newQuantity: number) => {
     const productsToUpdate = deliveredProducts.filter(p => p.name === name && p.supplierName === supplierName && !p.delivered);
     
@@ -180,6 +192,7 @@ export function useDeliveredProducts(
     toggleDeliveryStatus,
     updatePurchaseDate,
     updateForecastDate,
+    updateDeliveryDate,
     updateDeliveredQuantity
   };
 }

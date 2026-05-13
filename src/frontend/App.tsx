@@ -121,6 +121,7 @@ export default function App() {
     toggleDeliveryStatus,
     updatePurchaseDate,
     updateForecastDate,
+    updateDeliveryDate,
     updateDeliveredQuantity
   } = useDeliveredProducts(isAuthReady, isApproved, addAppNotification);
 
@@ -688,6 +689,7 @@ export default function App() {
             deleteDeliveredProduct={deleteDeliveredProduct}
             updatePurchaseDate={updatePurchaseDate}
             updateForecastDate={updateForecastDate}
+            updateDeliveryDate={updateDeliveryDate}
           />
         )}
         {currentPage === 'reminders' && (

@@ -28,6 +28,7 @@ interface DeliveredProductsViewProps {
   deleteDeliveredProduct: (productId: string) => void;
   updatePurchaseDate: (productId: string, newDate: string) => void;
   updateForecastDate: (productId: string, newDate: string) => void;
+  updateDeliveryDate: (productId: string, newDate: string) => void;
 }
 
 export const DeliveredProductsView: React.FC<DeliveredProductsViewProps> = ({
@@ -35,7 +36,8 @@ export const DeliveredProductsView: React.FC<DeliveredProductsViewProps> = ({
   toggleDeliveryStatus,
   deleteDeliveredProduct,
   updatePurchaseDate,
-  updateForecastDate
+  updateForecastDate,
+  updateDeliveryDate
 }) => {
   const [searchTerm, setSearchTerm] = React.useState('');
   const [productToDelete, setProductToDelete] = React.useState<string | null>(null);
@@ -43,6 +45,8 @@ export const DeliveredProductsView: React.FC<DeliveredProductsViewProps> = ({
   const [tempDate, setTempDate] = React.useState('');
   const [editingForecastId, setEditingForecastId] = React.useState<string | null>(null);
   const [tempForecastDate, setTempForecastDate] = React.useState('');
+  const [editingDeliveryId, setEditingDeliveryId] = React.useState<string | null>(null);
+  const [tempDeliveryDate, setTempDeliveryDate] = React.useState('');
 
   const toISODate = (dateStr: string) => {
     try {
@@ -88,6 +92,19 @@ export const DeliveredProductsView: React.FC<DeliveredProductsViewProps> = ({
       updateForecastDate(id, formattedDate);
     }
     setEditingForecastId(null);
+  };
+
+  const handleStartEditDelivery = (product: DeliveredProduct) => {
+    setEditingDeliveryId(product.id);
+    setTempDeliveryDate(product.deliveryDate ? toISODate(product.deliveryDate) : new Date().toISOString().split('T')[0]);
+  };
+
+  const handleSaveDelivery = (id: string) => {
+    const formattedDate = fromISODate(tempDeliveryDate);
+    if (formattedDate) {
+      updateDeliveryDate(id, formattedDate);
+    }
+    setEditingDeliveryId(null);
   };
 
   const isLate = (forecastDate?: string) => {
@@ -203,9 +220,42 @@ export const DeliveredProductsView: React.FC<DeliveredProductsViewProps> = ({
                           {p.name}
                         </span>
                         {p.delivered && p.deliveryDate && (
-                          <span className="text-sm font-bold text-emerald-500 uppercase tracking-tight">
-                            Entregue em: {p.deliveryDate}
-                          </span>
+                          <div className="flex items-center gap-2 group/date">
+                            {editingDeliveryId === p.id ? (
+                              <div className="flex items-center gap-1">
+                                <input
+                                  type="date"
+                                  value={tempDeliveryDate}
+                                  onChange={(e) => setTempDeliveryDate(e.target.value)}
+                                  className="bg-white border border-slate-200 rounded px-1 py-0.5 text-[11px] font-bold outline-none focus:border-indigo-500"
+                                />
+                                <button 
+                                  onClick={() => handleSaveDelivery(p.id)}
+                                  className="p-1 text-emerald-500 hover:bg-emerald-50 rounded"
+                                >
+                                  <Check className="w-3 h-3" />
+                                </button>
+                                <button 
+                                  onClick={() => setEditingDeliveryId(null)}
+                                  className="p-1 text-red-400 hover:bg-red-50 rounded"
+                                >
+                                  <X className="w-3 h-3" />
+                                </button>
+                              </div>
+                            ) : (
+                               <div className="flex items-center gap-2">
+                                  <span className="text-sm font-bold text-emerald-500 uppercase tracking-tight">
+                                    Entregue em: {p.deliveryDate}
+                                  </span>
+                                  <button
+                                    onClick={() => handleStartEditDelivery(p)}
+                                    className="p-1 text-black border border-slate-200 hover:text-indigo-700 hover:bg-slate-100 rounded transition-all bg-white shadow-sm"
+                                  >
+                                    <Pencil className="w-3 h-3" />
+                                  </button>
+                               </div>
+                            )}
+                          </div>
                         )}
                       </div>
                     </td>
