@@ -90,7 +90,12 @@ export const useNotifications = () => {
           icon: 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTF8VmLyweYpbSL_D3D1F-hsvmGwm9EHcPi5A&s'
         });
       } else if (permission === 'denied') {
-        alert('Permissão negada. Ative as notificações nas configurações do navegador/celular para receber lembretes.');
+        const isIframe = window.self !== window.top;
+        if (!isIframe) {
+          alert('Permissão negada. Ative as notificações nas configurações do navegador/celular para receber lembretes.');
+        } else {
+          console.warn('Permissão negada em iframe. Tente abrir em uma nova aba.');
+        }
       }
     } catch (error) {
       console.error('Erro ao solicitar permissão:', extractErrorMessage(error));

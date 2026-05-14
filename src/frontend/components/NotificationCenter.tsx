@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React from 'react';
+import React, { useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Bell, BellRing, X, Trash2, Check, Smartphone } from 'lucide-react';
 import { UINotification, AppNotification } from '../types';
@@ -31,11 +31,19 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({
   requestPermission
 }) => {
   const unreadCount = appNotifications.filter(n => !n.read).length;
-  const [showPermissionPrompt, setShowPermissionPrompt] = React.useState(
-    typeof window !== 'undefined' && 
-    'Notification' in window && 
-    (window.Notification.permission === 'default' || window.Notification.permission === 'denied')
+  const [permission, setPermission] = React.useState<NotificationPermission>(
+    typeof window !== 'undefined' && 'Notification' in window 
+      ? window.Notification.permission 
+      : 'denied'
   );
+
+  useEffect(() => {
+    if (typeof window !== 'undefined' && 'Notification' in window) {
+      setPermission(window.Notification.permission);
+    }
+  }, []);
+
+  const showPermissionPrompt = permission === 'default' || permission === 'denied';
 
   const handlePermissionRequest = async () => {
     console.log('Solicitando permissão...');
@@ -43,9 +51,7 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({
       await requestPermission();
       // Atualiza o estado: se agora foi concedido, podemos esconder o prompt
       if (typeof window !== 'undefined' && 'Notification' in window) {
-        if (window.Notification.permission === 'granted') {
-          setShowPermissionPrompt(false);
-        }
+        setPermission(window.Notification.permission);
       }
     }
   };

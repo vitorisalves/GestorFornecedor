@@ -238,32 +238,36 @@ export const useCart = (
   };
 
   const updateProductPriceInLists = async (productName: string, supplierName: string, newPrice: number) => {
-    let affected = false;
+    const listsToSync: SavedList[] = [];
+    
     const updatedLists = savedLists.map(list => {
+      let listAffected = false;
       const updatedItems = list.items.map(item => {
         if (item.name === productName && item.supplierName === supplierName && !item.bought && item.price !== newPrice) {
-          affected = true;
+          listAffected = true;
           return { ...item, price: newPrice };
         }
         return item;
       });
 
-      if (affected) {
-        return {
+      if (listAffected) {
+        const updatedList = {
           ...list,
           items: updatedItems,
           total: updatedItems.reduce((acc, item) => acc + (item.price * item.quantity), 0)
         };
+        listsToSync.push(updatedList);
+        return updatedList;
       }
       return list;
     });
 
-    if (!affected) return;
+    if (listsToSync.length === 0) return;
 
     setSavedLists(updatedLists);
 
     // Sync to Firestore
-    for (const list of updatedLists) {
+    for (const list of listsToSync) {
       if (!list.id.startsWith('temp-')) {
         try {
           await updateDoc(doc(db, 'shopping_lists', list.id), {
