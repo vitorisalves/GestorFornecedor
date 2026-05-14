@@ -130,7 +130,16 @@ export const DeliveredProductsView: React.FC<DeliveredProductsViewProps> = ({
       if (a.delivered !== b.delivered) {
         return a.delivered ? 1 : -1;
       }
-      return b.purchaseDate.localeCompare(a.purchaseDate);
+      
+      if (a.delivered) {
+        const dateA = toISODate(a.deliveryDate || '01/01/1970');
+        const dateB = toISODate(b.deliveryDate || '01/01/1970');
+        return dateB.localeCompare(dateA);
+      } else {
+        const dateA = toISODate(a.purchaseDate);
+        const dateB = toISODate(b.purchaseDate);
+        return dateB.localeCompare(dateA);
+      }
     });
 
   const handleDeleteConfirm = () => {
