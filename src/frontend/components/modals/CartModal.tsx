@@ -10,7 +10,10 @@ interface CartModalProps {
   cart: CartItem[];
   listName: string;
   setListName: (name: string) => void;
+  shippingFee: number;
+  setShippingFee: (fee: number) => void;
   updateCartQuantity: (name: string, supplier: string, delta: number) => void;
+  updateProductPrice: (name: string, supplier: string, newPrice: number) => void;
   removeFromCart: (name: string, supplier: string) => void;
   finalizeList: () => void;
   isFinalizing: boolean;
@@ -23,7 +26,10 @@ export const CartModal: React.FC<CartModalProps> = ({
   cart,
   listName,
   setListName,
+  shippingFee,
+  setShippingFee,
   updateCartQuantity,
+  updateProductPrice,
   removeFromCart,
   finalizeList,
   isFinalizing,
@@ -69,11 +75,15 @@ export const CartModal: React.FC<CartModalProps> = ({
                       className="w-full px-5 py-3 bg-slate-50 border border-slate-100 focus:border-indigo-500 focus:bg-white rounded-xl outline-none transition-all font-medium text-slate-700"
                       value={listName}
                       onChange={(e) => setListName(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter' && listName.trim() && !isFinalizing) {
-                          finalizeList();
-                        }
-                      }}
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-bold text-slate-400 ml-1 uppercase tracking-widest">Taxa de Entrega (Frete)</label>
+                    <input
+                      type="number"
+                      className="w-full px-5 py-3 bg-slate-50 border border-slate-100 focus:border-indigo-500 focus:bg-white rounded-xl outline-none transition-all font-medium text-slate-700"
+                      value={shippingFee}
+                      onChange={(e) => setShippingFee(Number(e.target.value))}
                     />
                   </div>
                 </div>
@@ -108,7 +118,12 @@ export const CartModal: React.FC<CartModalProps> = ({
                           </button>
                         </div>
                         <div className="text-right min-w-[80px]">
-                          <p className="text-base font-black text-slate-800 tracking-tighter tabular-nums">{formatCurrency(item.price * item.quantity)}</p>
+                          <input
+                            type="number"
+                            className="w-20 text-right font-black text-slate-800 text-sm tabular-nums bg-transparent border-b border-transparent hover:border-slate-300 focus:border-indigo-500 outline-none"
+                            value={item.price}
+                            onChange={(e) => updateProductPrice(item.name, item.supplierName, Number(e.target.value))}
+                          />
                         </div>
                         <button onClick={() => removeFromCart(item.name, item.supplierName)} className="p-2 text-black hover:text-red-500 transition-all">
                           <Trash2 className="w-5 h-5" />
@@ -122,11 +137,25 @@ export const CartModal: React.FC<CartModalProps> = ({
 
             {cart.length > 0 && (
               <div className="p-4 bg-slate-50 border-t border-slate-100 flex items-center justify-between gap-4">
-                <div className="shrink-0 px-2">
-                  <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-0.5 leading-none">Total</p>
-                  <p className="text-xl font-black text-slate-900 tracking-tighter tabular-nums leading-none">
-                    {formatCurrency(cart.reduce((acc, item) => acc + (item.price * item.quantity), 0))}
-                  </p>
+                <div className="shrink-0 px-2 flex flex-col gap-1">
+                  <div className="flex justify-between gap-4">
+                    <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest leading-none">Subtotal</p>
+                    <p className="text-sm font-black text-slate-600 tracking-tighter tabular-nums leading-none">
+                        {formatCurrency(cart.reduce((acc, item) => acc + (item.price * item.quantity), 0))}
+                    </p>
+                  </div>
+                  <div className="flex justify-between gap-4">
+                      <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest leading-none">Frete</p>
+                      <p className="text-sm font-black text-slate-600 tracking-tighter tabular-nums leading-none">
+                          {formatCurrency(shippingFee)}
+                      </p>
+                  </div>
+                  <div className="flex justify-between gap-4 pt-1 border-t border-slate-200">
+                    <p className="text-[9px] font-bold text-slate-900 uppercase tracking-widest leading-none">Total</p>
+                    <p className="text-xl font-black text-slate-900 tracking-tighter tabular-nums leading-none">
+                        {formatCurrency(cart.reduce((acc, item) => acc + (item.price * item.quantity), 0) + shippingFee)}
+                    </p>
+                  </div>
                 </div>
 
                 <div className="flex items-center gap-2 flex-1 justify-end max-w-[280px]">

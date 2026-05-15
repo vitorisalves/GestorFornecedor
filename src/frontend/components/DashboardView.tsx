@@ -191,20 +191,20 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ savedLists }) => {
   }, []);
 
   // Sync AI when dates or lists change - but only if we don't have enough mappings
-  useEffect(() => {
-    const shoppingItemNames = Array.from(new Set(
-      filteredLists.flatMap(l => l.items.filter(i => i.bought).map(i => i.name.trim()))
-    ));
-
-    const needsSync = shoppingItemNames.some(name => !aiMappings[name]);
-
-    if (needsSync && spreadsheetData.length > 0 && shoppingItemNames.length > 0) {
-      const timer = setTimeout(() => {
-        performAIMatching(spreadsheetData, filteredLists);
-      }, 2000); // Wait bit longer for auto-sync
-      return () => clearTimeout(timer);
-    }
-  }, [filteredLists, spreadsheetData.length]);
+  // useEffect(() => {
+  //   const shoppingItemNames = Array.from(new Set(
+  //     filteredLists.flatMap(l => l.items.filter(i => i.bought).map(i => i.name.trim()))
+  //   ));
+  // 
+  //   const needsSync = shoppingItemNames.some(name => !aiMappings[name]);
+  // 
+  //   if (needsSync && spreadsheetData.length > 0 && shoppingItemNames.length > 0) {
+  //     const timer = setTimeout(() => {
+  //       performAIMatching(spreadsheetData, filteredLists);
+  //     }, 2000); // Wait bit longer for auto-sync
+  //     return () => clearTimeout(timer);
+  //   }
+  // }, [filteredLists, spreadsheetData.length]);
 
   // Chart 1 Data: Monthly Expense
   const expenseData = useMemo(() => {
@@ -223,7 +223,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ savedLists }) => {
       const dateKey = format(parseISO(list.date), 'dd/MM');
       const boughtTotal = list.items.reduce((acc, item) => {
         return item.bought ? acc + (item.price * item.quantity) : acc;
-      }, 0);
+      }, (list.shippingFee || 0));
       
       const currentVal = dayMap.get(dateKey) || 0;
       dayMap.set(dateKey, currentVal + boughtTotal);

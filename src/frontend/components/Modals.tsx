@@ -45,7 +45,10 @@ interface ModalsProps {
   cart: CartItem[];
   listName: string;
   setListName: (name: string) => void;
+  shippingFee: number;
+  setShippingFee: (fee: number) => void;
   updateCartQuantity: (name: string, supplier: string, delta: number) => void;
+  updateProductPrice: (name: string, supplier: string, newPrice: number) => void;
   removeFromCart: (name: string, supplier: string) => void;
   finalizeList: () => void;
   isFinalizing?: boolean;
@@ -125,7 +128,10 @@ export const Modals: React.FC<ModalsProps> = (props) => {
         cart={props.cart}
         listName={props.listName}
         setListName={props.setListName}
+        shippingFee={props.shippingFee}
+        setShippingFee={props.setShippingFee}
         updateCartQuantity={props.updateCartQuantity}
+        updateProductPrice={props.updateProductPrice}
         removeFromCart={props.removeFromCart}
         finalizeList={props.finalizeList}
         isFinalizing={!!props.isFinalizing}

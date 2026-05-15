@@ -44,6 +44,7 @@ export interface SavedList {
   date: string;
   items: (Product & { supplierName: string; bought: boolean; quantity: number })[];
   total: number;
+  shippingFee: number;
   createdBy?: string;
 }
 

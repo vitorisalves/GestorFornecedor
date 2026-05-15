@@ -192,9 +192,19 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
                   </div>
 
                   <div className="flex items-center gap-4">
-                    <div className="text-right mr-4">
-                      <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1">Total</p>
-                      <p className="text-2xl font-black text-slate-800 tabular-nums tracking-tighter">{formatCurrency(list.total)}</p>
+                    <div className="text-right mr-4 flex gap-4">
+                      <div className="flex flex-col items-end">
+                        <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1">Subtotal</p>
+                        <p className="text-sm font-black text-slate-600 tabular-nums tracking-tighter">{formatCurrency(list.total - (list.shippingFee || 0))}</p>
+                      </div>
+                      <div className="flex flex-col items-end">
+                        <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1">Frete</p>
+                        <p className="text-sm font-black text-slate-600 tabular-nums tracking-tighter">{formatCurrency(list.shippingFee || 0)}</p>
+                      </div>
+                      <div className="flex flex-col items-end">
+                        <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1">Total</p>
+                        <p className="text-2xl font-black text-slate-800 tabular-nums tracking-tighter">{formatCurrency(list.total)}</p>
+                      </div>
                     </div>
                     <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
                       <button

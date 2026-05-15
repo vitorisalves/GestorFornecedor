@@ -270,6 +270,7 @@ export default function App() {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [listName, setListName] = useState('');
+  const [shippingFee, setShippingFee] = useState<number>(0);
   const [editingListId, setEditingListId] = useState<string | null>(null);
   const [editingSupplierId, setEditingSupplierId] = useState<string | null>(null);
   
@@ -320,9 +321,10 @@ export default function App() {
     if (isFinalizing) return;
     setIsFinalizing(true);
     try {
-      const newList = await finalizeList(listName, editingListId);
+      const newList = await finalizeList(listName, editingListId, shippingFee);
       if (newList) {
         setListName('');
+        setShippingFee(0);
         setEditingListId(null);
         setIsCartOpen(false);
         setCurrentPage('history');
@@ -338,7 +340,7 @@ export default function App() {
     } finally {
       setIsFinalizing(false);
     }
-  }, [isFinalizing, finalizeList, listName, editingListId, addNotification, addAppNotification]);
+  }, [isFinalizing, finalizeList, listName, shippingFee, editingListId, addNotification, addAppNotification]);
 
   const onSetActiveTargetList = React.useCallback((id: string | null, name: string | null) => {
     setActiveTargetListId(id);
@@ -352,9 +354,10 @@ export default function App() {
   const onEditSavedList = React.useCallback((list: any) => {
     setCart(list.items);
     setListName(list.name);
+    setShippingFee(list.shippingFee || 0);
     setEditingListId(list.id);
     setIsCartOpen(true);
-  }, [setCart]);
+  }, [setCart, setListName, setShippingFee, setEditingListId, setIsCartOpen]);
 
   const resetForm = React.useCallback(() => {
     setFormState({
@@ -544,6 +547,32 @@ export default function App() {
       setPendingImportData(data);
     });
   }, [handleSyncSheets]);
+
+  const handleUpdateProductPrice = React.useCallback(async (name: string, supplierName: string, newPrice: number) => {
+    // 1. Update cart
+    setCart(prev => prev.map(item => item.name === name && item.supplierName === supplierName ? { ...item, price: newPrice } : item));
+    
+    // 2. Update all saved lists
+    await updateProductPriceInLists(name, supplierName, newPrice);
+    
+    // 3. Update supplier
+    const supplier = suppliers.find(s => s.name === supplierName);
+    if (supplier) {
+      const productIndex = supplier.products.findIndex(p => p.name === name);
+      if (productIndex !== -1) {
+        const updatedSupplier = { ...supplier };
+        updatedSupplier.products = [...updatedSupplier.products];
+        updatedSupplier.products[productIndex] = { ...updatedSupplier.products[productIndex], price: newPrice };
+        try {
+            await saveSupplier(updatedSupplier);
+            addNotification(`Preço do produto "${name}" atualizado!` , 1, 'info');
+        } catch (err) {
+            console.error("Erro ao atualizar preço no fornecedor:", err);
+            addNotification("Erro ao atualizar preço", 0, 'info');
+        }
+      }
+    }
+  }, [setCart, updateProductPriceInLists, suppliers, saveSupplier, addNotification]);
 
   // --- RENDER HELPERS ---
   const mainSuppliers = React.useMemo(() => 
@@ -786,7 +815,10 @@ export default function App() {
         cart={cart}
         listName={listName}
         setListName={setListName}
+        shippingFee={shippingFee}
+        setShippingFee={setShippingFee}
         updateCartQuantity={handleUpdateCartQuantity}
+        updateProductPrice={handleUpdateProductPrice}
         removeFromCart={removeFromCart}
         finalizeList={onFinalizeList}
         isFinalizing={isFinalizing}

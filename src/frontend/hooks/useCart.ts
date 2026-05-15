@@ -110,15 +110,17 @@ export const useCart = (
 
   const clearCart = () => setCart([]);
 
-  const finalizeList = async (listName: string, editingListId: string | null = null) => {
+  const finalizeList = async (listName: string, editingListId: string | null = null, shippingFee: number = 0) => {
     if (cart.length === 0) return null;
 
-    const total = cart.reduce((acc, item) => acc + (item.price * item.quantity), 0);
+    const itemsTotal = cart.reduce((acc, item) => acc + (item.price * item.quantity), 0);
+    const total = itemsTotal + shippingFee;
     const listData = cleanObject({
       name: listName,
       date: new Date().toISOString(),
       items: cart.map(item => cleanObject({ ...item, bought: !!(item as any).bought })),
       total,
+      shippingFee,
       createdBy: loggedName
     });
 
@@ -213,7 +215,7 @@ export const useCart = (
       });
     }
 
-    const newTotal = updatedItems.reduce((acc, item) => acc + (item.price * item.quantity), 0);
+    const newTotal = updatedItems.reduce((acc, item) => acc + (item.price * item.quantity), 0) + (list.shippingFee || 0);
     const newDate = new Date().toISOString();
     
     const updatedListData = { 
@@ -254,7 +256,7 @@ export const useCart = (
         const updatedList = {
           ...list,
           items: updatedItems,
-          total: updatedItems.reduce((acc, item) => acc + (item.price * item.quantity), 0)
+          total: updatedItems.reduce((acc, item) => acc + (item.price * item.quantity), 0) + (list.shippingFee || 0)
         };
         listsToSync.push(updatedList);
         return updatedList;
