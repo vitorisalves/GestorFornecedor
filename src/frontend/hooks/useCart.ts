@@ -156,13 +156,13 @@ export const useCart = (
     }
   };
 
-  const toggleSavedListItemBought = async (listId: string, productName: string, supplierName: string) => {
+  const toggleSavedListItemBought = async (listId: string, productName: string, supplierName: string, updates: Partial<{ bought: boolean; deliveryId?: string }> = {}) => {
     const list = savedLists.find(l => l.id === listId);
     if (!list) return;
 
     const updatedItems = list.items.map(item => {
       if (item.name === productName && item.supplierName === supplierName) {
-        return { ...item, bought: !item.bought };
+        return { ...item, ...updates };
       }
       return item;
     });
@@ -172,7 +172,7 @@ export const useCart = (
     
     try {
       if (!listId.startsWith('temp-')) {
-        await updateDoc(doc(db, 'shopping_lists', listId), { items: updatedItems });
+        await updateDoc(doc(db, 'shopping_lists', listId), { items: updatedItems.map(item => cleanObject(item)) });
       }
     } catch (e) {
       handleFirestoreError(e, OperationType.UPDATE, `shopping_lists/${listId}`);

@@ -148,10 +148,7 @@ export default function App() {
     // Se o item NÃO estava comprado, ele vai se tornar comprado agora (Check)
     const becomingBought = !item.bought;
 
-    // 1. Toggle status na lista
-    await toggleSavedListItemBought(listId, productName, supplierName);
-
-    // 2. Se foi marcado como comprado, atualiza a data no fornecedor
+    // 1. Se for marcar como comprado
     if (becomingBought) {
       const now = new Date();
       const day = now.getDate().toString().padStart(2, '0');
@@ -172,7 +169,6 @@ export default function App() {
           try {
             await saveSupplier(updatedSupplier);
             
-            // 3. Adicionar aos produtos entregues (pendente de entrega física)
             const sanitizeForId = (str: string) => {
               return str
                 .toLowerCase()
@@ -193,14 +189,46 @@ export default function App() {
               quantity: item.quantity
             });
 
+            // 2. Atualiza na lista com o novo deliveryId
+            await toggleSavedListItemBought(listId, productName, supplierName, { bought: true, deliveryId });
+
             addNotification(`Data atualizada e enviado para Entregues`, 1, 'info');
           } catch (err) {
             console.error("Erro ao atualizar data de compra:", err);
           }
         }
       }
+    } else {
+      // 1. Se for desmarcar, remove dos entregues se existir o deliveryId ou se encontrar nos produtos entregues
+      const productsToDelete = [];
+      if (item.deliveryId) {
+        productsToDelete.push(item.deliveryId);
+      }
+      
+      // Também busca por correspondência de nome e fornecedor em produtos n entregues
+      const matches = deliveredProducts.filter(p => p.name === productName && p.supplierName === supplierName && !p.delivered);
+      matches.forEach(m => {
+        if (!productsToDelete.includes(m.id)) {
+          productsToDelete.push(m.id);
+        }
+      });
+
+      if (productsToDelete.length > 0) {
+        try {
+          for (const id of productsToDelete) {
+            await deleteDeliveredProduct(id);
+          }
+          addNotification("Removido dos Entregues", 1, 'info');
+        } catch (err) {
+          console.error("Erro ao remover dos entregues:", err);
+          addNotification("Erro ao remover dos entregues", 0, 'info');
+        }
+      }
+
+      // 2. Atualiza na lista removendo o deliveryId
+      await toggleSavedListItemBought(listId, productName, supplierName, { bought: false, deliveryId: undefined });
     }
-  }, [savedLists, toggleSavedListItemBought, suppliers, saveSupplier, addNotification]);
+  }, [savedLists, toggleSavedListItemBought, suppliers, saveSupplier, addNotification, saveDeliveredProduct, deleteDeliveredProduct]);
 
   const handleReconnect = React.useCallback(async () => {
     const { db, enableNetwork } = await import('./firebase');
@@ -248,10 +276,22 @@ export default function App() {
   // --- LOCAL UI STATE ---
   const [loginCpf, setLoginCpf] = useState('');
   const [loginName, setLoginName] = useState('');
-
-  // Import State
   const [pendingImportData, setPendingImportData] = useState<Record<string, Supplier> | null>(null);
   const [isImporting, setIsImporting] = useState(false);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [isFinalizing, setIsFinalizing] = useState(false);
+  const [isAdding, setIsAdding] = useState(false);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isCartOpen, setIsCartOpen] = useState(false);
+  const [listName, setListName] = useState('');
+  const [shippingFee, setShippingFee] = useState<number>(0);
+  const [editingListId, setEditingListId] = useState<string | null>(null);
+  const { deletions, setDeletion } = useDeletions();
+  const [searchTerm, setSearchTerm] = useState('');
+  const [shoppingQuantities, setShoppingQuantities] = useState<Record<string, number | string>>({});
+  const [newCategoryName, setNewCategoryName] = useState('');
+  const [reminderProductName, setReminderProductName] = useState('');
+  const [reminderDate, setReminderDate] = useState('');
 
   // Auto-fill name based on CPF
   useEffect(() => {
@@ -266,40 +306,23 @@ export default function App() {
     }
   }, [loginCpf, authorizedUsers]);
 
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  const [isFinalizing, setIsFinalizing] = useState(false);
-  const [isAdding, setIsAdding] = useState(false);
-  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  const [isCartOpen, setIsCartOpen] = useState(false);
-  const [listName, setListName] = useState('');
-  const [shippingFee, setShippingFee] = useState<number>(0);
-  const [editingListId, setEditingListId] = useState<string | null>(null);
-  const [editingSupplierId, setEditingSupplierId] = useState<string | null>(null);
-  
-  const { deletions, setDeletion } = useDeletions();
-
-  const [searchTerm, setSearchTerm] = useState('');
-  const [shoppingQuantities, setShoppingQuantities] = useState<Record<string, number | string>>({});
-  const [newCategoryName, setNewCategoryName] = useState('');
-  const [reminderProductName, setReminderProductName] = useState('');
-  const [reminderDate, setReminderDate] = useState('');
-  
-  // Form state for adding/editing suppliers
-  const [formState, setFormState] = useState({
-    name: '',
-    phone: '',
-    productName: '',
-    productPrice: '',
-    productCategory: '',
-    productLastPurchaseDate: '',
-    productPaymentMethod: '',
-  });
-  const [productList, setProductList] = useState<Product[]>([]);
-  const [editingProductIndex, setEditingProductIndex] = useState<number | null>(null);
-  const productNameRef = useRef<HTMLInputElement>(null);
-
-  // --- HANDLERS ---
-  const [isSaving, setIsSaving] = useState(false);
+  const {
+    formState,
+    setFormState,
+    productList,
+    setProductList,
+    editingSupplierId,
+    setEditingSupplierId,
+    editingProductIndex,
+    setEditingProductIndex,
+    isSaving,
+    productNameRef,
+    resetForm,
+    addProduct,
+    handleEditProduct,
+    onAddSupplier,
+    onEditSupplier
+  } = useSupplierForm(suppliers, saveSupplier, updateProductPriceInLists, addNotification);
 
   const onLogin = React.useCallback((e: React.FormEvent) => {
     e.preventDefault();
@@ -347,152 +370,6 @@ export default function App() {
     setEditingListId(list.id);
     setIsCartOpen(true);
   }, [setCart, setListName, setShippingFee, setEditingListId, setIsCartOpen]);
-
-  const resetForm = React.useCallback(() => {
-    setFormState({
-      name: '',
-      phone: '',
-      productName: '',
-      productPrice: '',
-      productCategory: '',
-      productLastPurchaseDate: '',
-      productPaymentMethod: '',
-    });
-    setProductList([]);
-    setEditingProductIndex(null);
-    setEditingSupplierId(null);
-  }, []);
-
-  const onAddSupplier = React.useCallback(async (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    if (isSaving) return;
-    setIsSaving(true);
-    
-    try {
-      let finalProductList = [...productList];
-      if (formState.productName.trim()) {
-        const parsePrice = (val: string) => {
-          if (!val) return 0;
-          const normalized = val.replace(',', '.');
-          const parsed = parseFloat(normalized);
-          return isNaN(parsed) ? 0 : parsed;
-        };
-
-        const product: Product = {
-          name: formState.productName.trim(),
-          price: parsePrice(formState.productPrice),
-          category: formState.productCategory.trim() || 'Fornecedor',
-          lastPurchaseDate: formState.productLastPurchaseDate.trim(),
-          paymentMethod: formState.productPaymentMethod.trim()
-        };
-        
-        if (editingProductIndex !== null) {
-          finalProductList[editingProductIndex] = product;
-        } else {
-          finalProductList.push(product);
-        }
-      }
-
-      if (!formState.name || !formState.phone || finalProductList.length === 0) {
-        setIsSaving(false);
-        return;
-      }
-      
-      const supplierId = editingSupplierId || Math.random().toString(36).substring(2, 11);
-      
-      // Close modal immediately
-      setIsAdding(false);
-      
-      // Update prices in lists if editing
-      if (editingSupplierId) {
-        const oldSupplier = suppliers.find(s => s.id === editingSupplierId);
-        if (oldSupplier) {
-          for (const newProduct of finalProductList) {
-            const oldProduct = oldSupplier.products.find(p => p.name === newProduct.name);
-            if (oldProduct && oldProduct.price !== newProduct.price) {
-              await updateProductPriceInLists(newProduct.name, oldSupplier.name, newProduct.price);
-            }
-          }
-        }
-      }
-
-      await saveSupplier({
-        id: supplierId,
-        name: formState.name,
-        phone: formState.phone,
-        products: finalProductList
-      });
-      
-      addNotification(editingSupplierId ? 'Fornecedor atualizado!' : 'Fornecedor cadastrado!', 1, 'info');
-      resetForm();
-    } catch (err) {
-      console.error("Erro ao salvar fornecedor:", err);
-      addNotification("Erro ao salvar", 0, 'info');
-    } finally {
-      setIsSaving(false);
-    }
-  }, [productList, formState, editingProductIndex, editingSupplierId, saveSupplier, resetForm, isSaving, addNotification, suppliers, updateProductPriceInLists]);
-
-  const onEditSupplier = React.useCallback((supplier: Supplier) => {
-    setEditingSupplierId(supplier.id);
-    setFormState({
-      name: supplier.name,
-      phone: supplier.phone,
-      productName: '',
-      productPrice: '',
-      productCategory: '',
-      productLastPurchaseDate: '',
-      productPaymentMethod: '',
-    });
-    setProductList(supplier.products);
-    setIsAdding(true);
-  }, []);
-
-  const addProduct = React.useCallback(() => {
-    if (formState.productName.trim()) {
-      const parsePrice = (val: string) => {
-        if (!val) return 0;
-        const normalized = val.replace(',', '.');
-        const parsed = parseFloat(normalized);
-        return isNaN(parsed) ? 0 : parsed;
-      };
-
-      if (editingProductIndex !== null) {
-        const updatedList = [...productList];
-        const existing = updatedList[editingProductIndex];
-        updatedList[editingProductIndex] = {
-          ...existing,
-          name: formState.productName.trim(),
-          price: parsePrice(formState.productPrice),
-          category: formState.productCategory.trim() || 'Fornecedor',
-          lastPurchaseDate: formState.productLastPurchaseDate.trim(),
-          paymentMethod: formState.productPaymentMethod.trim()
-        };
-        setProductList(updatedList);
-        setEditingProductIndex(null);
-      } else {
-        const product: Product = {
-          name: formState.productName.trim(),
-          price: parsePrice(formState.productPrice),
-          category: formState.productCategory.trim() || 'Fornecedor',
-          lastPurchaseDate: formState.productLastPurchaseDate.trim(),
-          paymentMethod: formState.productPaymentMethod.trim()
-        };
-        setProductList([...productList, product]);
-      }
-      
-      setFormState(prev => ({
-        ...prev,
-        productName: '',
-        productPrice: '',
-        productCategory: '',
-        productLastPurchaseDate: '',
-        productPaymentMethod: '',
-      }));
-      productNameRef.current?.focus();
-    }
-  }, [formState, editingProductIndex, productList]);
 
   const onAddCategory = React.useCallback(() => {
     if (newCategoryName.trim()) {
@@ -554,7 +431,6 @@ export default function App() {
         updatedSupplier.products[productIndex] = { ...updatedSupplier.products[productIndex], price: newPrice };
         try {
             await saveSupplier(updatedSupplier);
-            addNotification(`Preço do produto "${name}" atualizado!` , 1, 'info');
         } catch (err) {
             console.error("Erro ao atualizar preço no fornecedor:", err);
             addNotification("Erro ao atualizar preço", 0, 'info');
@@ -676,7 +552,7 @@ export default function App() {
             searchTerm={searchTerm}
             setSearchTerm={setSearchTerm}
             setIsAdding={setIsAdding}
-            handleEditSupplier={onEditSupplier}
+            handleEditSupplier={(s) => onEditSupplier(s, setIsAdding)}
             setSupplierToDelete={(id) => setDeletion('supplier', id)}
             addToCart={handleAddToCart}
             handleExportExcel={handleExportExcel}
@@ -772,32 +648,9 @@ export default function App() {
         editingProductIndex={editingProductIndex}
         productNameRef={productNameRef}
         addProduct={addProduct}
-        handleEditProduct={(i) => {
-          if (i === null || i < 0) {
-            setEditingProductIndex(null);
-            setFormState(prev => ({
-              ...prev,
-              productName: '',
-              productPrice: '',
-              productCategory: '',
-              productLastPurchaseDate: '',
-              productPaymentMethod: ''
-            }));
-            return;
-          }
-          const p = productList[i];
-          setFormState(prev => ({
-            ...prev,
-            productName: p.name,
-            productPrice: p.price.toString(),
-            productCategory: p.category,
-            productLastPurchaseDate: p.lastPurchaseDate || '',
-            productPaymentMethod: p.paymentMethod || ''
-          }));
-          setEditingProductIndex(i);
-        }}
+        handleEditProduct={(i) => { handleEditProduct(i); setIsAdding(true); }}
         removeProduct={(i) => setProductList(productList.filter((_, idx) => idx !== i))}
-        handleAddSupplier={onAddSupplier}
+        handleAddSupplier={(e) => onAddSupplier(e, setIsAdding)}
         resetForm={resetForm}
         isCartOpen={isCartOpen}
         setIsCartOpen={setIsCartOpen}
