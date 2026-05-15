@@ -15,6 +15,8 @@ import { useCart } from './hooks/useCart';
 import { useDeliveredProducts } from './hooks/useDeliveredProducts';
 import { useReminders } from './hooks/useReminders';
 import { useExcel } from './hooks/useExcel';
+import { useSupplierForm } from './hooks/useSupplierForm';
+import { useDeletions } from './hooks/useDeletions';
 
 // Components
 import { Login } from './components/Login';
@@ -274,20 +276,7 @@ export default function App() {
   const [editingListId, setEditingListId] = useState<string | null>(null);
   const [editingSupplierId, setEditingSupplierId] = useState<string | null>(null);
   
-  // Grouped Delete States
-  const [deletions, setDeletions] = useState<{
-    supplier: string | null;
-    list: string | null;
-    reminder: string | null;
-    category: string | null;
-    user: string | null;
-  }>({
-    supplier: null,
-    list: null,
-    reminder: null,
-    category: null,
-    user: null
-  });
+  const { deletions, setDeletion } = useDeletions();
 
   const [searchTerm, setSearchTerm] = useState('');
   const [shoppingQuantities, setShoppingQuantities] = useState<Record<string, number | string>>({});
@@ -688,7 +677,7 @@ export default function App() {
             setSearchTerm={setSearchTerm}
             setIsAdding={setIsAdding}
             handleEditSupplier={onEditSupplier}
-            setSupplierToDelete={(id) => setDeletions(prev => ({ ...prev, supplier: id }))}
+            setSupplierToDelete={(id) => setDeletion('supplier', id)}
             addToCart={handleAddToCart}
             handleExportExcel={handleExportExcel}
             handleImportExcel={onImportExcel}
@@ -716,7 +705,7 @@ export default function App() {
             isLoading={isLoadingLists}
             onRefresh={refreshLists}
             editSavedList={onEditSavedList}
-            deleteSavedList={(id) => setDeletions(prev => ({ ...prev, list: id }))}
+            deleteSavedList={(id) => setDeletion('list', id)}
             toggleSavedListItemBought={handleToggleSavedListItemBought}
             setActiveTargetList={onSetActiveTargetList}
           />
@@ -742,7 +731,7 @@ export default function App() {
             reminderDate={reminderDate}
             setReminderDate={setReminderDate}
             addReminder={onScheduleReminder}
-            deleteReminder={(id) => setDeletions(prev => ({ ...prev, reminder: id }))}
+            deleteReminder={(id) => setDeletion('reminder', id)}
           />
         )}
         {currentPage === 'ai' && (
@@ -832,23 +821,23 @@ export default function App() {
         updateUserStatus={updateUserStatus}
         removeUserRequest={removeUserRequest}
         supplierToDelete={deletions.supplier}
-        setSupplierToDelete={(id) => setDeletions(prev => ({ ...prev, supplier: id }))}
-        confirmDelete={() => { if (deletions.supplier) { deleteSupplier(deletions.supplier); setDeletions(prev => ({ ...prev, supplier: null })); } }}
+        setSupplierToDelete={(id) => setDeletion('supplier', id)}
+        confirmDelete={() => { if (deletions.supplier) { deleteSupplier(deletions.supplier); setDeletion('supplier', null); } }}
         listToDelete={deletions.list}
-        setListToDelete={(id) => setDeletions(prev => ({ ...prev, list: id }))}
-        confirmDeleteList={() => { if (deletions.list) { deleteSavedList(deletions.list); setDeletions(prev => ({ ...prev, list: null })); } }}
+        setListToDelete={(id) => setDeletion('list', id)}
+        confirmDeleteList={() => { if (deletions.list) { deleteSavedList(deletions.list); setDeletion('list', null); } }}
         reminderToDelete={deletions.reminder}
-        setReminderToDelete={(id) => setDeletions(prev => ({ ...prev, reminder: id }))}
-        confirmDeleteReminder={() => { if (deletions.reminder) { deleteReminder(deletions.reminder); setDeletions(prev => ({ ...prev, reminder: null })); } }}
+        setReminderToDelete={(id) => setDeletion('reminder', id)}
+        confirmDeleteReminder={() => { if (deletions.reminder) { deleteReminder(deletions.reminder); setDeletion('reminder', null); } }}
         categoryToDelete={deletions.category}
-        setCategoryToDelete={(id) => setDeletions(prev => ({ ...prev, category: id }))}
-        confirmDeleteCategory={() => { if (deletions.category) { deleteCategory(deletions.category); setDeletions(prev => ({ ...prev, category: null })); } }}
+        setCategoryToDelete={(id) => setDeletion('category', id)}
+        confirmDeleteCategory={() => { if (deletions.category) { deleteCategory(deletions.category); setDeletion('category', null); } }}
         userToDelete={deletions.user}
-        setUserToDelete={(id) => setDeletions(prev => ({ ...prev, user: id }))}
+        setUserToDelete={(id) => setDeletion('user', id)}
         confirmDeleteUser={async () => { 
           if (deletions.user && removeUserRequest) { 
             await removeUserRequest(deletions.user); 
-            setDeletions(prev => ({ ...prev, user: null })); 
+            setDeletion('user', null); 
             addNotification("Usuário removido", 1, 'info');
           } 
         }}
