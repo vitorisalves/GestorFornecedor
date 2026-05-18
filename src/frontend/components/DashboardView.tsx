@@ -40,7 +40,7 @@ import autoTable from 'jspdf-autotable';
 import { domToCanvas } from 'modern-screenshot';
 
 import { SavedList } from '../types';
-import { formatCurrency, normalizeText } from '../utils';
+import { formatCurrency, normalizeText, safeStringify } from '../utils';
 import { matchDashboardWithAI } from '../../services/geminiService';
 
 interface SpreadsheetItem {
@@ -74,11 +74,11 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ savedLists }) => {
   
   // Persist data when changed
   useEffect(() => {
-    localStorage.setItem('dashboard_spreadsheet_data', JSON.stringify(spreadsheetData));
+    localStorage.setItem('dashboard_spreadsheet_data', safeStringify(spreadsheetData));
   }, [spreadsheetData]);
 
   useEffect(() => {
-    localStorage.setItem('dashboard_ai_mappings', JSON.stringify(aiMappings));
+    localStorage.setItem('dashboard_ai_mappings', safeStringify(aiMappings));
   }, [aiMappings]);
 
   useEffect(() => {

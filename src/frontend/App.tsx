@@ -207,6 +207,7 @@ export default function App() {
       
       // Também busca por correspondência de nome e fornecedor em produtos entregues
       const matches = deliveredProducts.filter(p => p.name === productName && p.supplierName === supplierName);
+      console.log('Matches IDs found:', matches.map(m => m.id));
       matches.forEach(m => {
         if (!productsToDelete.includes(m.id)) {
           productsToDelete.push(m.id);
@@ -215,9 +216,7 @@ export default function App() {
 
       if (productsToDelete.length > 0) {
         try {
-          for (const id of productsToDelete) {
-            await deleteDeliveredProduct(id);
-          }
+          await Promise.all(productsToDelete.map(id => deleteDeliveredProduct(id)));
           addNotification("Removido dos Entregues", 1, 'info');
         } catch (err) {
           console.error("Erro ao remover dos entregues:", err);

@@ -74,6 +74,19 @@ export function useDeliveredProducts(
 
   const saveDeliveredProduct = useCallback(async (product: DeliveredProduct) => {
     try {
+      // Check for circularity
+      const isCircular = (val: any, seen = new WeakSet()): boolean => {
+        if (typeof val !== 'object' || val === null) return false;
+        if (seen.has(val)) return true;
+        seen.add(val);
+        return Object.values(val).some(v => isCircular(v, seen));
+      };
+
+      if (isCircular(product)) {
+        console.error("Circular product found!", product);
+        return;
+      }
+
       const docRef = doc(db, 'delivered_products', product.id);
       const cleanedData = cleanObject(product);
       await setDoc(docRef, cleanedData);
