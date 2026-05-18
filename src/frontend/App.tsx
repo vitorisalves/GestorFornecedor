@@ -205,8 +205,8 @@ export default function App() {
         productsToDelete.push(item.deliveryId);
       }
       
-      // Também busca por correspondência de nome e fornecedor em produtos n entregues
-      const matches = deliveredProducts.filter(p => p.name === productName && p.supplierName === supplierName && !p.delivered);
+      // Também busca por correspondência de nome e fornecedor em produtos entregues
+      const matches = deliveredProducts.filter(p => p.name === productName && p.supplierName === supplierName);
       matches.forEach(m => {
         if (!productsToDelete.includes(m.id)) {
           productsToDelete.push(m.id);
