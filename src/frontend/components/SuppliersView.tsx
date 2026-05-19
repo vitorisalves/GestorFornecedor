@@ -41,6 +41,7 @@ interface SuppliersViewProps {
   activeTab?: 'fornecedores' | 'mercado' | 'materiais';
   onTabChange?: (tab: 'fornecedores' | 'mercado' | 'materiais') => void;
   addNotification?: (message: string, count: number, type?: 'cart' | 'info') => void;
+  onEditProduct: (product: Product, supplierName: string) => void;
 }
 
 export const SuppliersView: React.FC<SuppliersViewProps> = ({
@@ -59,7 +60,8 @@ export const SuppliersView: React.FC<SuppliersViewProps> = ({
   handleSyncSheets,
   activeTab: externalTab,
   onTabChange,
-  addNotification
+  addNotification,
+  onEditProduct
 }) => {
   const [internalTab, setInternalTab] = React.useState<'fornecedores' | 'mercado' | 'materiais'>('fornecedores');
   const activeSubTab = externalTab || internalTab;
@@ -329,9 +331,14 @@ export const SuppliersView: React.FC<SuppliersViewProps> = ({
                                   <span className="px-3 py-1 bg-slate-100 text-slate-500 rounded-full text-[10px] font-black uppercase tracking-wider">
                                     {product.category}
                                   </span>
-                                  <span className="text-xl font-black text-indigo-600">
-                                    {formatCurrency(product.price)}
-                                  </span>
+                                  <div className='flex gap-2 items-center'>
+                                    <button onClick={() => onEditProduct(product, supplier.name)} className='p-1 hover:bg-slate-100 rounded-md'>
+                                      <Pencil className="w-3 h-3 text-slate-400 hover:text-indigo-600" />
+                                    </button>
+                                    <span className="text-xl font-black text-indigo-600">
+                                      {formatCurrency(product.price)}
+                                    </span>
+                                  </div>
                                 </div>
                                 <h4 
                                   className={`font-bold mb-3 transition-colors ${isLink(product.name) ? 'text-indigo-600 hover:underline cursor-pointer' : 'text-slate-900'}`}
@@ -473,9 +480,14 @@ export const SuppliersView: React.FC<SuppliersViewProps> = ({
                           <span className="px-3 py-1 bg-slate-50 text-slate-400 border border-slate-100 rounded-lg text-[9px] font-bold uppercase tracking-wider">
                             {product.category}
                           </span>
-                          <span className="text-xl font-black text-indigo-600">
-                            {formatCurrency(product.price)}
-                          </span>
+                          <div className='flex gap-2 items-center'>
+                            <button onClick={() => onEditProduct(product, 'MERCADO')} className='p-1 hover:bg-slate-100 rounded-md'>
+                              <Pencil className="w-3 h-3 text-slate-400 hover:text-indigo-600" />
+                            </button>
+                            <span className="text-xl font-black text-indigo-600">
+                              {formatCurrency(product.price)}
+                            </span>
+                          </div>
                         </div>
                         <h4 
                           className={`text-lg font-bold mb-3 uppercase tracking-tight transition-colors ${isLink(product.name) ? 'text-indigo-600 hover:underline cursor-pointer' : 'text-slate-700'}`}
@@ -613,9 +625,14 @@ export const SuppliersView: React.FC<SuppliersViewProps> = ({
                           <span className="px-3 py-1 bg-slate-50 text-slate-400 border border-slate-100 rounded-lg text-[9px] font-bold uppercase tracking-wider">
                             {product.category}
                           </span>
-                          <span className="text-xl font-black text-indigo-600">
-                            {formatCurrency(product.price)}
-                          </span>
+                          <div className='flex gap-2 items-center'>
+                            <button onClick={() => onEditProduct(product, 'MATERIAIS')} className='p-1 hover:bg-slate-100 rounded-md'>
+                              <Pencil className="w-3 h-3 text-slate-400 hover:text-indigo-600" />
+                            </button>
+                            <span className="text-xl font-black text-indigo-600">
+                              {formatCurrency(product.price)}
+                            </span>
+                          </div>
                         </div>
                         <h4 
                           className={`text-lg font-bold mb-3 uppercase tracking-tight transition-colors ${isLink(product.name) ? 'text-indigo-600 hover:underline cursor-pointer' : 'text-slate-700'}`}

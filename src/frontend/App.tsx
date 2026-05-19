@@ -438,6 +438,32 @@ export default function App() {
     }
   }, [setCart, updateProductPriceInLists, suppliers, saveSupplier, addNotification]);
 
+  const onEditProductFromShopping = React.useCallback((product: Product, supplierName: string) => {
+    const supplier = suppliers.find(s => s.name === supplierName);
+    if (!supplier) return;
+    
+    // Set supplier as editing
+    setEditingSupplierId(supplier.id);
+    setProductList(supplier.products || []);
+    
+    // Set form state for this product
+    setFormState({
+        name: supplier.name,
+        phone: supplier.phone,
+        productName: product.name,
+        productPrice: product.price.toString(),
+        productCategory: product.category || '',
+        productLastPurchaseDate: product.lastPurchaseDate || '',
+        productPaymentMethod: product.paymentMethod || ''
+    });
+    
+    // Set editing index
+    const productIndex = supplier.products.findIndex(p => p.name === product.name);
+    setEditingProductIndex(productIndex);
+
+    setIsAdding(true);
+  }, [suppliers, setEditingSupplierId, setProductList, setFormState, setEditingProductIndex, setIsAdding]);
+
   // --- RENDER HELPERS ---
   const mainSuppliers = React.useMemo(() => 
     suppliers.filter(s => 
@@ -560,6 +586,7 @@ export default function App() {
             activeTab={currentPage === 'suppliers' ? 'fornecedores' : currentPage as any}
             onTabChange={(tab) => setCurrentPage(tab === 'fornecedores' ? 'suppliers' : tab)}
             addNotification={addNotification}
+            onEditProduct={onEditProductFromShopping}
           />
         )}
         {currentPage === 'shopping' && (
@@ -571,6 +598,7 @@ export default function App() {
             shoppingQuantities={shoppingQuantities}
             setShoppingQuantities={setShoppingQuantities}
             addToCart={handleAddToCart}
+            onEditProduct={onEditProductFromShopping}
           />
         )}
         {currentPage === 'history' && (

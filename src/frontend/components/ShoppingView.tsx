@@ -12,7 +12,8 @@ import {
   Minus, 
   Package,
   ChevronDown,
-  ChevronUp
+  ChevronUp,
+  Pencil
 } from 'lucide-react';
 import { Supplier, Product } from '../types';
 import { formatCurrency, normalizeText } from '../utils';
@@ -24,6 +25,7 @@ interface ShoppingViewProps {
   shoppingQuantities: Record<string, number | string>;
   setShoppingQuantities: React.Dispatch<React.SetStateAction<Record<string, number | string>>>;
   addToCart: (product: Product, supplierName: string, quantity: number) => void;
+  onEditProduct: (product: Product, supplierName: string) => void;
 }
 
 /**
@@ -39,7 +41,8 @@ export const ShoppingView: React.FC<ShoppingViewProps> = ({
   setSearchTerm,
   shoppingQuantities,
   setShoppingQuantities,
-  addToCart
+  addToCart,
+  onEditProduct
 }) => {
   // Estado para controlar qual categoria está expandida no momento
   const [expandedCategory, setExpandedCategory] = useState<string | null>(null);
@@ -169,9 +172,14 @@ export const ShoppingView: React.FC<ShoppingViewProps> = ({
                           >
                             <div>
                               <div className="flex justify-between items-start mb-3">
-                                <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest truncate max-w-[120px]">
-                                  {product.supplierName}
-                                </span>
+                                <div className='flex items-center gap-2'>
+                                  <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest truncate max-w-[120px]">
+                                    {product.supplierName}
+                                  </span>
+                                  <button onClick={() => onEditProduct(product, product.supplierName)} className='p-1 hover:bg-slate-100 rounded-md'>
+                                    <Pencil className="w-3 h-3 text-slate-400 hover:text-indigo-600" />
+                                  </button>
+                                </div>
                                 <span className="text-base font-black text-slate-900 tabular-nums">
                                   {formatCurrency(product.price)}
                                 </span>

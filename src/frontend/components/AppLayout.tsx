@@ -49,7 +49,7 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
   onReconnect,
 }) => {
   return (
-    <div className="min-h-screen bg-slate-50 flex">
+    <div className="min-h-screen bg-slate-200 flex">
       <Sidebar 
         currentPage={currentPage} 
         setCurrentPage={setCurrentPage} 

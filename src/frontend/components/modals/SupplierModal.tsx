@@ -219,7 +219,7 @@ export const SupplierModal: React.FC<SupplierModalProps> = ({
                       >
                         {isEditingThis && (
                           <div 
-                            className="fixed inset-0 z-[210]" 
+                            className="absolute inset-0 z-[210]" 
                             onClick={() => onEditProduct(null)} 
                           />
                         )}
