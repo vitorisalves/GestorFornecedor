@@ -116,7 +116,7 @@ export const processDocumentWithAI = async (
     parts.push({ text: promptText || "Extraia itens e preços." });
 
     const response = await ai.models.generateContent({
-      model: "gemini-2.0-flash",
+      model: "gemini-3.1-flash-lite",
       contents: { parts },
       config: {
         systemInstruction: `
@@ -196,7 +196,7 @@ export const matchDashboardWithAI = async (
     `;
 
     const response = await ai.models.generateContent({
-      model: "gemini-2.0-flash",
+      model: "gemini-3.1-flash-lite",
       contents: prompt,
       config: {
         responseMimeType: "application/json",
@@ -245,7 +245,7 @@ export const processCommandWithAI = async (
     const deliveredSummary = context.deliveredProducts?.filter(p => !p.delivered).map(p => `- [${p.id}] ${p.name} (Fornecedor: ${p.supplierName}, Previsão: ${p.forecastDate})`).join('\n') || "Nenhuma entrega pendente.";
 
     const response = await ai.models.generateContent({
-      model: "gemini-2.0-flash",
+      model: "gemini-3.1-flash-lite",
       contents: { parts },
       config: {
         systemInstruction: `
