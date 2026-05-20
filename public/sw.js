@@ -7,8 +7,7 @@ const CACHE_NAME = 'gestor-fornecedores-v2';
 const ASSETS_TO_CACHE = [
   '/',
   '/index.html',
-  '/manifest.json',
-  '/favicon.ico'
+  '/manifest.json'
 ];
 
 /**

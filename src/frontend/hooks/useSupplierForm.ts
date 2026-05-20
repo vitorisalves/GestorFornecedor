@@ -11,6 +11,7 @@ export const useSupplierForm = (
         name: '',
         phone: '',
         productName: '',
+        productCode: '',
         productPrice: '',
         productCategory: '',
         productLastPurchaseDate: '',
@@ -31,6 +32,7 @@ export const useSupplierForm = (
             productCategory: '',
             productLastPurchaseDate: '',
             productPaymentMethod: '',
+            productCode: '',
         });
         setProductList([]);
         setEditingProductIndex(null);
@@ -52,6 +54,7 @@ export const useSupplierForm = (
                 updatedList[editingProductIndex] = {
                     ...existing,
                     name: formState.productName.trim(),
+                    code: formState.productCode.trim(),
                     price: parsePrice(formState.productPrice),
                     category: formState.productCategory.trim() || 'Fornecedor',
                     lastPurchaseDate: formState.productLastPurchaseDate.trim(),
@@ -62,6 +65,7 @@ export const useSupplierForm = (
             } else {
                 const product: Product = {
                     name: formState.productName.trim(),
+                    code: formState.productCode.trim(),
                     price: parsePrice(formState.productPrice),
                     category: formState.productCategory.trim() || 'Fornecedor',
                     lastPurchaseDate: formState.productLastPurchaseDate.trim(),
@@ -88,6 +92,7 @@ export const useSupplierForm = (
             setFormState(prev => ({
                 ...prev,
                 productName: '',
+                productCode: '',
                 productPrice: '',
                 productCategory: '',
                 productLastPurchaseDate: '',
@@ -99,6 +104,7 @@ export const useSupplierForm = (
         setFormState(prev => ({
             ...prev,
             productName: p.name,
+            productCode: p.code || '',
             productPrice: p.price.toString(),
             productCategory: p.category,
             productLastPurchaseDate: p.lastPurchaseDate || '',
@@ -118,6 +124,7 @@ export const useSupplierForm = (
             if (formState.productName.trim()) {
                 const product: Product = {
                     name: formState.productName.trim(),
+                    code: formState.productCode.trim(),
                     price: parsePrice(formState.productPrice),
                     category: formState.productCategory.trim() || 'Fornecedor',
                     lastPurchaseDate: formState.productLastPurchaseDate.trim(),
@@ -181,6 +188,7 @@ export const useSupplierForm = (
             productCategory: '',
             productLastPurchaseDate: '',
             productPaymentMethod: '',
+            productCode: '',
         });
         setProductList(supplier.products);
         setIsAdding(true);

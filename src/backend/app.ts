@@ -5,6 +5,7 @@ import { AIService } from "./services/aiService";
 import { PushService } from "./services/pushService";
 import { OmieService } from "./services/omieService";
 import { ExcelService } from "./services/excelService";
+import { XMLService } from "./services/xmlService";
 import { startBackgroundReminderWorker } from "./reminderWorker";
 
 const app = express();
@@ -60,6 +61,60 @@ app.post("/api/ai/process-document", asyncHandler(async (req: Request, res: Resp
   const { fileData, promptText, existingProductNames } = req.body;
   const products = await AIService.processDocument(fileData, promptText, existingProductNames);
   res.json(products);
+}));
+
+// --- ROTAS XML ---
+const xmlService = new XMLService();
+app.post("/api/xml/process", asyncHandler(async (req: Request, res: Response) => {
+  const { xmlData } = req.body;
+  const parsedData = xmlService.parseNFe(xmlData);
+  
+  // Salva no Firestore
+  const docRef = fsOps.doc('invoices', parsedData.id);
+  const docSnapshot = await fsOps.getDoc(docRef);
+
+  const exists = typeof docSnapshot.exists === 'function' ? docSnapshot.exists() : !!docSnapshot.exists;
+  
+  await fsOps.set(docRef, parsedData, 'invoices/' + parsedData.id);
+  
+  res.json({ status: exists ? 'updated' : 'imported', id: parsedData.id });
+}));
+
+app.get("/api/xml/invoices", asyncHandler(async (req: Request, res: Response) => {
+  console.log("Fetching invoices...");
+  try {
+    const snapshot = await fsOps.getDocs('invoices', 'invoices');
+    console.log("Got snapshot, found docs:", snapshot.docs?.length);
+    const data = snapshot.docs.map((doc: any) => {
+      const d = typeof doc.data === 'function' ? doc.data() : doc.data;
+      return { id: doc.id, ...d };
+    });
+    res.json(data);
+  } catch (error) {
+    console.error("Error fetching invoices:", error);
+    throw error;
+  }
+}));
+
+app.post("/api/xml/invoices/delete", asyncHandler(async (req: Request, res: Response) => {
+  console.log("Request body:", req.body);
+  const { id } = req.body;
+  if (!id) {
+    return res.status(400).json({ status: 'error', error: 'ID not provided' });
+  }
+  console.log("Backend deleting invoice ID:", id);
+  
+  const docRef = fsOps.doc('invoices', id);
+  const docSnapshot = await fsOps.getDoc(docRef, 'invoices/' + id);
+  const exists = typeof docSnapshot.exists === 'function' ? docSnapshot.exists() : !!docSnapshot.exists;
+  console.log("Doc exists before delete:", exists);
+
+  if (exists) {
+    await fsOps.delete(docRef, 'invoices/' + id);
+    res.json({ status: 'deleted' });
+  } else {
+    res.status(404).json({ status: 'error', error: 'Document not found' });
+  }
 }));
 
 // --- ROTAS DE NOTIFICAÇÃO ---

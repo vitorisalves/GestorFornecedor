@@ -30,6 +30,8 @@ import { RemindersView } from './components/RemindersView';
 import { AIView } from './components/AIView';
 import { DashboardView } from './components/DashboardView';
 import { Modals } from './components/Modals';
+import { ImportInvoicesView } from './components/ImportInvoicesView';
+import { PurchaseForecastView } from './components/PurchaseForecastView';
 import { Header } from './components/Header';
 import { AppLayout } from './components/AppLayout';
 import { QuotaBanner } from './components/QuotaBanner';
@@ -263,7 +265,7 @@ export default function App() {
     }
   }, [activeTargetListId, activeTargetListName, addItemToList, addNotification, addToCart]);
 
-  const [currentPage, setCurrentPage] = useState<'dashboard' | 'suppliers' | 'mercado' | 'materiais' | 'shopping' | 'history' | 'delivered' | 'reminders' | 'ai'>('dashboard');
+  const [currentPage, setCurrentPage] = useState<'dashboard' | 'suppliers' | 'mercado' | 'materiais' | 'shopping' | 'history' | 'delivered' | 'reminders' | 'ai' | 'invoices' | 'purchase-forecast'>('dashboard');
   
   const {
     handleExportExcel,
@@ -454,7 +456,8 @@ export default function App() {
         productPrice: product.price.toString(),
         productCategory: product.category || '',
         productLastPurchaseDate: product.lastPurchaseDate || '',
-        productPaymentMethod: product.paymentMethod || ''
+        productPaymentMethod: product.paymentMethod || '',
+        productCode: product.code || ''
     });
     
     // Set editing index
@@ -650,6 +653,16 @@ export default function App() {
             addNotification={addNotification}
           />
         )}
+        {currentPage === 'invoices' && (
+          <ImportInvoicesView
+            key="invoices"
+          />
+        )}
+        {currentPage === 'purchase-forecast' && (
+          <PurchaseForecastView
+            key="purchase-forecast"
+          />
+        )}
       </AnimatePresence>
 
       <Modals 
@@ -665,6 +678,8 @@ export default function App() {
         setNewProductName={(productName) => setFormState(prev => ({ ...prev, productName }))}
         newProductPrice={formState.productPrice}
         setNewProductPrice={(productPrice) => setFormState(prev => ({ ...prev, productPrice }))}
+        newProductCode={formState.productCode}
+        setNewProductCode={(productCode) => setFormState(prev => ({ ...prev, productCode }))}
         newProductCategory={formState.productCategory}
         setNewProductCategory={(productCategory) => setFormState(prev => ({ ...prev, productCategory }))}
         newProductLastPurchaseDate={formState.productLastPurchaseDate}

@@ -143,6 +143,14 @@ export const fsOps = {
     const db: any = getDb();
     return db.collection ? db.collection(coll).doc(id) : doc(db, coll, id);
   },
+  getDoc: async (ref: any, path: string = 'unknown') => {
+    try {
+      return ref.get ? await ref.get() : await getDocFromServer(ref);
+    } catch (err: any) {
+      handleFirestoreError(err, OperationType.GET, path);
+      throw err;
+    }
+  },
   update: async (ref: any, data: any, path: string = 'unknown') => {
     try {
       return ref.update ? await ref.update(data) : await updateDoc(ref, data);
@@ -169,8 +177,12 @@ export const fsOps = {
   },
   delete: async (ref: any, path: string = 'unknown') => {
     try {
-      return ref.delete ? await ref.delete() : await deleteDoc(ref);
+      console.log(`[Firestore] Deleting doc at path: ${path}`);
+      const result =  ref.delete ? await ref.delete() : await deleteDoc(ref);
+      console.log(`[Firestore] Delete successful for path: ${path}`);
+      return result;
     } catch (err: any) {
+      console.error(`[Firestore] Delete failed for path: ${path}`, err);
       if (typeof err.message === 'string' && (err.message.toLowerCase().includes('not found') || err.message.includes('404'))) {
         console.warn(`[FirestoreWarn] Delete operation failed (Not Found) at ${path}`);
         return;

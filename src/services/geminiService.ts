@@ -126,6 +126,7 @@ export const processDocumentWithAI = async (
           REGRAS:
           1. "name": Se o item for similar a um da "LISTA DE PRODUTOS EXISTENTES", use EXATAMENTE o nome da lista. Caso contrário, use o nome lido.
           2. "rawName": Nome bruto como está no documento.
+          3. "quantity": Calcule o valor total se o nome contiver unidade de medida (ex: '50g', '1litro') multiplicada pela quantidade de itens (ex: Se 'Pimenta 50g' e quantidade 6, o 'quantity' deve ser 300).
         `,
         responseMimeType: "application/json",
         temperature: 0.0,

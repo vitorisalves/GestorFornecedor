@@ -13,6 +13,7 @@
           "items": {
             "type": "object",
             "properties": {
+              "code": { "type": "string" },
               "name": { "type": "string" },
               "price": { "type": "number" },
               "category": { "type": "string" }
@@ -21,6 +22,27 @@
         }
       },
       "required": ["id", "name", "phone", "products"]
+    },
+    "Invoice": {
+      "title": "Invoice",
+      "description": "An invoice parsed from XML",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "supplierName": { "type": "string" },
+        "date": { "type": "string" },
+        "products": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "code": { "type": "string" },
+              "name": { "type": "string" }
+            }
+          }
+        }
+      },
+      "required": ["id", "supplierName", "date", "products"]
     },
     "SavedList": {
       "title": "Saved List",
@@ -100,6 +122,10 @@
     "/suppliers/{supplierId}": {
       "schema": "Supplier",
       "description": "Collection of suppliers"
+    },
+    "/invoices/{invoiceId}": {
+      "schema": "Invoice",
+      "description": "Collection of parsed XML invoices"
     },
     "/lists/{listId}": {
       "schema": "SavedList",

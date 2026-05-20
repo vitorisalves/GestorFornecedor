@@ -17,7 +17,9 @@ import {
   Hammer,
   Sparkles,
   X,
-  LayoutDashboard
+  LayoutDashboard,
+  FileUp,
+  TrendingUp
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -51,6 +53,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
     { id: 'delivered', label: 'Produtos Entregues', icon: Truck },
     { id: 'reminders', label: 'Lembretes', icon: Bell },
     { id: 'ai', label: 'I.A.', icon: Sparkles },
+    { id: 'invoices', label: 'Importar XML', icon: FileUp },
+    { id: 'purchase-forecast', label: 'Previsão de Compra', icon: TrendingUp },
   ];
 
   return (

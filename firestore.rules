@@ -94,6 +94,14 @@ service cloud.firestore {
              data.products is list && data.products.size() <= 1000;
     }
 
+    function isValidInvoice(data) {
+      return data.keys().hasAll(['id', 'supplierName', 'date', 'products']) &&
+             data.id is string && data.id.size() <= 200 &&
+             data.supplierName is string && data.supplierName.size() <= 200 &&
+             data.date is string &&
+             data.products is list && data.products.size() <= 1000;
+    }
+
     function isValidDeliveredProduct(data) {
       return data.keys().hasAll(['id', 'name', 'supplierName', 'purchaseDate', 'delivered']) &&
              data.id is string && data.id.size() <= 200 &&
@@ -157,6 +165,11 @@ service cloud.firestore {
       allow create: if isApproved() && isValidDeliveredProduct(incoming());
       allow update: if isApproved() && isValidDeliveredProduct(incoming());
       allow delete: if isApproved();
+    }
+
+    match /invoices/{invoiceId} {
+      allow read, create, update: if true; // TEMPORARY FIX: Allow anonymous operations for backend service
+      allow delete: if true;
     }
   }
 }

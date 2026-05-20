@@ -237,7 +237,8 @@ export const AIView: React.FC<AIViewProps> = ({
               price: res.extracted.price,
               category: res.selectedCategory || 'Fornecedor',
               lastPurchaseDate: res.extracted.lastPurchaseDate,
-              paymentMethod: res.extracted.paymentMethod
+              paymentMethod: res.extracted.paymentMethod,
+              code: ''
             });
           }
         } else {
@@ -246,7 +247,8 @@ export const AIView: React.FC<AIViewProps> = ({
             price: res.extracted.price,
             category: res.selectedCategory || 'Fornecedor',
             lastPurchaseDate: res.extracted.lastPurchaseDate,
-            paymentMethod: res.extracted.paymentMethod
+            paymentMethod: res.extracted.paymentMethod,
+            code: ''
           });
         }
         updatedSuppliers.set(sId, s);
@@ -332,7 +334,7 @@ export const AIView: React.FC<AIViewProps> = ({
             addToCart(found, found.supplier.name, item.quantity);
           } else {
             // Se não existe, cria um "fantasma" para a lista
-            addToCart({ name: item.name, price: 0, category: 'AI' }, item.supplierName || 'AI', item.quantity);
+            addToCart({ name: item.name, price: 0, category: 'AI', code: '' }, item.supplierName || 'AI', item.quantity);
           }
         }
         addNotification("Operação concluída!", items.length, 'cart');

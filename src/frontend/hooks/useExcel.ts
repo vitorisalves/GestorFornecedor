@@ -100,7 +100,8 @@ export const useExcel = (suppliers: Supplier[], saveSupplier: (s: Supplier) => P
               price: pPrice,
               category: pCat.toString(),
               lastPurchaseDate: pLastDate.toString(),
-              paymentMethod: pPayMethod.toString()
+              paymentMethod: pPayMethod.toString(),
+              code: ''
             });
           }
         });
@@ -249,7 +250,8 @@ export const useExcel = (suppliers: Supplier[], saveSupplier: (s: Supplier) => P
             price: isNaN(pPrice) ? 0 : pPrice,
             category: String(category),
             lastPurchaseDate: String(lastPurchaseDate),
-            paymentMethod: String(paymentMethod)
+            paymentMethod: String(paymentMethod),
+            code: ''
           });
         }
       });

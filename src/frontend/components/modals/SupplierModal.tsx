@@ -19,6 +19,8 @@ interface SupplierModalProps {
   setProductPrice: (price: string) => void;
   productCategory: string;
   setProductCategory: (cat: string) => void;
+  productCode: string;
+  setProductCode: (code: string) => void;
   productLastPurchaseDate: string;
   setProductLastPurchaseDate: (date: string) => void;
   productPaymentMethod: string;
@@ -52,6 +54,8 @@ export const SupplierModal: React.FC<SupplierModalProps> = ({
   setProductLastPurchaseDate,
   productPaymentMethod,
   setProductPaymentMethod,
+  productCode,
+  setProductCode,
   categories,
   editingProductIndex,
   productNameRef,
@@ -163,6 +167,13 @@ export const SupplierModal: React.FC<SupplierModalProps> = ({
                       className="px-4 py-3 bg-white border border-slate-200 focus:border-indigo-500 rounded-xl outline-none transition-all font-medium text-sm"
                       value={productName}
                       onChange={(e) => setProductName(e.target.value)}
+                    />
+                    <input
+                      type="text"
+                      placeholder="Código"
+                      className="px-4 py-3 bg-white border border-slate-200 focus:border-indigo-500 rounded-xl outline-none transition-all font-medium text-sm"
+                      value={productCode}
+                      onChange={(e) => setProductCode(e.target.value)}
                     />
                     <input
                       type="number"
