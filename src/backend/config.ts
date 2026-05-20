@@ -1,4 +1,5 @@
 import path from "path";
+import fs from "fs";
 
 /**
  * Limpa variáveis de ambiente removendo aspas e espaços extras.
@@ -24,10 +25,23 @@ export const getFirebaseConfig = async () => {
 
   try {
     // Tenta carregar do arquivo gerado pelo set_up_firebase
-    const configModule = await import('../../firebase-applet-config.json', { assert: { type: 'json' } });
-    config = { ...config, ...configModule.default };
+    try {
+      const configPath = path.join(process.cwd(), 'firebase-applet-config.json');
+      if (fs.existsSync(configPath)) {
+        const fileContent = fs.readFileSync(configPath, 'utf8');
+        const parsed = JSON.parse(fileContent);
+        config = { ...config, ...parsed };
+      } else {
+        const configModule = await import('../../firebase-applet-config.json', { assert: { type: 'json' } });
+        config = { ...config, ...configModule.default };
+      }
+    } catch (innerE) {
+      const configModule = await import('../../firebase-applet-config.json', { assert: { type: 'json' } });
+      config = { ...config, ...configModule.default };
+    }
   } catch (e) {
     // Silencioso se não existir
+    console.warn("Failed to load firebase-applet-config.json", e);
   }
 
   return config;

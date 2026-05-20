@@ -11,12 +11,11 @@ export const startBackgroundReminderWorker = () => {
   setInterval(async () => {
     try {
       const nowStr = new Date().toISOString();
-      const db = getDb();
       let snapshot;
       
       // Lógica resiliente para Admin vs Client SDK
       try {
-        const db = getDb();
+        const db = await getDb();
         if (db.collection) {
           snapshot = await db.collection('reminders')
             .where('notified', '==', false)
@@ -36,7 +35,7 @@ export const startBackgroundReminderWorker = () => {
         // Se falhar com Admin por algum motivo não detectado na inicialização, tenta Client uma vez
         if (dbErr.code === 7 || dbErr.message?.includes('PERMISSION_DENIED')) {
           console.warn("[ReminderWorker] Admin falhou com PERMISSION_DENIED. Tentando Client SDK...");
-          const clientAppDb = getDb(); // Caso tenha mudado
+          const clientAppDb = await getDb(); // Caso tenha mudado
           const q = query(
             collection(clientAppDb as any, 'reminders'), 
             where('notified', '==', false),

@@ -13,8 +13,8 @@ app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ limit: '10mb', extended: true }));
 
 // --- INICIALIZAÇÃO ---
+PushService.init();
 initFirebase().then(() => {
-  PushService.init();
   if (!IS_VERCEL) {
     startBackgroundReminderWorker();
   }
