@@ -143,7 +143,6 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
             
             return (
               <motion.div
-                layout
                 key={list.id}
                 className={`bg-white rounded-2xl border shadow-sm overflow-hidden transition-all ${
                   isCompleted ? 'border-green-100' : 'border-slate-100'

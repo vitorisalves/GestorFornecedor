@@ -3,7 +3,7 @@
  * Especializado em persistência offline e notificações push.
  */
 
-const CACHE_NAME = 'gestor-fornecedores-v2';
+const CACHE_NAME = 'gestor-fornecedores-v4';
 const ASSETS_TO_CACHE = [
   '/',
   '/index.html',

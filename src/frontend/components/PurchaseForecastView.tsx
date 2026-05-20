@@ -1,5 +1,5 @@
-import React, { useEffect, useState } from 'react';
-import { Loader2, ChevronLeft, ChevronRight, Search } from 'lucide-react';
+import React, { useEffect, useState, useRef } from 'react';
+import { Loader2, ChevronLeft, ChevronRight, Search, FileUp, CheckCircle2 } from 'lucide-react';
 import { motion } from 'framer-motion';
 
 interface Invoice {
@@ -20,13 +20,19 @@ interface Forecast {
 
 export const PurchaseForecastView: React.FC = () => {
     const [forecasts, setForecasts] = useState<Forecast[]>([]);
-    const [invoices, setInvoices] = useState<Invoice[]>([]);
     const [loading, setLoading] = useState(true);
-    const [viewMode, setViewMode] = useState<'forecast' | 'invoices'>('forecast');
     const [currentPage, setCurrentPage] = useState(1);
     const [searchTerm, setSearchTerm] = useState('');
     const [filterDate, setFilterDate] = useState('');
+    const [viewMode, setViewMode] = useState<'forecast' | 'import'>('forecast');
     const itemsPerPage = 20;
+
+    // XML Import State
+    const fileInputRef = useRef<HTMLInputElement>(null);
+    const [isUploading, setIsUploading] = useState(false);
+    const [importedCount, setImportedCount] = useState(0);
+    const [updatedCount, setUpdatedCount] = useState(0);
+    const [error, setError] = useState<string | null>(null);
 
     const fetchData = async () => {
         setLoading(true);
@@ -34,7 +40,6 @@ export const PurchaseForecastView: React.FC = () => {
             const res = await fetch('/api/xml/invoices?t=' + Date.now());
             if (!res.ok) throw new Error('Falha ao carregar notas fiscais');
             const data: Invoice[] = await res.json();
-            setInvoices(data);
 
             // Sort by date ASC to ensure we keep the last supplier
             data.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
@@ -94,29 +99,56 @@ export const PurchaseForecastView: React.FC = () => {
         fetchData();
     }, []);
 
-    const deleteInvoice = async (id: string) => {
-        console.log("Tentando excluir invoice com ID:", id);
-        try {
-            console.log("Enviando requisição de deleção para /api/xml/invoices/delete com ID:", JSON.stringify({ id }));
-            const res = await fetch(`/api/xml/invoices/delete`, { 
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ id })
-            });
-            
-            console.log("Resposta status:", res.status);
-            const result = await res.json();
-            console.log("Resposta da deleção (json):", result);
-            
-            if (!res.ok) throw new Error(`Falha ao excluir nota fiscal: ${result.error || res.statusText}`);
-            
-            console.log("Invoice excluída com sucesso.");
-            alert('Nota fiscal excluída com sucesso!');
-            fetchData();
-        } catch (err) {
-            const errMsg = err instanceof Error ? err.message : String(err);
-            alert('Erro ao excluir nota fiscal: ' + errMsg);
+    const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
+        const files = event.target.files;
+        if (!files || files.length === 0) return;
+
+        setIsUploading(true);
+        setError(null);
+        let imported = 0;
+        let updated = 0;
+
+        for (let i = 0; i < files.length; i++) {
+            const file = files[i];
+            if (file.name.endsWith('.xml')) {
+                const reader = new FileReader();
+                
+                const fileContent = await new Promise<string>((resolve) => {
+                    reader.onload = (e) => resolve(e.target?.result as string);
+                    reader.readAsText(file);
+                });
+
+                try {
+                    const response = await fetch('/api/xml/process', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ xmlData: fileContent })
+                    });
+                    
+                    if (!response.ok) {
+                        const errorText = await response.text();
+                        throw new Error(`Erro no servidor: ${errorText}`);
+                    }
+                    
+                    const result = await response.json();
+                    if (result.status === 'imported') {
+                        imported++;
+                    } else if (result.status === 'updated') {
+                        updated++;
+                    }
+                } catch (error) {
+                    const errMsg = error instanceof Error ? error.message : String(error);
+                    setError(`Erro ao processar ${file.name}: ${errMsg}`);
+                }
+            }
         }
+
+        setImportedCount(imported);
+        setUpdatedCount(updated);
+        setIsUploading(false);
+        
+        // Refresh forecast data after import
+        fetchData();
     };
 
     const filteredForecasts = forecasts.filter(f =>
@@ -135,7 +167,7 @@ export const PurchaseForecastView: React.FC = () => {
         setCurrentPage(1);
     };
 
-    if (loading) return <div className="p-8"><Loader2 className="animate-spin text-indigo-600" /></div>;
+    if (loading && viewMode === 'forecast') return <div className="p-8"><Loader2 className="animate-spin text-indigo-600" /></div>;
 
     return (
         <motion.div 
@@ -146,46 +178,56 @@ export const PurchaseForecastView: React.FC = () => {
             <div className="flex justify-between items-end">
                 <div>
                     <h1 className="text-4xl font-black text-slate-900 tracking-tight mb-2">Previsão de Compra</h1>
-                    <p className="text-slate-500 font-medium">Produtos sugeridos ou gestão de notas fiscais.</p>
+                    <p className="text-slate-500 font-medium">Produtos sugeridos com base no histórico de compras.</p>
                 </div>
-                <div className="flex gap-2">
-                    <button 
-                        onClick={() => setViewMode('forecast')}
-                        className={`px-4 py-2 rounded-xl border ${viewMode === 'forecast' ? 'bg-indigo-600 text-white' : 'bg-white text-slate-600'}`}
-                    >
-                         Previsão
-                    </button>
-                    <button 
-                        onClick={() => setViewMode('invoices')}
-                        className={`px-4 py-2 rounded-xl border ${viewMode === 'invoices' ? 'bg-indigo-600 text-white' : 'bg-white text-slate-600'}`}
-                    >
-                         Notas Fiscais
-                    </button>
-                    {viewMode === 'forecast' && (
-                        <>
-                            <div className="relative">
-                                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
-                                <input
-                                    type="text"
-                                    placeholder="Pesquisar produto ou fornecedor..."
-                                    value={searchTerm}
-                                    onChange={handleSearch}
-                                    className="pl-10 pr-4 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none w-64"
-                                />
-                            </div>
-                            <input
-                                type="date"
-                                value={filterDate}
-                                onChange={(e) => { setFilterDate(e.target.value); setCurrentPage(1); }}
-                                className="px-4 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
-                            />
-                        </>
-                    )}
+                <div className="flex gap-4">
+                    <div className="bg-slate-100 p-1 rounded-xl flex">
+                        <button
+                            onClick={() => setViewMode('forecast')}
+                            className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${
+                                viewMode === 'forecast' 
+                                ? 'bg-white text-indigo-600 shadow-sm' 
+                                : 'text-slate-500 hover:text-slate-700'
+                            }`}
+                        >
+                            Previsão
+                        </button>
+                        <button
+                            onClick={() => setViewMode('import')}
+                            className={`px-4 py-2 rounded-lg text-sm font-bold transition-all flex items-center gap-2 ${
+                                viewMode === 'import' 
+                                ? 'bg-white text-indigo-600 shadow-sm' 
+                                : 'text-slate-500 hover:text-slate-700'
+                            }`}
+                        >
+                            <FileUp size={16} />
+                            Importar XML
+                        </button>
+                    </div>
                 </div>
             </div>
 
-            <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
-                {viewMode === 'forecast' ? (
+            {viewMode === 'forecast' ? (
+                <>
+                <div className="flex gap-2 justify-end">
+                    <div className="relative">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
+                        <input
+                            type="text"
+                            placeholder="Pesquisar produto ou fornecedor..."
+                            value={searchTerm}
+                            onChange={handleSearch}
+                            className="pl-10 pr-4 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none w-64"
+                        />
+                    </div>
+                    <input
+                        type="date"
+                        value={filterDate}
+                        onChange={(e) => { setFilterDate(e.target.value); setCurrentPage(1); }}
+                        className="px-4 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
+                    />
+                </div>
+                <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
                     <table className="w-full border-collapse">
                         <thead>
                             <tr className="bg-slate-50 text-left">
@@ -210,55 +252,73 @@ export const PurchaseForecastView: React.FC = () => {
                             ))}
                         </tbody>
                     </table>
-                ) : (
-                    <table className="w-full border-collapse">
-                        <thead>
-                            <tr className="bg-slate-50 text-left">
-                                <th className="p-4 text-slate-400 text-xs font-bold uppercase tracking-widest border-b">ID</th>
-                                <th className="p-4 text-slate-400 text-xs font-bold uppercase tracking-widest border-b">Fornecedor</th>
-                                <th className="p-4 text-slate-400 text-xs font-bold uppercase tracking-widest border-b">Data</th>
-                                <th className="p-4 text-slate-400 text-xs font-bold uppercase tracking-widest border-b">Ações</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {invoices.map(i => (
-                                <tr key={i.id} className="border-b border-slate-50 hover:bg-slate-50/50">
-                                    <td className="p-4 font-bold text-slate-800">{i.id}</td>
-                                    <td className="p-4 text-sm text-slate-600">{i.supplierName}</td>
-                                    <td className="p-4 text-sm text-slate-600">{formatDate(i.date)}</td>
-                                    <td className="p-4 text-sm">
-                                        <button 
-                                            onClick={() => deleteInvoice(i.id)}
-                                            className="text-red-600 hover:text-red-800 font-bold"
-                                        >
-                                            Excluir
-                                        </button>
-                                    </td>
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
-                )}
-                {viewMode === 'forecast' && totalPages > 1 && (
-                    <div className="p-4 flex items-center justify-between border-t border-slate-100">
-                        <button 
-                            onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
-                            disabled={currentPage === 1}
-                            className="p-2 rounded-xl text-slate-500 hover:text-indigo-600 disabled:opacity-30"
-                        >
-                            <ChevronLeft />
-                        </button>
-                        <span className="text-sm font-bold text-slate-600">Página {currentPage} de {totalPages}</span>
-                        <button 
-                            onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
-                            disabled={currentPage === totalPages}
-                            className="p-2 rounded-xl text-slate-500 hover:text-indigo-600 disabled:opacity-30"
-                        >
-                            <ChevronRight />
-                        </button>
+                    {totalPages > 1 && (
+                        <div className="p-4 flex items-center justify-between border-t border-slate-100">
+                            <button 
+                                onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                                disabled={currentPage === 1}
+                                className="p-2 rounded-xl text-slate-500 hover:text-indigo-600 disabled:opacity-30"
+                            >
+                                <ChevronLeft />
+                            </button>
+                            <span className="text-sm font-bold text-slate-600">Página {currentPage} de {totalPages}</span>
+                            <button 
+                                onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                                disabled={currentPage === totalPages}
+                                className="p-2 rounded-xl text-slate-500 hover:text-indigo-600 disabled:opacity-30"
+                            >
+                                <ChevronRight />
+                            </button>
+                        </div>
+                    )}
+                </div>
+                </>
+            ) : (
+                <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-8">
+                    <h2 className="text-xl font-bold mb-6 text-slate-800">Importar XML</h2>
+                    <div 
+                        className="border-2 border-dashed border-slate-300 rounded-xl p-12 flex flex-col items-center justify-center cursor-pointer hover:border-indigo-500 transition-colors bg-slate-50 hover:bg-indigo-50"
+                        onClick={() => fileInputRef.current?.click()}
+                    >
+                        <FileUp className="w-12 h-12 text-indigo-500 mb-4" />
+                        <p className="text-lg font-medium text-slate-700">Clique para selecionar arquivos XML ou pastas</p>
+                        <p className="text-sm text-slate-500 mt-2">Suporta múltiplos arquivos NFe/CTe</p>
+                        <input 
+                            type="file" 
+                            ref={fileInputRef} 
+                            onChange={handleFileChange} 
+                            className="hidden" 
+                            multiple
+                            accept=".xml"
+                        />
                     </div>
-                )}
-            </div>
+                    {error && (
+                        <div className="mt-6 p-4 bg-red-100 text-red-700 rounded-lg">
+                            {error}
+                        </div>
+                    )}
+                    {isUploading && (
+                        <div className="mt-6 flex items-center gap-3 text-indigo-600 p-4 bg-indigo-50 rounded-lg border border-indigo-100">
+                            <Loader2 className="animate-spin w-5 h-5" />
+                            <span className="font-medium">Processando arquivos...</span>
+                        </div>
+                    )}
+                    {importedCount > 0 || updatedCount > 0 ? (
+                        <div className="mt-6 p-4 bg-emerald-50 text-emerald-700 rounded-lg border border-emerald-200 flex flex-col gap-2">
+                            <div className="flex items-center">
+                                <CheckCircle2 className="w-5 h-5 mr-2 shrink-0" />
+                                <span className="font-bold">{importedCount} arquivos novos importados com sucesso!</span>
+                            </div>
+                            {updatedCount > 0 && (
+                                <span className="text-sm font-medium text-emerald-600 max-w-full">
+                                    {updatedCount} arquivos foram atualizados (já existiam no histórico).
+                                </span>
+                            )}
+                        </div>
+                    ) : null}
+                </div>
+            )}
         </motion.div>
     );
 };
+

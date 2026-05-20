@@ -30,7 +30,6 @@ import { RemindersView } from './components/RemindersView';
 import { AIView } from './components/AIView';
 import { DashboardView } from './components/DashboardView';
 import { Modals } from './components/Modals';
-import { ImportInvoicesView } from './components/ImportInvoicesView';
 import { PurchaseForecastView } from './components/PurchaseForecastView';
 import { Header } from './components/Header';
 import { AppLayout } from './components/AppLayout';
@@ -150,9 +149,22 @@ export default function App() {
     // Se o item NÃO estava comprado, ele vai se tornar comprado agora (Check)
     const becomingBought = !item.bought;
 
-    // 1. Se for marcar como comprado
+    const now = new Date();
+    const sanitizeForId = (str: string) => {
+      return str
+        .toLowerCase()
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .replace(/[^a-z0-9]/g, '-')
+        .replace(/-+/g, '-')
+        .replace(/^-+|-+$/g, '');
+    };
+    const newDeliveryId = becomingBought ? sanitizeForId(`${productName}-${supplierName}-${now.getTime()}`) : undefined;
+
+    // Atualiza o estado da UI instantaneamente (optimistic)
+    toggleSavedListItemBought(listId, productName, supplierName, { bought: becomingBought, deliveryId: newDeliveryId });
+
     if (becomingBought) {
-      const now = new Date();
       const day = now.getDate().toString().padStart(2, '0');
       const month = (now.getMonth() + 1).toString().padStart(2, '0');
       const formattedDate = `${day}/${month}/${now.getFullYear()}`;
@@ -169,39 +181,26 @@ export default function App() {
           };
           
           try {
-            await saveSupplier(updatedSupplier);
+            saveSupplier(updatedSupplier);
             
-            const sanitizeForId = (str: string) => {
-              return str
-                .toLowerCase()
-                .normalize("NFD")
-                .replace(/[\u0300-\u036f]/g, "")
-                .replace(/[^a-z0-9]/g, '-')
-                .replace(/-+/g, '-')
-                .replace(/^-+|-+$/g, '');
-            };
-
-            const deliveryId = sanitizeForId(`${productName}-${supplierName}-${now.getTime()}`);
-            await saveDeliveredProduct({
-              id: deliveryId,
+            saveDeliveredProduct({
+              id: newDeliveryId!,
               name: productName,
               supplierName: supplierName,
               purchaseDate: formattedDate,
               delivered: false,
               quantity: item.quantity
+            }).then(() => {
+              addNotification(`Data atualizada e enviado para Entregues`, 1, 'info');
             });
 
-            // 2. Atualiza na lista com o novo deliveryId
-            await toggleSavedListItemBought(listId, productName, supplierName, { bought: true, deliveryId });
-
-            addNotification(`Data atualizada e enviado para Entregues`, 1, 'info');
           } catch (err) {
             console.error("Erro ao atualizar data de compra:", err);
           }
         }
       }
     } else {
-      // 1. Se for desmarcar, remove dos entregues se existir o deliveryId ou se encontrar nos produtos entregues
+      // Se for desmarcar, remove dos entregues se existir o deliveryId ou se encontrar nos produtos entregues
       const productsToDelete = [];
       if (item.deliveryId) {
         productsToDelete.push(item.deliveryId);
@@ -209,7 +208,6 @@ export default function App() {
       
       // Também busca por correspondência de nome e fornecedor em produtos entregues
       const matches = deliveredProducts.filter(p => p.name === productName && p.supplierName === supplierName);
-      console.log('Matches IDs found:', matches.map(m => m.id));
       matches.forEach(m => {
         if (!productsToDelete.includes(m.id)) {
           productsToDelete.push(m.id);
@@ -218,18 +216,16 @@ export default function App() {
 
       if (productsToDelete.length > 0) {
         try {
-          await Promise.all(productsToDelete.map(id => deleteDeliveredProduct(id)));
-          addNotification("Removido dos Entregues", 1, 'info');
+          Promise.all(productsToDelete.map(id => deleteDeliveredProduct(id))).then(() => {
+            addNotification("Removido dos Entregues", 1, 'info');
+          });
         } catch (err) {
           console.error("Erro ao remover dos entregues:", err);
           addNotification("Erro ao remover dos entregues", 0, 'info');
         }
       }
-
-      // 2. Atualiza na lista removendo o deliveryId
-      await toggleSavedListItemBought(listId, productName, supplierName, { bought: false, deliveryId: undefined });
     }
-  }, [savedLists, toggleSavedListItemBought, suppliers, saveSupplier, addNotification, saveDeliveredProduct, deleteDeliveredProduct]);
+  }, [savedLists, toggleSavedListItemBought, suppliers, deliveredProducts, saveSupplier, addNotification, saveDeliveredProduct, deleteDeliveredProduct]);
 
   const handleReconnect = React.useCallback(async () => {
     const { db, enableNetwork } = await import('./firebase');
@@ -265,7 +261,7 @@ export default function App() {
     }
   }, [activeTargetListId, activeTargetListName, addItemToList, addNotification, addToCart]);
 
-  const [currentPage, setCurrentPage] = useState<'dashboard' | 'suppliers' | 'mercado' | 'materiais' | 'shopping' | 'history' | 'delivered' | 'reminders' | 'ai' | 'invoices' | 'purchase-forecast'>('dashboard');
+  const [currentPage, setCurrentPage] = useState<'dashboard' | 'suppliers' | 'mercado' | 'materiais' | 'shopping' | 'history' | 'delivered' | 'reminders' | 'ai' | 'purchase-forecast'>('dashboard');
   
   const {
     handleExportExcel,
@@ -651,11 +647,6 @@ export default function App() {
             updateProductPriceInLists={updateProductPriceInLists}
             addToCart={handleAddToCart}
             addNotification={addNotification}
-          />
-        )}
-        {currentPage === 'invoices' && (
-          <ImportInvoicesView
-            key="invoices"
           />
         )}
         {currentPage === 'purchase-forecast' && (
