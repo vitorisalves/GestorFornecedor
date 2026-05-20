@@ -77,7 +77,6 @@ export class XMLService {
     
     const products = Array.isArray(items) 
       ? items.map(item => {
-          console.log("Product Item structure:", JSON.stringify(item.prod));
           return {
               code: item.prod?.cProd || "N/A",
               name: item.prod?.xProd || "N/A",

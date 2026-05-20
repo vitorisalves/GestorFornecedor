@@ -114,8 +114,8 @@ export const PurchaseForecastView: React.FC = () => {
             alert('Nota fiscal excluída com sucesso!');
             fetchData();
         } catch (err) {
-            console.error("Erro ao excluir invoice (catch block):", err);
-            alert('Erro ao excluir nota fiscal: ' + err);
+            const errMsg = err instanceof Error ? err.message : String(err);
+            alert('Erro ao excluir nota fiscal: ' + errMsg);
         }
     };
 

@@ -46,8 +46,8 @@ export const ImportInvoicesView: React.FC = () => {
                     updated++;
                 }
             } catch (error) {
-                console.error("Error processing file:", file.name, error);
-                setError(`Erro ao processar ${file.name}: ${error instanceof Error ? error.message : String(error)}`);
+                const errMsg = error instanceof Error ? error.message : String(error);
+                setError(`Erro ao processar ${file.name}: ${errMsg}`);
             }
         }
     }

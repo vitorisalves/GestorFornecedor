@@ -83,8 +83,8 @@ export function useDeliveredProducts(
       };
 
       if (isCircular(product)) {
-        console.error("Circular product found!", product);
-        return;
+        console.warn("Circular product found, cleaning before save.");
+        // continue and let cleanObject handle it since it uses a structured way
       }
 
       const docRef = doc(db, 'delivered_products', product.id);
