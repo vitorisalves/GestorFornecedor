@@ -95,6 +95,23 @@ export const getDb = async () => {
     await initFirebase();
   }
   if (adminDb && !adminDisabled) return adminDb;
+  
+  if (!clientDb) {
+    console.warn("[Firebase] clientDb está nulo em getDb(), tentando inicialização forçada de recuperação...");
+    try {
+      const firebaseConfig = await getFirebaseConfig();
+      const clientApp = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
+      clientDb = getFirestore(clientApp, firebaseConfig.firestoreDatabaseId || '(default)');
+      console.log("[Firebase] Recuperação do clientDb por inicialização forçada realizada com sucesso!");
+    } catch (e) {
+      console.error("[Firebase] Inicialização forçada de recuperação do clientDb falhou:", e);
+    }
+  }
+
+  if (!clientDb) {
+    throw new Error("Erro de conexão com o Banco de Dados: O SDK do Firebase não pôde ser inicializado no servidor.");
+  }
+
   return clientDb;
 };
 
