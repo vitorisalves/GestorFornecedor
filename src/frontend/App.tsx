@@ -6,6 +6,8 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { RefreshCcw, PlusCircle, BellRing, X } from 'lucide-react';
+import { db } from './firebase';
+import { setDoc, doc } from 'firebase/firestore';
 
 // Hooks
 import { useAuth } from './hooks/useAuth';
@@ -193,6 +195,19 @@ export default function App() {
             }).then(() => {
               addNotification(`Data atualizada e enviado para Entregues`, 1, 'info');
             });
+
+            // Adiciona fatura manual para a Previsão de Compra
+            const invoiceId = sanitizeForId(`manual-inv-${productName}-${supplierName}-${now.getTime()}`);
+            setDoc(doc(db, 'invoices', invoiceId), {
+              id: invoiceId,
+              date: now.toISOString(),
+              supplierName: supplierName,
+              products: [{
+                code: updatedSupplier.products[productIndex].code || `MANUAL-${sanitizeForId(productName)}`,
+                name: productName,
+                quantity: item.quantity || 1
+              }]
+            }).catch(e => console.error('Erro ao salvar invoice manual:', e));
 
           } catch (err) {
             console.error("Erro ao atualizar data de compra:", err);
@@ -650,6 +665,9 @@ export default function App() {
         {currentPage === 'purchase-forecast' && (
           <PurchaseForecastView
             key="purchase-forecast"
+            suppliers={suppliers}
+            saveSupplier={saveSupplier}
+            addNotification={addNotification}
           />
         )}
       </AnimatePresence>

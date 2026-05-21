@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { Loader2, ChevronLeft, ChevronRight, Search, FileUp, CheckCircle2 } from 'lucide-react';
+import { Loader2, ChevronLeft, ChevronRight, Search, FileUp, CheckCircle2, Link } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { Supplier } from '../types';
 
 interface Invoice {
     id: string;
@@ -10,6 +11,7 @@ interface Invoice {
 }
 
 interface Forecast {
+    productCode: string;
     productName: string;
     supplier: string;
     lastPurchase: string;
@@ -18,7 +20,13 @@ interface Forecast {
     predictedNextPurchase: string;
 }
 
-export const PurchaseForecastView: React.FC = () => {
+interface Props {
+    suppliers: Supplier[];
+    saveSupplier: (supplier: Supplier) => Promise<void>;
+    addNotification: (message: string, quantity: number, type?: 'info' | 'cart') => void;
+}
+
+export const PurchaseForecastView: React.FC<Props> = ({ suppliers, saveSupplier, addNotification }) => {
     const [forecasts, setForecasts] = useState<Forecast[]>([]);
     const [loading, setLoading] = useState(true);
     const [currentPage, setCurrentPage] = useState(1);
@@ -27,6 +35,12 @@ export const PurchaseForecastView: React.FC = () => {
     const [viewMode, setViewMode] = useState<'forecast' | 'import'>('forecast');
     const [productAliases, setProductAliases] = useState<Record<string, string>>({});
     const [supplierAliases, setSupplierAliases] = useState<Record<string, string>>({});
+    
+    // Association State
+    const [associatingForecast, setAssociatingForecast] = useState<Forecast | null>(null);
+    const [selectedSupplierId, setSelectedSupplierId] = useState<string>('');
+    const [selectedProductName, setSelectedProductName] = useState<string>('');
+
     const itemsPerPage = 20;
 
     // XML Import State
@@ -57,6 +71,7 @@ export const PurchaseForecastView: React.FC = () => {
                     // Always update to the latest supplier
                     productHistory[key].supplier = invoice.supplierName;
                     productHistory[key].lastQuantity = (product.quantity !== undefined ? product.quantity : 0);
+                    (productHistory[key] as any).code = key;
                     if (!productHistory[key].dates.includes(date)) {
                         productHistory[key].dates.push(date);
                     }
@@ -79,6 +94,7 @@ export const PurchaseForecastView: React.FC = () => {
                     const nextDate = new Date(lastDate.getTime() + avgInterval * 24 * 60 * 60 * 1000);
 
                     return {
+                        productCode: (data as any).code,
                         productName: data.name,
                         supplier: data.supplier,
                         lastPurchase: dates[dates.length - 1],
@@ -115,6 +131,33 @@ export const PurchaseForecastView: React.FC = () => {
         const newAliases = { ...supplierAliases, [originalName]: alias };
         setSupplierAliases(newAliases);
         localStorage.setItem('supplierAliases', JSON.stringify(newAliases));
+    };
+
+    const handleAssociate = async () => {
+        if (!associatingForecast || !selectedSupplierId || !selectedProductName) return;
+        
+        const supplier = suppliers.find(s => s.id === selectedSupplierId);
+        if (supplier) {
+            const productIndex = supplier.products.findIndex(p => p.name === selectedProductName);
+            if (productIndex !== -1) {
+                const updatedSupplier = { ...supplier };
+                updatedSupplier.products = [...updatedSupplier.products];
+                updatedSupplier.products[productIndex] = {
+                    ...updatedSupplier.products[productIndex],
+                    code: associatingForecast.productCode
+                };
+                
+                try {
+                    await saveSupplier(updatedSupplier);
+                    addNotification(`Código ${associatingForecast.productCode}`, 1, 'info');
+                    setAssociatingForecast(null);
+                    setSelectedSupplierId('');
+                    setSelectedProductName('');
+                } catch (e) {
+                    console.error(e);
+                }
+            }
+        }
     };
 
     const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -260,6 +303,7 @@ export const PurchaseForecastView: React.FC = () => {
                                 <th className="p-4 text-slate-400 text-xs font-bold uppercase tracking-widest border-b">Ciclo Médio</th>
                                 <th className="p-4 text-slate-400 text-xs font-bold uppercase tracking-widest border-b">Qtde na Última Compra</th>
                                 <th className="p-4 text-slate-400 text-xs font-bold uppercase tracking-widest border-b text-indigo-600">Previsão</th>
+                                <th className="p-4 text-slate-400 text-xs font-bold uppercase tracking-widest border-b text-right">Ação</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -289,6 +333,15 @@ export const PurchaseForecastView: React.FC = () => {
                                     <td className="p-4 text-sm text-slate-600 font-mono">{f.avgIntervalDays} dias</td>
                                     <td className="p-4 text-sm text-slate-600 font-mono">{f.lastQuantity}</td>
                                     <td className="p-4 text-sm font-black text-indigo-600">{formatDate(f.predictedNextPurchase)}</td>
+                                    <td className="p-4 text-sm text-right flex justify-end">
+                                        <button 
+                                            onClick={() => setAssociatingForecast(f)}
+                                            className="text-xs flex items-center gap-1 font-bold text-slate-500 hover:text-indigo-600 bg-slate-100 hover:bg-slate-200 px-3 py-1.5 rounded-lg transition-colors"
+                                        >
+                                            <Link size={14} />
+                                            Associar
+                                        </button>
+                                    </td>
                                 </tr>
                             ))}
                         </tbody>
@@ -357,6 +410,80 @@ export const PurchaseForecastView: React.FC = () => {
                             )}
                         </div>
                     ) : null}
+                </div>
+            )}
+            {associatingForecast && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm">
+                    <motion.div 
+                        initial={{ opacity: 0, scale: 0.95 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        className="bg-white rounded-3xl p-6 w-full max-w-md shadow-2xl relative overflow-hidden"
+                    >
+                        <h2 className="text-2xl font-black text-slate-900 mb-2">Vincular Código</h2>
+                        <p className="text-slate-500 text-sm mb-6">Associe o código rastreável da nota fiscal a um produto do seu Banco de Produtos.</p>
+                        
+                        <div className="space-y-4">
+                            <div className="p-4 bg-slate-50 rounded-xl border border-slate-100">
+                                <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Produto da Previsão</p>
+                                <p className="font-bold text-slate-800">{associatingForecast.productName}</p>
+                                <p className="text-sm text-slate-500 font-mono mt-1">Ref: {associatingForecast.productCode}</p>
+                            </div>
+                            
+                            <div>
+                                <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-2">Selecionar Fornecedor</label>
+                                <select 
+                                    className="w-full p-3 bg-white border-2 border-slate-200 rounded-xl focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100 outline-none transition-all font-medium text-slate-700"
+                                    value={selectedSupplierId}
+                                    onChange={(e) => {
+                                        setSelectedSupplierId(e.target.value);
+                                        setSelectedProductName('');
+                                    }}
+                                >
+                                    <option value="">Selecione um fornecedor...</option>
+                                    {suppliers.map(s => (
+                                        <option key={s.id} value={s.id}>{s.name}</option>
+                                    ))}
+                                </select>
+                            </div>
+
+                            {selectedSupplierId && (
+                                <div>
+                                    <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-2">Selecionar Produto</label>
+                                    <select 
+                                        className="w-full p-3 bg-white border-2 border-slate-200 rounded-xl focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100 outline-none transition-all font-medium text-slate-700"
+                                        value={selectedProductName}
+                                        onChange={(e) => setSelectedProductName(e.target.value)}
+                                    >
+                                        <option value="">Selecione o produto alvo...</option>
+                                        {suppliers.find(s => s.id === selectedSupplierId)?.products.map(p => (
+                                            <option key={p.name} value={p.name}>{p.name}</option>
+                                        ))}
+                                    </select>
+                                </div>
+                            )}
+
+                            <div className="flex gap-3 pt-6">
+                                <button
+                                    onClick={() => {
+                                        setAssociatingForecast(null);
+                                        setSelectedSupplierId('');
+                                        setSelectedProductName('');
+                                    }}
+                                    className="flex-1 px-4 py-3 bg-slate-100 text-slate-600 font-bold rounded-xl hover:bg-slate-200"
+                                >
+                                    Cancelar
+                                </button>
+                                <button
+                                    onClick={handleAssociate}
+                                    disabled={!selectedSupplierId || !selectedProductName}
+                                    className="flex-1 px-4 py-3 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 disabled:opacity-50 flex justify-center items-center gap-2"
+                                >
+                                    <Link size={18} />
+                                    Vincular Produto
+                                </button>
+                            </div>
+                        </div>
+                    </motion.div>
                 </div>
             )}
         </motion.div>
