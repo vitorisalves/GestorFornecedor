@@ -1,4 +1,4 @@
-import { query, collection, where, getDocs } from 'firebase/firestore';
+import { query, collection, where, getDocs } from 'firebase/firestore/lite';
 import { fsOps, getDb } from './firebase';
 import { PushService } from './services/pushService';
 

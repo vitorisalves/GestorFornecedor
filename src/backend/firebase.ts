@@ -1,14 +1,13 @@
 import { 
   getFirestore, 
-  initializeFirestore,
   collection, 
   getDocs, 
   doc, 
   updateDoc, 
   setDoc, 
   deleteDoc,
-  getDocFromServer
-} from 'firebase/firestore';
+  getDoc
+} from 'firebase/firestore/lite';
 import { initializeApp } from 'firebase/app';
 import { getFirebaseConfig, IS_VERCEL } from './config';
 
@@ -77,10 +76,8 @@ export const initFirebase = async () => {
     if (firebaseConfig.apiKey && firebaseConfig.projectId) {
       try {
         const clientApp = initializeApp(firebaseConfig);
-        clientDb = initializeFirestore(clientApp, {
-          experimentalForceLongPolling: true
-        }, firebaseConfig.firestoreDatabaseId || '(default)');
-        console.log("[Firebase] Client SDK initialized with long-polling.");
+        clientDb = getFirestore(clientApp, firebaseConfig.firestoreDatabaseId || '(default)');
+        console.log("[Firebase] Client SDK initialized with Firestore Lite.");
       } catch (err) {
         console.error("[Firebase] Client SDK init failed:", err);
       }
@@ -166,7 +163,7 @@ export const fsOps = {
   getDoc: async (refPromise: any, path: string = 'unknown') => {
     try {
       const ref = await refPromise;
-      return ref.get ? await ref.get() : await getDocFromServer(ref);
+      return ref.get ? await ref.get() : await getDoc(ref);
     } catch (err: any) {
       handleFirestoreError(err, OperationType.GET, path);
       throw err;
