@@ -1,5 +1,6 @@
 import path from "path";
 import fs from "fs";
+import firebaseConfigJson from "../../firebase-applet-config.json";
 
 /**
  * Limpa variáveis de ambiente removendo aspas e espaços extras.
@@ -13,7 +14,7 @@ export const sanitizeEnv = (val: string | undefined, fallback: string): string =
  * Configuração do Firebase
  */
 export const getFirebaseConfig = async () => {
-  let fileConfig: any = {};
+  let fileConfig: any = { ...firebaseConfigJson };
   
   try {
     const possiblePaths = [
