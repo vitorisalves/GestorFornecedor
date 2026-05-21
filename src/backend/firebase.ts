@@ -1,5 +1,3 @@
-import { initializeApp as initAdminApp, getApps as getAdminApps } from 'firebase-admin/app';
-import { getFirestore as getAdminFirestore } from 'firebase-admin/firestore';
 import { 
   getFirestore, 
   initializeFirestore,
@@ -47,6 +45,9 @@ export const initFirebase = async () => {
         console.log("[Firebase] Vercel environment detected. Skipper Admin SDK init completely to avoid metadata credential hangs.");
         adminDisabled = true;
       } else {
+        const { initializeApp: initAdminApp, getApps: getAdminApps } = await import('firebase-admin/app');
+        const { getFirestore: getAdminFirestore } = await import('firebase-admin/firestore');
+
         if (getAdminApps().length === 0) {
           initAdminApp({ projectId: firebaseConfig.projectId });
         }
