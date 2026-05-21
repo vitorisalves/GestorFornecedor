@@ -34,6 +34,50 @@ interface HistoryViewProps {
   setActiveTargetList: (id: string | null, name: string | null) => void;
 }
 
+const HistoryItemRow = React.memo(({ 
+  listId, 
+  item, 
+  onToggle 
+}: { 
+  listId: string; 
+  item: any; 
+  onToggle: (listId: string, productName: string, supplierName: string) => void;
+}) => {
+  return (
+    <tr className={`group hover:bg-slate-50 transition-colors ${item.bought ? 'bg-slate-50/50' : ''}`}>
+      <td className="px-6 py-4">
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            onToggle(listId, item.name, item.supplierName);
+          }}
+          className={`w-7 h-7 rounded-lg border flex items-center justify-center transition-all ${
+            item.bought 
+              ? 'bg-green-600 border-green-700 text-white shadow-sm' 
+              : 'border-black hover:border-slate-900'
+          }`}
+        >
+          {item.bought && <Check className="w-4 h-4" />}
+        </button>
+      </td>
+      <td className="px-6 py-4">
+        <p className={`text-sm font-bold text-slate-700 tracking-tight ${item.bought ? 'line-through opacity-40 text-slate-400' : ''}`}>{item.name}</p>
+        <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest">{item.category}</p>
+      </td>
+      <td className="px-6 py-4">
+        <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">
+          {item.supplierName}
+        </span>
+      </td>
+      <td className="px-6 py-4 text-center font-bold text-slate-700 text-base tabular-nums">{item.quantity}</td>
+      <td className="px-6 py-4 text-right font-black text-slate-800 text-base tabular-nums">
+        {formatCurrency(item.price * item.quantity)}
+      </td>
+    </tr>
+  );
+});
+HistoryItemRow.displayName = 'HistoryItemRow';
+
 export const HistoryView: React.FC<HistoryViewProps> = ({
   savedLists,
   isLoading,
@@ -267,33 +311,12 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
                             </thead>
                             <tbody className="divide-y divide-slate-100">
                               {list.items.map((item, idx) => (
-                                <tr key={idx} className={`group hover:bg-slate-50 transition-colors ${item.bought ? 'bg-slate-50/50' : ''}`}>
-                                  <td className="px-6 py-4">
-                                    <button
-                                      onClick={() => toggleSavedListItemBought(list.id, item.name, item.supplierName)}
-                                      className={`w-7 h-7 rounded-lg border flex items-center justify-center transition-all ${
-                                        item.bought 
-                                          ? 'bg-green-600 border-green-700 text-white shadow-sm' 
-                                          : 'border-black hover:border-slate-900'
-                                      }`}
-                                    >
-                                      {item.bought && <Check className="w-4 h-4" />}
-                                    </button>
-                                  </td>
-                                  <td className="px-6 py-4">
-                                    <p className={`text-sm font-bold text-slate-700 tracking-tight ${item.bought ? 'line-through opacity-40 text-slate-400' : ''}`}>{item.name}</p>
-                                    <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest">{item.category}</p>
-                                  </td>
-                                  <td className="px-6 py-4">
-                                    <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">
-                                      {item.supplierName}
-                                    </span>
-                                  </td>
-                                  <td className="px-6 py-4 text-center font-bold text-slate-700 text-base tabular-nums">{item.quantity}</td>
-                                  <td className="px-6 py-4 text-right font-black text-slate-800 text-base tabular-nums">
-                                    {formatCurrency(item.price * item.quantity)}
-                                  </td>
-                                </tr>
+                                <HistoryItemRow
+                                  key={`${list.id}-${item.name}-${item.supplierName}-${idx}`}
+                                  listId={list.id}
+                                  item={item}
+                                  onToggle={toggleSavedListItemBought}
+                                />
                               ))}
                             </tbody>
                           </table>

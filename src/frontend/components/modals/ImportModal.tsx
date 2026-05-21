@@ -70,7 +70,7 @@ export const ImportModal: React.FC<ImportModalProps> = ({
                 <Trash2 className="w-6 h-6 text-red-600 group-hover:scale-110 transition-transform" />
                 <div className="text-left">
                   <p className="font-black text-slate-900 uppercase text-xs tracking-widest leading-none mb-1 text-red-600">Substituir Tudo</p>
-                  <p className="text-[10px] text-slate-400 font-bold leading-tight">Substitui apenas a lista Geral. Mercado e Materiais serão mantidos.</p>
+                  <p className="text-[10px] text-slate-400 font-bold leading-tight">Substitui apenas a lista Fornecedores. Mercado e Materiais serão mantidos.</p>
                 </div>
               </button>
             </div>

@@ -106,63 +106,64 @@ export const formatDate = (dateString: string) => {
 };
 
 export const safeStringify = (obj: any, maxDepth: number = 3): string => {
-  if (obj === undefined) return 'undefined';
-  if (obj === null) return 'null';
-  if (typeof obj !== 'object' && typeof obj !== 'function') return String(obj);
-  
-  if (obj instanceof Error) return obj.message;
-
-  const seen = new WeakSet();
-  
-  const handleValue = (val: any, depth: number): any => {
-    if (depth > maxDepth) return '[Max Depth]';
-    if (val === null || val === undefined) return val;
+  try {
+    return JSON.stringify(obj);
+  } catch (e) {
+    if (obj === undefined) return 'undefined';
+    if (obj === null) return 'null';
+    if (typeof obj !== 'object' && typeof obj !== 'function') return String(obj);
     
-    const type = typeof val;
-    if (type !== 'object' && type !== 'function') return val;
+    if (obj instanceof Error) return obj.message;
 
-    // Handle special types
-    if (val instanceof Date) return val.toISOString();
-    if (val instanceof RegExp) return val.toString();
+    const seen = new WeakSet();
     
-    // Avoid DOM objects
-    if (typeof window !== 'undefined' && (val === window || val === document || val instanceof Node)) {
-      return '[DOM Object]';
-    }
+    const handleValue = (val: any, depth: number): any => {
+      if (depth > maxDepth) return '[Max Depth]';
+      if (val === null || val === undefined) return val;
+      
+      const type = typeof val;
+      if (type !== 'object' && type !== 'function') return val;
 
-    if (seen.has(val)) return '[Circular]';
-    seen.add(val);
+      if (val instanceof Date) return val.toISOString();
+      if (val instanceof RegExp) return val.toString();
+      
+      if (typeof window !== 'undefined' && (val === window || val === document || val instanceof Node)) {
+        return '[DOM Object]';
+      }
+
+      if (seen.has(val)) return '[Circular]';
+      seen.add(val);
+
+      try {
+        if (Array.isArray(val)) {
+          return val.map(item => handleValue(item, depth + 1));
+        }
+
+        if (val instanceof Error) {
+          return { message: val.message, name: val.name, stack: val.stack };
+        }
+
+        const result: any = {};
+        const keys = Object.keys(val);
+        for (const key of keys) {
+          try {
+            result[key] = handleValue(val[key], depth + 1);
+          } catch (err) {
+            result[key] = '[Property Unreadable]';
+          }
+        }
+        return result;
+      } catch (err) {
+        return '[Unreadable Object]';
+      }
+    };
 
     try {
-      if (Array.isArray(val)) {
-        return val.map(item => handleValue(item, depth + 1));
-      }
-
-      if (val instanceof Error) {
-        return { message: val.message, name: val.name, stack: val.stack };
-      }
-
-      const result: any = {};
-      // Use Object.keys to avoid pulling in non-enumerable properties that might cause issues with libraries like Firestore
-      const keys = Object.keys(val);
-      for (const key of keys) {
-        try {
-          result[key] = handleValue(val[key], depth + 1);
-        } catch (e) {
-          result[key] = '[Property Unreadable]';
-        }
-      }
-      return result;
-    } catch (e) {
-      return '[Unreadable Object]';
+      const safeObj = handleValue(obj, 0);
+      return JSON.stringify(safeObj);
+    } catch (err) {
+      return '[Serialization Error]';
     }
-  };
-
-  try {
-    const safeObj = handleValue(obj, 0);
-    return JSON.stringify(safeObj);
-  } catch (err) {
-    return '[Serialization Error]';
   }
 };
 

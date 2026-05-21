@@ -25,6 +25,8 @@ export const PurchaseForecastView: React.FC = () => {
     const [searchTerm, setSearchTerm] = useState('');
     const [filterDate, setFilterDate] = useState('');
     const [viewMode, setViewMode] = useState<'forecast' | 'import'>('forecast');
+    const [productAliases, setProductAliases] = useState<Record<string, string>>({});
+    const [supplierAliases, setSupplierAliases] = useState<Record<string, string>>({});
     const itemsPerPage = 20;
 
     // XML Import State
@@ -97,7 +99,23 @@ export const PurchaseForecastView: React.FC = () => {
 
     useEffect(() => {
         fetchData();
+        const storedProducts = localStorage.getItem('productAliases');
+        if (storedProducts) setProductAliases(JSON.parse(storedProducts));
+        const storedSuppliers = localStorage.getItem('supplierAliases');
+        if (storedSuppliers) setSupplierAliases(JSON.parse(storedSuppliers));
     }, []);
+
+    const handleSetProductAlias = (originalName: string, alias: string) => {
+        const newAliases = { ...productAliases, [originalName]: alias };
+        setProductAliases(newAliases);
+        localStorage.setItem('productAliases', JSON.stringify(newAliases));
+    };
+
+    const handleSetSupplierAlias = (originalName: string, alias: string) => {
+        const newAliases = { ...supplierAliases, [originalName]: alias };
+        setSupplierAliases(newAliases);
+        localStorage.setItem('supplierAliases', JSON.stringify(newAliases));
+    };
 
     const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
         const files = event.target.files;
@@ -151,11 +169,16 @@ export const PurchaseForecastView: React.FC = () => {
         fetchData();
     };
 
-    const filteredForecasts = forecasts.filter(f =>
-        (f.productName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-         f.supplier.toLowerCase().includes(searchTerm.toLowerCase())) &&
-        (filterDate === '' || new Date(f.predictedNextPurchase) >= new Date(filterDate))
-    );
+    const filteredForecasts = forecasts.filter(f => {
+        const prodMatchName = productAliases[f.productName] || f.productName;
+        const supMatchName = supplierAliases[f.supplier] || f.supplier;
+        
+        return (prodMatchName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                f.productName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                supMatchName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                f.supplier.toLowerCase().includes(searchTerm.toLowerCase())) &&
+               (filterDate === '' || new Date(f.predictedNextPurchase) >= new Date(filterDate));
+    });
 
     const totalPages = Math.ceil(filteredForecasts.length / itemsPerPage);
     const paginatedForecasts = filteredForecasts.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
@@ -242,8 +265,26 @@ export const PurchaseForecastView: React.FC = () => {
                         <tbody>
                             {paginatedForecasts.map(f => (
                                 <tr key={`${f.productName}-${f.supplier}`} className="border-b border-slate-50 hover:bg-slate-50/50">
-                                    <td className="p-4 font-bold text-slate-800">{f.productName}</td>
-                                    <td className="p-4 text-sm text-slate-600">{f.supplier}</td>
+                                    <td className="p-4 font-bold text-slate-800">
+                                        <div>{f.productName}</div>
+                                        <input 
+                                            type="text" 
+                                            placeholder="Adicionar apelido..."
+                                            value={productAliases[f.productName] || ''}
+                                            onChange={(e) => handleSetProductAlias(f.productName, e.target.value)}
+                                            className="text-xs text-slate-400 mt-1 bg-transparent border-b border-transparent hover:border-slate-300 focus:border-indigo-500 outline-none w-full max-w-[200px] placeholder:text-slate-300 transition-colors"
+                                        />
+                                    </td>
+                                    <td className="p-4 text-sm text-slate-600">
+                                        <div>{f.supplier}</div>
+                                        <input 
+                                            type="text" 
+                                            placeholder="Adicionar apelido..."
+                                            value={supplierAliases[f.supplier] || ''}
+                                            onChange={(e) => handleSetSupplierAlias(f.supplier, e.target.value)}
+                                            className="text-xs text-slate-400 mt-1 bg-transparent border-b border-transparent hover:border-slate-300 focus:border-indigo-500 outline-none w-full max-w-[200px] placeholder:text-slate-300 transition-colors"
+                                        />
+                                    </td>
                                     <td className="p-4 text-sm text-slate-600">{formatDate(f.lastPurchase)}</td>
                                     <td className="p-4 text-sm text-slate-600 font-mono">{f.avgIntervalDays} dias</td>
                                     <td className="p-4 text-sm text-slate-600 font-mono">{f.lastQuantity}</td>

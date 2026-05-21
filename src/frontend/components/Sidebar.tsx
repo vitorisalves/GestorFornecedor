@@ -45,9 +45,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
 }) => {
   const menuItems = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
-    { id: 'suppliers', label: 'Fornecedores', icon: Building2 },
-    { id: 'mercado', label: 'Mercado', icon: Store },
-    { id: 'materiais', label: 'Materiais', icon: Hammer },
+    { id: 'suppliers', label: 'Produtos', icon: Building2 },
     { id: 'shopping', label: 'Fazer Compras', icon: ShoppingCart },
     { id: 'history', label: 'Minhas Listas', icon: ListChecks },
     { id: 'delivered', label: 'Produtos Entregues', icon: Truck },

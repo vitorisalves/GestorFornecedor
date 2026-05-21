@@ -261,7 +261,7 @@ export default function App() {
     }
   }, [activeTargetListId, activeTargetListName, addItemToList, addNotification, addToCart]);
 
-  const [currentPage, setCurrentPage] = useState<'dashboard' | 'suppliers' | 'mercado' | 'materiais' | 'shopping' | 'history' | 'delivered' | 'reminders' | 'ai' | 'purchase-forecast'>('dashboard');
+  const [currentPage, setCurrentPage] = useState<'dashboard' | 'suppliers' | 'shopping' | 'history' | 'delivered' | 'reminders' | 'ai' | 'purchase-forecast'>('dashboard');
   
   const {
     handleExportExcel,
@@ -566,7 +566,7 @@ export default function App() {
             savedLists={savedLists}
           />
         )}
-        {(currentPage === 'suppliers' || currentPage === 'mercado' || currentPage === 'materiais') && (
+        {currentPage === 'suppliers' && (
           <SuppliersView 
             key={currentPage}
             suppliers={mainSuppliers}
@@ -582,8 +582,6 @@ export default function App() {
             handleExportExcel={handleExportExcel}
             handleImportExcel={onImportExcel}
             handleSyncSheets={onSyncSheets}
-            activeTab={currentPage === 'suppliers' ? 'fornecedores' : currentPage as any}
-            onTabChange={(tab) => setCurrentPage(tab === 'fornecedores' ? 'suppliers' : tab)}
             addNotification={addNotification}
             onEditProduct={onEditProductFromShopping}
           />
