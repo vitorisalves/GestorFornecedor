@@ -273,7 +273,18 @@ export const SupplierModal: React.FC<SupplierModalProps> = ({
                                     ))}
                                   </select>
                                 </div>
-                                <div className="grid grid-cols-2 gap-2 mt-2">
+                                <div className="grid grid-cols-3 gap-2 mt-2">
+                                  <input
+                                    type="text"
+                                    className="px-2 py-1 bg-indigo-50 border border-indigo-200 rounded-lg text-[10px] font-bold text-slate-700 outline-none"
+                                    value={productCode}
+                                    onChange={(e) => setProductCode(e.target.value)}
+                                    placeholder="Código"
+                                    onKeyDown={(e) => {
+                                      if (e.key === 'Enter') onAddProduct();
+                                      if (e.key === 'Escape') onEditProduct(null);
+                                    }}
+                                  />
                                   <input
                                     type="text"
                                     className="px-2 py-1 bg-indigo-50 border border-indigo-200 rounded-lg text-[10px] font-bold text-slate-700 outline-none"
@@ -294,6 +305,10 @@ export const SupplierModal: React.FC<SupplierModalProps> = ({
                               <>
                                 <p className="font-bold text-slate-700 text-sm tracking-tight">{p.name}</p>
                                 <div className="flex flex-wrap gap-x-3 gap-y-1 mt-1">
+                                  <div className="text-[8px] text-slate-500 font-bold uppercase tracking-tight flex items-center gap-1">
+                                    <span className={`w-1.5 h-1.5 rounded-full ${p.code ? 'bg-emerald-500 animate-pulse' : 'bg-amber-400'}`} />
+                                    Cód: <span className={`font-mono font-bold ${p.code ? 'text-emerald-700 bg-emerald-50/50 px-1 rounded' : 'text-amber-700 bg-amber-50/50 px-1 rounded'}`}>{p.code || 'Não associado'}</span>
+                                  </div>
                                   {p.lastPurchaseDate && (
                                     <div className="text-[8px] text-slate-500 font-bold uppercase tracking-tight flex items-center gap-1">
                                       <span className="w-1 h-1 bg-indigo-400 rounded-full" />

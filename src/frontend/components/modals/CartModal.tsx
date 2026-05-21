@@ -103,9 +103,21 @@ export const CartModal: React.FC<CartModalProps> = ({
                     <div key={i} className="flex items-center justify-between p-4 bg-white rounded-xl border border-slate-100 hover:border-indigo-100 transition-all">
                       <div className="flex-1">
                         <p className="font-bold text-slate-700 tracking-tight leading-tight">{item.name}</p>
-                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-0.5 leading-tight">
-                          {item.supplierName}
-                        </p>
+                        <div className="flex flex-wrap items-center gap-2 mt-1 leading-tight">
+                          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                            {item.supplierName}
+                          </span>
+                          <span className="text-slate-300">|</span>
+                          {item.code ? (
+                            <span className="text-[9px] font-mono text-emerald-700 bg-emerald-50 px-1 rounded border border-emerald-100">
+                              Cód: {item.code}
+                            </span>
+                          ) : (
+                            <span className="text-[9px] font-bold text-rose-600 bg-rose-50 px-1 rounded border border-rose-100 uppercase tracking-wider">
+                              Não Associado
+                            </span>
+                          )}
+                        </div>
                       </div>
                       <div className="flex items-center gap-4">
                         <div className="flex items-center gap-2 bg-slate-50 px-2 py-1.5 rounded-lg border border-slate-100">

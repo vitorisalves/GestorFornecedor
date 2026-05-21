@@ -26,6 +26,24 @@ interface Props {
     addNotification: (message: string, quantity: number, type?: 'info' | 'cart') => void;
 }
 
+function areCodesCompatible(c1: any, c2: any): boolean {
+    if (!c1 || !c2) return false;
+    
+    const clean = (c: any) => {
+        let s = String(c || '').trim().toLowerCase();
+        s = s.replace(/^(manual|cód|cod|codigo|código)[\s-_:]*/g, '');
+        s = s.replace(/[^a-z0-9]/g, '');
+        s = s.replace(/^0+/, '');
+        return s;
+    };
+    
+    const s1 = clean(c1);
+    const s2 = clean(c2);
+    
+    if (!s1 || !s2) return false;
+    return s1 === s2;
+}
+
 export const PurchaseForecastView: React.FC<Props> = ({ suppliers, saveSupplier, addNotification }) => {
     const [forecasts, setForecasts] = useState<Forecast[]>([]);
     const [loading, setLoading] = useState(true);
@@ -60,45 +78,71 @@ export const PurchaseForecastView: React.FC<Props> = ({ suppliers, saveSupplier,
             // Sort by date ASC to ensure we keep the last supplier
             data.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
             
-            const productHistory: Record<string, { dates: string[], name: string, supplier: string, lastQuantity: number }> = {};
+            const productHistory: Record<string, { dates: string[], name: string, supplier: string, lastQuantity: number, code: string }> = {};
             data.forEach(invoice => {
                 const date = new Date(invoice.date).toISOString().split('T')[0];
                 invoice.products.forEach(product => {
-                    const key = product.code; // Group by product code only
-                    if (!productHistory[key]) {
-                        productHistory[key] = { dates: [], name: product.name, supplier: invoice.supplierName, lastQuantity: 0 };
+                    const pCode = String(product.code !== undefined && product.code !== null ? product.code : '');
+                    
+                    // Find if there is an existing entry in productHistory with a compatible code
+                    let targetKey = Object.keys(productHistory).find(existingKey => 
+                        areCodesCompatible(existingKey, pCode)
+                    );
+                    
+                    if (!targetKey) {
+                        targetKey = pCode;
                     }
-                    // Always update to the latest supplier
-                    productHistory[key].supplier = invoice.supplierName;
-                    productHistory[key].lastQuantity = (product.quantity !== undefined ? product.quantity : 0);
-                    (productHistory[key] as any).code = key;
-                    if (!productHistory[key].dates.includes(date)) {
-                        productHistory[key].dates.push(date);
+                    
+                    if (!productHistory[targetKey]) {
+                        productHistory[targetKey] = { 
+                            dates: [], 
+                            name: product.name, 
+                            supplier: invoice.supplierName, 
+                            lastQuantity: 0,
+                            code: targetKey || pCode
+                        };
+                    }
+                    
+                    // Always update to the latest values since invoice order is sorted ASC
+                    productHistory[targetKey].supplier = invoice.supplierName;
+                    productHistory[targetKey].lastQuantity = (product.quantity !== undefined ? product.quantity : 0);
+                    productHistory[targetKey].name = product.name;
+                    
+                    // Keep the real code instead of "MANUAL-..." if possible
+                    if (pCode && !pCode.toUpperCase().startsWith('MANUAL') && String(productHistory[targetKey].code).toUpperCase().startsWith('MANUAL')) {
+                        productHistory[targetKey].code = pCode;
+                    }
+                    
+                    if (!productHistory[targetKey].dates.includes(date)) {
+                        productHistory[targetKey].dates.push(date);
                     }
                 });
             });
 
             const computedForecasts: Forecast[] = Object.values(productHistory)
-                .filter(data => data.dates.length >= 2)
+                .filter(data => data.dates.length >= 1)
                 .map(data => {
                     const dates = data.dates.sort();
                     
-                    let totalInterval = 0;
-                    for (let i = 1; i < dates.length; i++) {
-                        const diff = (new Date(dates[i]).getTime() - new Date(dates[i-1]).getTime()) / (1000 * 60 * 60 * 24);
-                        totalInterval += diff;
+                    let avgInterval = 30; // Default fallback interval of 30 days if only 1 purchase
+                    if (dates.length >= 2) {
+                        let totalInterval = 0;
+                        for (let i = 1; i < dates.length; i++) {
+                            const diff = (new Date(dates[i]).getTime() - new Date(dates[i-1]).getTime()) / (1000 * 60 * 60 * 24);
+                            totalInterval += diff;
+                        }
+                        avgInterval = totalInterval / (dates.length - 1);
                     }
-                    const avgInterval = totalInterval / (dates.length - 1);
                     
                     const lastDate = new Date(dates[dates.length - 1]);
                     const nextDate = new Date(lastDate.getTime() + avgInterval * 24 * 60 * 60 * 1000);
 
                     return {
-                        productCode: (data as any).code,
+                        productCode: data.code,
                         productName: data.name,
                         supplier: data.supplier,
                         lastPurchase: dates[dates.length - 1],
-                        avgIntervalDays: Math.round(avgInterval),
+                        avgIntervalDays: dates.length >= 2 ? Math.round(avgInterval) : 0,
                         lastQuantity: data.lastQuantity,
                         predictedNextPurchase: nextDate.toISOString().split('T')[0]
                     };
@@ -330,7 +374,7 @@ export const PurchaseForecastView: React.FC<Props> = ({ suppliers, saveSupplier,
                                         />
                                     </td>
                                     <td className="p-4 text-sm text-slate-600">{formatDate(f.lastPurchase)}</td>
-                                    <td className="p-4 text-sm text-slate-600 font-mono">{f.avgIntervalDays} dias</td>
+                                    <td className="p-4 text-sm text-slate-600 font-mono">{f.avgIntervalDays > 0 ? `${f.avgIntervalDays} dias` : 'Única Compra'}</td>
                                     <td className="p-4 text-sm text-slate-600 font-mono">{f.lastQuantity}</td>
                                     <td className="p-4 text-sm font-black text-indigo-600">{formatDate(f.predictedNextPurchase)}</td>
                                     <td className="p-4 text-sm text-right flex justify-end">

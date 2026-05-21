@@ -7,7 +7,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { RefreshCcw, PlusCircle, BellRing, X } from 'lucide-react';
 import { db } from './firebase';
-import { setDoc, doc } from 'firebase/firestore';
+import { setDoc, doc, deleteDoc, collection, query, where, getDocs } from 'firebase/firestore';
 
 // Hooks
 import { useAuth } from './hooks/useAuth';
@@ -162,9 +162,14 @@ export default function App() {
         .replace(/^-+|-+$/g, '');
     };
     const newDeliveryId = becomingBought ? sanitizeForId(`${productName}-${supplierName}-${now.getTime()}`) : undefined;
+    const newInvoiceId = becomingBought ? sanitizeForId(`manual-inv-${productName}-${supplierName}-${now.getTime()}`) : undefined;
 
     // Atualiza o estado da UI instantaneamente (optimistic)
-    toggleSavedListItemBought(listId, productName, supplierName, { bought: becomingBought, deliveryId: newDeliveryId });
+    toggleSavedListItemBought(listId, productName, supplierName, { 
+      bought: becomingBought, 
+      deliveryId: newDeliveryId,
+      invoiceId: newInvoiceId
+    });
 
     if (becomingBought) {
       const day = now.getDate().toString().padStart(2, '0');
@@ -197,9 +202,8 @@ export default function App() {
             });
 
             // Adiciona fatura manual para a Previsão de Compra
-            const invoiceId = sanitizeForId(`manual-inv-${productName}-${supplierName}-${now.getTime()}`);
-            setDoc(doc(db, 'invoices', invoiceId), {
-              id: invoiceId,
+            setDoc(doc(db, 'invoices', newInvoiceId!), {
+              id: newInvoiceId,
               date: now.toISOString(),
               supplierName: supplierName,
               products: [{
@@ -239,8 +243,41 @@ export default function App() {
           addNotification("Erro ao remover dos entregues", 0, 'info');
         }
       }
+
+      // Remover da Previsão de compra
+      const invoicesToDelete: string[] = [];
+      if (item.invoiceId) {
+        invoicesToDelete.push(item.invoiceId);
+      }
+
+      try {
+        const manualPref = `manual-inv-${sanitizeForId(productName)}-${sanitizeForId(supplierName)}`;
+        const invoicesQuery = query(
+          collection(db, 'invoices'),
+          where('supplierName', '==', supplierName)
+        );
+        const invoiceSnap = await getDocs(invoicesQuery);
+        invoiceSnap.forEach((docSnap) => {
+          if (docSnap.id.startsWith(manualPref) || (docSnap.id.startsWith('manual-inv-') && docSnap.id.includes(sanitizeForId(productName)))) {
+            if (!invoicesToDelete.includes(docSnap.id)) {
+              invoicesToDelete.push(docSnap.id);
+            }
+          }
+        });
+      } catch (err) {
+        console.error("Erro ao carregar faturas para deletar:", err);
+      }
+
+      if (invoicesToDelete.length > 0) {
+        try {
+          await Promise.all(invoicesToDelete.map(id => deleteDoc(doc(db, 'invoices', id))));
+          addNotification("Removido da Previsão de Compra", 1, 'info');
+        } catch (err) {
+          console.error("Erro ao deletar notas da previsão:", err);
+        }
+      }
     }
-  }, [savedLists, toggleSavedListItemBought, suppliers, deliveredProducts, saveSupplier, addNotification, saveDeliveredProduct, deleteDeliveredProduct]);
+  }, [savedLists, toggleSavedListItemBought, suppliers, deliveredProducts, saveSupplier, addNotification, saveDeliveredProduct, deleteDeliveredProduct, db]);
 
   const handleReconnect = React.useCallback(async () => {
     const { db, enableNetwork } = await import('./firebase');

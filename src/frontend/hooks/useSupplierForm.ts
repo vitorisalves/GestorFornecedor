@@ -77,6 +77,7 @@ export const useSupplierForm = (
             setFormState(prev => ({
                 ...prev,
                 productName: '',
+                productCode: '',
                 productPrice: '',
                 productCategory: '',
                 productLastPurchaseDate: '',

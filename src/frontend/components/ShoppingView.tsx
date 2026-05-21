@@ -188,6 +188,11 @@ export const ShoppingView: React.FC<ShoppingViewProps> = ({
                                 {product.name}
                               </h4>
                               <div className="space-y-1 mb-4">
+                                <div className={`flex items-center gap-1.5 px-2 py-0.5 rounded border text-[9px] mb-1.5 w-fit ${product.code ? 'bg-emerald-50/50 border-emerald-150 text-emerald-700' : 'bg-amber-50/50 border-amber-150 text-amber-700'}`}>
+                                  <div className={`w-1 h-1 rounded-full ${product.code ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500'}`} />
+                                  <span className="font-bold uppercase">Cód:</span>
+                                  <span className="font-mono font-bold uppercase tracking-wider">{product.code || 'Não associado'}</span>
+                                </div>
                                 {product.lastPurchaseDate && (
                                   <div className="flex items-center gap-1.5 text-[9px] text-slate-500 font-bold uppercase">
                                     <span className="w-1 h-1 bg-indigo-400 rounded-full" />
