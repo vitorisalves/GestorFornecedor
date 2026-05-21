@@ -47,6 +47,7 @@ function areCodesCompatible(c1: any, c2: any): boolean {
 export const PurchaseForecastView: React.FC<Props> = ({ suppliers, saveSupplier, addNotification }) => {
     const [forecasts, setForecasts] = useState<Forecast[]>([]);
     const [loading, setLoading] = useState(true);
+    const [fetchError, setFetchError] = useState<string | null>(null);
     const [currentPage, setCurrentPage] = useState(1);
     const [searchTerm, setSearchTerm] = useState('');
     const [filterDate, setFilterDate] = useState('');
@@ -70,9 +71,13 @@ export const PurchaseForecastView: React.FC<Props> = ({ suppliers, saveSupplier,
 
     const fetchData = async () => {
         setLoading(true);
+        setFetchError(null);
         try {
             const res = await fetch('/api/xml/invoices?t=' + Date.now());
-            if (!res.ok) throw new Error('Falha ao carregar notas fiscais');
+            if (!res.ok) {
+                const text = await res.text();
+                throw new Error(`Falha ao obter faturas na API (${res.status}): ${text}`);
+            }
             const data: Invoice[] = await res.json();
 
             // Sort by date ASC to ensure we keep the last supplier
@@ -150,8 +155,9 @@ export const PurchaseForecastView: React.FC<Props> = ({ suppliers, saveSupplier,
                 .sort((a, b) => new Date(a.predictedNextPurchase).getTime() - new Date(b.predictedNextPurchase).getTime());
 
             setForecasts(computedForecasts);
-        } catch (err) {
+        } catch (err: any) {
             console.error(err);
+            setFetchError(err.message || String(err));
         } finally {
             setLoading(false);
         }
@@ -319,6 +325,21 @@ export const PurchaseForecastView: React.FC<Props> = ({ suppliers, saveSupplier,
 
             {viewMode === 'forecast' ? (
                 <>
+                {fetchError && (
+                    <div className="bg-rose-50 border border-rose-200 text-rose-800 p-4 rounded-2xl text-sm flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+                        <div>
+                            <p className="font-bold">Não foi possível carregar as previsões de compra no servidor.</p>
+                            <p className="text-xs text-rose-600 mt-0.5">{fetchError}</p>
+                        </div>
+                        <button 
+                            onClick={fetchData} 
+                            className="bg-white hover:bg-rose-100/50 text-rose-700 border border-rose-200 px-4 py-2 rounded-xl text-xs font-bold transition-colors shadow-sm shrink-0"
+                        >
+                            Tentar Novamente
+                        </button>
+                    </div>
+                )}
+
                 <div className="flex gap-2 justify-end">
                     <div className="relative">
                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
@@ -351,7 +372,19 @@ export const PurchaseForecastView: React.FC<Props> = ({ suppliers, saveSupplier,
                             </tr>
                         </thead>
                         <tbody>
-                            {paginatedForecasts.map(f => (
+                            {paginatedForecasts.length === 0 ? (
+                                <tr>
+                                    <td colSpan={7} className="p-12 text-center text-slate-400 font-medium text-sm">
+                                        Nenhuma previsão de compra disponível.
+                                        {forecasts.length === 0 && (
+                                            <p className="text-xs text-slate-400 mt-2">
+                                                Importe arquivos XML das notas fiscais de compra na aba "Importar XML" para gerar previsões de compra.
+                                            </p>
+                                        )}
+                                    </td>
+                                </tr>
+                            ) : (
+                                paginatedForecasts.map(f => (
                                 <tr key={`${f.productName}-${f.supplier}`} className="border-b border-slate-50 hover:bg-slate-50/50">
                                     <td className="p-4 font-bold text-slate-800">
                                         <div>{f.productName}</div>
@@ -387,7 +420,7 @@ export const PurchaseForecastView: React.FC<Props> = ({ suppliers, saveSupplier,
                                         </button>
                                     </td>
                                 </tr>
-                            ))}
+                            )))}
                         </tbody>
                     </table>
                     {totalPages > 1 && (

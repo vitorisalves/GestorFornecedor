@@ -2,6 +2,7 @@ import { initializeApp as initAdminApp, getApps as getAdminApps } from 'firebase
 import { getFirestore as getAdminFirestore } from 'firebase-admin/firestore';
 import { 
   getFirestore, 
+  initializeFirestore,
   collection, 
   getDocs, 
   doc, 
@@ -70,8 +71,10 @@ export const initFirebase = async () => {
     if (firebaseConfig.apiKey && firebaseConfig.projectId) {
       try {
         const clientApp = initializeApp(firebaseConfig);
-        clientDb = getFirestore(clientApp, firebaseConfig.firestoreDatabaseId);
-        console.log("[Firebase] Client SDK initialized.");
+        clientDb = initializeFirestore(clientApp, {
+          experimentalForceLongPolling: true
+        }, firebaseConfig.firestoreDatabaseId || '(default)');
+        console.log("[Firebase] Client SDK initialized with long-polling.");
       } catch (err) {
         console.error("[Firebase] Client SDK init failed:", err);
       }

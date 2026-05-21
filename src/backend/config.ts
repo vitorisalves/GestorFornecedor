@@ -1,5 +1,6 @@
 import path from "path";
 import fs from "fs";
+import firebaseConfigJson from "../../firebase-applet-config.json";
 
 /**
  * Limpa variáveis de ambiente removendo aspas e espaços extras.
@@ -14,34 +15,25 @@ export const sanitizeEnv = (val: string | undefined, fallback: string): string =
  */
 export const getFirebaseConfig = async () => {
   let config: any = {
-    projectId: process.env.VITE_FIREBASE_PROJECT_ID || "",
-    storageBucket: process.env.VITE_FIREBASE_STORAGE_BUCKET || "",
-    apiKey: process.env.VITE_FIREBASE_API_KEY || "",
-    authDomain: process.env.VITE_FIREBASE_AUTH_DOMAIN || "",
-    messagingSenderId: process.env.VITE_FIREBASE_MESSAGING_SENDER_ID || "",
-    appId: process.env.VITE_FIREBASE_APP_ID || "",
-    firestoreDatabaseId: process.env.VITE_FIREBASE_DATABASE_ID || "(default)"
+    projectId: process.env.VITE_FIREBASE_PROJECT_ID || firebaseConfigJson.projectId || "",
+    storageBucket: process.env.VITE_FIREBASE_STORAGE_BUCKET || firebaseConfigJson.storageBucket || "",
+    apiKey: process.env.VITE_FIREBASE_API_KEY || firebaseConfigJson.apiKey || "",
+    authDomain: process.env.VITE_FIREBASE_AUTH_DOMAIN || firebaseConfigJson.authDomain || "",
+    messagingSenderId: process.env.VITE_FIREBASE_MESSAGING_SENDER_ID || firebaseConfigJson.messagingSenderId || "",
+    appId: process.env.VITE_FIREBASE_APP_ID || firebaseConfigJson.appId || "",
+    firestoreDatabaseId: process.env.VITE_FIREBASE_DATABASE_ID || firebaseConfigJson.firestoreDatabaseId || "(default)"
   };
 
   try {
-    // Tenta carregar do arquivo gerado pelo set_up_firebase
-    try {
-      const configPath = path.join(process.cwd(), 'firebase-applet-config.json');
-      if (fs.existsSync(configPath)) {
-        const fileContent = fs.readFileSync(configPath, 'utf8');
-        const parsed = JSON.parse(fileContent);
-        config = { ...config, ...parsed };
-      } else {
-        const configModule = await import('../../firebase-applet-config.json', { assert: { type: 'json' } });
-        config = { ...config, ...configModule.default };
-      }
-    } catch (innerE) {
-      const configModule = await import('../../firebase-applet-config.json', { assert: { type: 'json' } });
-      config = { ...config, ...configModule.default };
+    // Tenta carregar do arquivo gerado pelo set_up_firebase se presente
+    const configPath = path.join(process.cwd(), 'firebase-applet-config.json');
+    if (fs.existsSync(configPath)) {
+      const fileContent = fs.readFileSync(configPath, 'utf8');
+      const parsed = JSON.parse(fileContent);
+      config = { ...config, ...parsed };
     }
   } catch (e) {
-    // Silencioso se não existir
-    console.warn("Failed to load firebase-applet-config.json", e);
+    // Silencioso se não existir ou falhar
   }
 
   return config;
