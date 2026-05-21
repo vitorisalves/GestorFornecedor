@@ -8,7 +8,7 @@ import {
   deleteDoc,
   getDoc
 } from 'firebase/firestore/lite';
-import { initializeApp } from 'firebase/app';
+import { initializeApp, getApps, getApp } from 'firebase/app';
 import { getFirebaseConfig, IS_VERCEL } from './config';
 
 /**
@@ -75,7 +75,7 @@ export const initFirebase = async () => {
     // Initialize Client SDK
     if (firebaseConfig.apiKey && firebaseConfig.projectId) {
       try {
-        const clientApp = initializeApp(firebaseConfig);
+        const clientApp = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
         clientDb = getFirestore(clientApp, firebaseConfig.firestoreDatabaseId || '(default)');
         console.log("[Firebase] Client SDK initialized with Firestore Lite.");
       } catch (err) {

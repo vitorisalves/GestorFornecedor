@@ -1,6 +1,29 @@
 import path from "path";
 import fs from "fs";
-import firebaseConfigJson from "../../firebase-applet-config.json";
+import { fileURLToPath } from "url";
+
+const getFileFirebaseConfig = (): any => {
+  try {
+    const __filename = fileURLToPath(import.meta.url);
+    const __dirname = path.dirname(__filename);
+    const possiblePaths = [
+      path.join(process.cwd(), 'firebase-applet-config.json'),
+      path.resolve(__dirname, '../../firebase-applet-config.json'),
+      path.join(process.cwd(), '..', 'firebase-applet-config.json'),
+      path.join(process.cwd(), '../..', 'firebase-applet-config.json')
+    ];
+    for (const configPath of possiblePaths) {
+      if (fs.existsSync(configPath)) {
+        return JSON.parse(fs.readFileSync(configPath, 'utf8'));
+      }
+    }
+  } catch (e) {
+    console.warn("[Config] Erro ao ler firebase-applet-config.json:", e);
+  }
+  return {};
+};
+
+const firebaseConfigJson = getFileFirebaseConfig();
 
 /**
  * Limpa variáveis de ambiente removendo aspas e espaços extras.
