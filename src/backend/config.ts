@@ -1,6 +1,5 @@
 import path from "path";
 import fs from "fs";
-import firebaseConfigJson from "../../firebase-applet-config.json";
 
 /**
  * Limpa variáveis de ambiente removendo aspas e espaços extras.
@@ -14,27 +13,34 @@ export const sanitizeEnv = (val: string | undefined, fallback: string): string =
  * Configuração do Firebase
  */
 export const getFirebaseConfig = async () => {
-  let config: any = {
-    projectId: process.env.VITE_FIREBASE_PROJECT_ID || firebaseConfigJson.projectId || "",
-    storageBucket: process.env.VITE_FIREBASE_STORAGE_BUCKET || firebaseConfigJson.storageBucket || "",
-    apiKey: process.env.VITE_FIREBASE_API_KEY || firebaseConfigJson.apiKey || "",
-    authDomain: process.env.VITE_FIREBASE_AUTH_DOMAIN || firebaseConfigJson.authDomain || "",
-    messagingSenderId: process.env.VITE_FIREBASE_MESSAGING_SENDER_ID || firebaseConfigJson.messagingSenderId || "",
-    appId: process.env.VITE_FIREBASE_APP_ID || firebaseConfigJson.appId || "",
-    firestoreDatabaseId: process.env.VITE_FIREBASE_DATABASE_ID || firebaseConfigJson.firestoreDatabaseId || "(default)"
-  };
-
+  let fileConfig: any = {};
+  
   try {
-    // Tenta carregar do arquivo gerado pelo set_up_firebase se presente
-    const configPath = path.join(process.cwd(), 'firebase-applet-config.json');
-    if (fs.existsSync(configPath)) {
-      const fileContent = fs.readFileSync(configPath, 'utf8');
-      const parsed = JSON.parse(fileContent);
-      config = { ...config, ...parsed };
+    const possiblePaths = [
+      path.join(process.cwd(), 'firebase-applet-config.json'),
+      path.join(process.cwd(), '..', 'firebase-applet-config.json'),
+      path.join(process.cwd(), '../..', 'firebase-applet-config.json')
+    ];
+    for (const configPath of possiblePaths) {
+      if (fs.existsSync(configPath)) {
+        const fileContent = fs.readFileSync(configPath, 'utf8');
+        fileConfig = JSON.parse(fileContent);
+        break;
+      }
     }
   } catch (e) {
-    // Silencioso se não existir ou falhar
+    // Silencioso se falhar
   }
+
+  let config: any = {
+    projectId: process.env.VITE_FIREBASE_PROJECT_ID || fileConfig.projectId || "",
+    storageBucket: process.env.VITE_FIREBASE_STORAGE_BUCKET || fileConfig.storageBucket || "",
+    apiKey: process.env.VITE_FIREBASE_API_KEY || fileConfig.apiKey || "",
+    authDomain: process.env.VITE_FIREBASE_AUTH_DOMAIN || fileConfig.authDomain || "",
+    messagingSenderId: process.env.VITE_FIREBASE_MESSAGING_SENDER_ID || fileConfig.messagingSenderId || "",
+    appId: process.env.VITE_FIREBASE_APP_ID || fileConfig.appId || "",
+    firestoreDatabaseId: process.env.VITE_FIREBASE_DATABASE_ID || fileConfig.firestoreDatabaseId || "(default)"
+  };
 
   return config;
 };
