@@ -1,6 +1,31 @@
 import path from "path";
 import fs from "fs";
-import firebaseConfigJson from "../../firebase-applet-config.json";
+import { fileURLToPath } from "url";
+import { createRequire } from "module";
+
+const require = createRequire(import.meta.url);
+
+let firebaseConfigJson: any = {};
+try {
+  firebaseConfigJson = require("../../firebase-applet-config.json");
+} catch (e) {
+  try {
+    const __filename = fileURLToPath(import.meta.url);
+    const __dirname = path.dirname(__filename);
+    const possiblePaths = [
+      path.join(process.cwd(), "firebase-applet-config.json"),
+      path.resolve(__dirname, "../../firebase-applet-config.json")
+    ];
+    for (const p of possiblePaths) {
+      if (fs.existsSync(p)) {
+        firebaseConfigJson = JSON.parse(fs.readFileSync(p, "utf8"));
+        break;
+      }
+    }
+  } catch (innerE) {
+    // Silencioso se falhar
+  }
+}
 
 /**
  * Limpa variáveis de ambiente removendo aspas e espaços extras.

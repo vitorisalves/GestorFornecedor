@@ -12,7 +12,7 @@ import {
   getDocFromServer
 } from 'firebase/firestore';
 import { initializeApp } from 'firebase/app';
-import { getFirebaseConfig } from './config';
+import { getFirebaseConfig, IS_VERCEL } from './config';
 
 /**
  * Tipos de operação para logs
@@ -43,28 +43,33 @@ export const initFirebase = async () => {
 
     // Initialize Admin SDK
     try {
-      if (getAdminApps().length === 0) {
-        initAdminApp({ projectId: firebaseConfig.projectId });
-      }
-      const dbId = firebaseConfig.firestoreDatabaseId || '(default)';
-      try {
-        adminDb = getAdminFirestore(dbId);
-      } catch (dbErr) {
-        adminDb = getAdminFirestore();
-      }
-      
-      // Quick health check for Admin SDK
-      try {
-        await adminDb.collection('_health_check').limit(1).get();
-        console.log("[Firebase] Admin SDK verified successfully.");
-      } catch (healthErr: any) {
-        if (healthErr.message?.includes('PERMISSION_DENIED') || healthErr.code === 7) {
-          console.warn("[Firebase] Admin SDK health check failed (PERMISSION_DENIED). Falling back to Client SDK.");
-          adminDisabled = true;
+      if (IS_VERCEL) {
+        console.log("[Firebase] Vercel environment detected. Skipper Admin SDK init completely to avoid metadata credential hangs.");
+        adminDisabled = true;
+      } else {
+        if (getAdminApps().length === 0) {
+          initAdminApp({ projectId: firebaseConfig.projectId });
+        }
+        const dbId = firebaseConfig.firestoreDatabaseId || '(default)';
+        try {
+          adminDb = getAdminFirestore(dbId);
+        } catch (dbErr) {
+          adminDb = getAdminFirestore();
+        }
+        
+        // Quick health check for Admin SDK
+        try {
+          await adminDb.collection('_health_check').limit(1).get();
+          console.log("[Firebase] Admin SDK verified successfully.");
+        } catch (healthErr: any) {
+          if (healthErr.message?.includes('PERMISSION_DENIED') || healthErr.code === 7) {
+            console.warn("[Firebase] Admin SDK health check failed (PERMISSION_DENIED). Falling back to Client SDK.");
+            adminDisabled = true;
+          }
         }
       }
     } catch (e) {
-      console.warn("[Firebase] Admin SDK init failed, using Client only.");
+      console.warn("[Firebase] Admin SDK init failed, using Client only.", e);
     }
 
     // Initialize Client SDK
