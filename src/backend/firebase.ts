@@ -147,59 +147,23 @@ export const handleFirestoreError = (error: unknown, operationType: OperationTyp
   return errInfo;
 };
 
-const FIRESTORE_TIMEOUT_MS = 6500;
-
-/**
- * Garante que uma Promise seja rejeitada se demorar mais que o tempo limite.
- * Evita travamento por tempo indefinido em ambientes serverless (Vercel).
- */
-const withTimeout = <T>(promise: Promise<T>, operationName: string, path: string): Promise<T> => {
-  return new Promise<T>((resolve, reject) => {
-    const timer = setTimeout(() => {
-      const timeoutError = new Error(`TIMEOUT_ERROR: A operação Firestore '${operationName}' no caminho '${path}' excedeu o limite seguro de ${FIRESTORE_TIMEOUT_MS}ms no servidor.`);
-      (timeoutError as any).code = 'TIMEOUT';
-      reject(timeoutError);
-    }, FIRESTORE_TIMEOUT_MS);
-
-    promise
-      .then((res) => {
-        clearTimeout(timer);
-        resolve(res);
-      })
-      .catch((err) => {
-        clearTimeout(timer);
-        reject(err);
-      });
-  });
-};
-
 /**
  * Wrapper de operações comuns do Firestore
  */
 export const fsOps = {
-  collection: async (coll: string): Promise<any> => {
+  collection: async (coll: string) => {
     const db: any = await getDb();
     return db.collection ? db.collection(coll) : collection(db, coll);
   },
-  getDocs: async (collOrQuery: any, path: string = 'unknown'): Promise<any> => {
+  getDocs: async (collOrQuery: any, path: string = 'unknown') => {
     try {
       const db: any = await getDb();
-      let promise;
       if (db.collection) {
-        if (typeof collOrQuery === 'string') {
-          promise = db.collection(collOrQuery).get();
-        } else if (collOrQuery.get) {
-          promise = collOrQuery.get();
-        }
+        if (typeof collOrQuery === 'string') return await db.collection(collOrQuery).get();
+        if (collOrQuery.get) return await collOrQuery.get();
       }
-      if (!promise) {
-        if (typeof collOrQuery === 'string') {
-          promise = getDocs(collection(db, collOrQuery));
-        } else {
-          promise = getDocs(collOrQuery);
-        }
-      }
-      return await withTimeout(promise, 'getDocs', path);
+      if (typeof collOrQuery === 'string') return await getDocs(collection(db, collOrQuery));
+      return await getDocs(collOrQuery);
     } catch (err: any) {
       if (typeof err.message === 'string' && (err.message.toLowerCase().includes('not found') || err.message.includes('404'))) {
         console.warn(`[FirestoreWarn] List operation failed (Not Found) at ${path}`);
@@ -209,25 +173,23 @@ export const fsOps = {
       throw err;
     }
   },
-  doc: async (coll: string, id: string): Promise<any> => {
+  doc: async (coll: string, id: string) => {
     const db: any = await getDb();
     return db.collection ? db.collection(coll).doc(id) : doc(db, coll, id);
   },
-  getDoc: async (refPromise: any, path: string = 'unknown'): Promise<any> => {
+  getDoc: async (refPromise: any, path: string = 'unknown') => {
     try {
-      const ref = await withTimeout(Promise.resolve(refPromise), 'resolveDocRef', path);
-      const promise = ref.get ? ref.get() : getDoc(ref);
-      return await withTimeout(promise, 'getDoc', path);
+      const ref = await refPromise;
+      return ref.get ? await ref.get() : await getDoc(ref);
     } catch (err: any) {
       handleFirestoreError(err, OperationType.GET, path);
       throw err;
     }
   },
-  update: async (refPromise: any, data: any, path: string = 'unknown'): Promise<any> => {
+  update: async (refPromise: any, data: any, path: string = 'unknown') => {
     try {
-      const ref = await withTimeout(Promise.resolve(refPromise), 'resolveDocRef', path);
-      const promise = ref.update ? ref.update(data) : updateDoc(ref, data);
-      return await withTimeout(promise, 'update', path);
+      const ref = await refPromise;
+      return ref.update ? await ref.update(data) : await updateDoc(ref, data);
     } catch (err: any) {
       if (typeof err.message === 'string' && (err.message.toLowerCase().includes('not found') || err.message.includes('404'))) {
         console.warn(`[FirestoreWarn] Update operation failed (Not Found) at ${path}`);
@@ -237,11 +199,10 @@ export const fsOps = {
       throw err;
     }
   },
-  set: async (refPromise: any, data: any, path: string = 'unknown'): Promise<any> => {
+  set: async (refPromise: any, data: any, path: string = 'unknown') => {
     try {
-      const ref = await withTimeout(Promise.resolve(refPromise), 'resolveDocRef', path);
-      const promise = ref.set ? ref.set(data) : setDoc(ref, data);
-      return await withTimeout(promise, 'set', path);
+      const ref = await refPromise;
+      return ref.set ? await ref.set(data) : await setDoc(ref, data);
     } catch (err: any) {
       if (typeof err.message === 'string' && (err.message.toLowerCase().includes('not found') || err.message.includes('404'))) {
         console.warn(`[FirestoreWarn] Set operation failed (Not Found) at ${path}`);
@@ -251,12 +212,11 @@ export const fsOps = {
       throw err;
     }
   },
-  delete: async (refPromise: any, path: string = 'unknown'): Promise<any> => {
+  delete: async (refPromise: any, path: string = 'unknown') => {
     try {
-      const ref = await withTimeout(Promise.resolve(refPromise), 'resolveDocRef', path);
+      const ref = await refPromise;
       console.log(`[Firestore] Deleting doc at path: ${path}`);
-      const promise = ref.delete ? ref.delete() : deleteDoc(ref);
-      const result = await withTimeout(promise, 'delete', path);
+      const result =  ref.delete ? await ref.delete() : await deleteDoc(ref);
       console.log(`[Firestore] Delete successful for path: ${path}`);
       return result;
     } catch (err: any) {

@@ -1,6 +1,6 @@
 import { query, collection, where, getDocs } from 'firebase/firestore/lite';
 import { fsOps, getDb } from './firebase';
-import { PushService } from './backend_services/pushService';
+import { PushService } from './services/pushService';
 
 /**
  * Worker em segundo plano para verificar lembretes

@@ -1,11 +1,11 @@
 import express, { Request, Response, NextFunction } from "express";
 import { initFirebase, fsOps } from "./firebase";
 import { EXTERNAL_API_CONFIG, IS_VERCEL, PUSH_CONFIG } from "./config";
-import { AIService } from "./backend_services/aiService";
-import { PushService } from "./backend_services/pushService";
-import { OmieService } from "./backend_services/omieService";
-import { ExcelService } from "./backend_services/excelService";
-import { XMLService } from "./backend_services/xmlService";
+import { AIService } from "./services/aiService";
+import { PushService } from "./services/pushService";
+import { OmieService } from "./services/omieService";
+import { ExcelService } from "./services/excelService";
+import { XMLService } from "./services/xmlService";
 import { startBackgroundReminderWorker } from "./reminderWorker";
 
 const app = express();
@@ -66,85 +66,33 @@ app.post("/api/ai/process-document", asyncHandler(async (req: Request, res: Resp
 // --- ROTAS XML ---
 const xmlService = new XMLService();
 app.post("/api/xml/process", asyncHandler(async (req: Request, res: Response) => {
-  const startTime = Date.now();
-  console.log("[API/XML] Recebida requisição para processar XML...");
   const { xmlData } = req.body;
-  if (!xmlData) {
-    return res.status(400).json({ error: "Dados inválidos", message: "O conteúdo XML da nota fiscal não foi enviado." });
-  }
+  const parsedData = xmlService.parseNFe(xmlData);
+  
+  // Salva no Firestore
+  const docRef = fsOps.doc('invoices', parsedData.id);
+  const docSnapshot = await fsOps.getDoc(docRef);
 
-  try {
-    console.log(`[API/XML] Tamanho do XML recebido: ${(xmlData.length / 1024).toFixed(2)} KB`);
-    const parsedData = xmlService.parseNFe(xmlData);
-    console.log(`[API/XML] XML parseado com sucesso. ID da Nota: ${parsedData?.id}`);
-    
-    if (!parsedData || !parsedData.id) {
-      throw new Error("O parser falhou em identificar e extrair a Chave/ID da Nota Fiscal.");
-    }
-
-    // Salva no Firestore
-    const docRef = fsOps.doc('invoices', parsedData.id);
-    const docSnapshot = await fsOps.getDoc(docRef);
-
-    const exists = typeof docSnapshot.exists === 'function' ? docSnapshot.exists() : !!docSnapshot.exists;
-    
-    await fsOps.set(docRef, parsedData, 'invoices/' + parsedData.id);
-    
-    const duration = Date.now() - startTime;
-    console.log(`[API/XML] Processamento do XML finalizado em ${duration}ms. Status: ${exists ? 'updated' : 'imported'}`);
-    res.json({ status: exists ? 'updated' : 'imported', id: parsedData.id });
-  } catch (error: any) {
-    const duration = Date.now() - startTime;
-    console.error("[Vercel-NFe-Diagnostic] Erro ao processar ou salvar nota no Firestore após " + duration + "ms.");
-    console.error("Mensagem:", error.message);
-    console.error("Stack:", error.stack);
-
-    res.status(500).json({
-      error: "Erro no processamento do XML",
-      message: "Não foi possível carregar ou registrar esta nota fiscal no banco.",
-      details: error.message,
-      code: error.code || "INTERNAL_PROCESSING_ERROR",
-      durationMs: duration
-    });
-  }
+  const exists = typeof docSnapshot.exists === 'function' ? docSnapshot.exists() : !!docSnapshot.exists;
+  
+  await fsOps.set(docRef, parsedData, 'invoices/' + parsedData.id);
+  
+  res.json({ status: exists ? 'updated' : 'imported', id: parsedData.id });
 }));
 
 app.get("/api/xml/invoices", asyncHandler(async (req: Request, res: Response) => {
-  const startTime = Date.now();
-  console.log("[API/XML] Iniciando busca das faturas (invoices) no Firestore...");
-  
+  console.log("Fetching invoices...");
   try {
     const snapshot = await fsOps.getDocs('invoices', 'invoices');
-    
-    if (!snapshot || !snapshot.docs) {
-      console.warn("[API/XML] Snapshot recebido vazio ou nulo.");
-      return res.json([]);
-    }
-
-    console.log(`[API/XML] Consulta bem-sucedida! Encontrados ${snapshot.docs.length} documentos.`);
+    console.log("Got snapshot, found docs:", snapshot.docs?.length);
     const data = snapshot.docs.map((doc: any) => {
       const d = typeof doc.data === 'function' ? doc.data() : doc.data;
       return { id: doc.id, ...d };
     });
-
-    const duration = Date.now() - startTime;
-    console.log(`[API/XML] Faturas mapeadas e enviadas em ${duration}ms.`);
     res.json(data);
-  } catch (error: any) {
-    const duration = Date.now() - startTime;
-    console.error("[Vercel-Invoices-Diagnostic] Falha catastrófica ao sincronizar faturas no Vercel após " + duration + "ms:");
-    console.error("Mensagem de Erro:", error.message);
-    console.error("Erro Code:", error.code);
-    console.error("Stack Trace:", error.stack);
-
-    res.status(500).json({
-      error: "Falha de comunicação com o Banco de Dados",
-      message: "O servidor de banco de dados do Firebase demorou muito para responder ou recusou as credenciais.",
-      details: error.message,
-      code: error.code || "DATABASE_FETCH_ERROR",
-      durationMs: duration,
-      help: "Verifique se o Firestore está ativo e as regras de segurança permitem requisições."
-    });
+  } catch (error) {
+    console.error("Error fetching invoices:", error);
+    throw error;
   }
 }));
 
