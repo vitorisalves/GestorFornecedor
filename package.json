@@ -7,8 +7,8 @@
     "node": ">=18"
   },
   "scripts": {
-    "dev": "tsx src/backend/server.ts",
-    "start": "node src/backend/server.ts",
+    "dev": "tsx api/server.ts",
+    "start": "node api/server.ts",
     "build": "tsc && vite build",
     "preview": "vite preview",
     "lint": "tsc --noEmit"
