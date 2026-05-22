@@ -1,11 +1,11 @@
 import express, { Request, Response, NextFunction } from "express";
 import { initFirebase, fsOps } from "./firebase";
 import { EXTERNAL_API_CONFIG, IS_VERCEL, PUSH_CONFIG } from "./config";
-import { AIService } from "./services/aiService";
-import { PushService } from "./services/pushService";
-import { OmieService } from "./services/omieService";
-import { ExcelService } from "./services/excelService";
-import { XMLService } from "./services/xmlService";
+import { AIService } from "./backend_services/aiService";
+import { PushService } from "./backend_services/pushService";
+import { OmieService } from "./backend_services/omieService";
+import { ExcelService } from "./backend_services/excelService";
+import { XMLService } from "./backend_services/xmlService";
 import { startBackgroundReminderWorker } from "./reminderWorker";
 
 const app = express();
