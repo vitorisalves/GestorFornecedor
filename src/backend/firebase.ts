@@ -25,7 +25,7 @@ export enum OperationType {
 
 let adminDb: any = null;
 let clientDb: any = null;
-let adminDisabled = false;
+let adminDisabled = true;
 
 /**
  * Inicializa os SDKs do Firebase (Admin e Client)

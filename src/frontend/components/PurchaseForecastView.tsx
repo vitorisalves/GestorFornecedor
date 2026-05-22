@@ -44,6 +44,53 @@ function areCodesCompatible(c1: any, c2: any): boolean {
     return s1 === s2;
 }
 
+function parseXmlClientSide(xmlText: string): Invoice {
+    const parser = new DOMParser();
+    const xmlDoc = parser.parseFromString(xmlText, "text/xml");
+    
+    const parserError = xmlDoc.getElementsByTagName("parsererror");
+    if (parserError.length > 0) {
+        throw new Error("Erro ao analisar a estrutura XML no navegador.");
+    }
+
+    const infNFeEl = xmlDoc.getElementsByTagName("infNFe")[0];
+    const nfeId = infNFeEl?.getAttribute("Id") || "";
+
+    const xNome = xmlDoc.getElementsByTagName("xNome")[0]?.textContent || "Desconhecido";
+    const CNPJ = xmlDoc.getElementsByTagName("CNPJ")[0]?.textContent || "";
+    const nNF = xmlDoc.getElementsByTagName("nNF")[0]?.textContent || "";
+    const dhEmi = xmlDoc.getElementsByTagName("dhEmi")[0]?.textContent || xmlDoc.getElementsByTagName("dEmi")[0]?.textContent || new Date().toISOString();
+
+    const id = nfeId || (CNPJ ? `${CNPJ}_${nNF}` : nNF) || `local_${Date.now()}`;
+
+    const products: { code: string; name: string; quantity: number }[] = [];
+    const detElements = xmlDoc.getElementsByTagName("det");
+    for (let i = 0; i < detElements.length; i++) {
+        const det = detElements[i];
+        const cProd = det.getElementsByTagName("cProd")[0]?.textContent || "N/A";
+        const xProd = det.getElementsByTagName("xProd")[0]?.textContent || "N/A";
+        
+        let quantity = 0;
+        const qComVal = det.getElementsByTagName("qCom")[0]?.textContent;
+        const qTribVal = det.getElementsByTagName("qTrib")[0]?.textContent;
+        const qVal = qComVal || qTribVal || "0";
+        quantity = parseFloat(qVal.replace(',', '.')) || 0;
+
+        products.push({
+            code: cProd,
+            name: xProd,
+            quantity
+        });
+    }
+
+    return {
+        id,
+        supplierName: xNome,
+        date: dhEmi,
+        products
+    };
+}
+
 export const PurchaseForecastView: React.FC<Props> = ({ suppliers, saveSupplier, addNotification }) => {
     const [forecasts, setForecasts] = useState<Forecast[]>([]);
     const [loading, setLoading] = useState(true);
@@ -73,12 +120,52 @@ export const PurchaseForecastView: React.FC<Props> = ({ suppliers, saveSupplier,
         setLoading(true);
         setFetchError(null);
         try {
-            const res = await fetch('/api/xml/invoices?t=' + Date.now());
-            if (!res.ok) {
-                const text = await res.text();
-                throw new Error(`Falha ao obter faturas na API (${res.status}): ${text}`);
+            let data: Invoice[] = [];
+            let fetchSuccess = false;
+            let apiErrMessage = "";
+
+            try {
+                const res = await fetch('/api/xml/invoices?t=' + Date.now());
+                if (res.ok) {
+                    data = await res.json();
+                    localStorage.setItem('cached_invoices', JSON.stringify(data));
+                    fetchSuccess = true;
+                } else {
+                    apiErrMessage = `Falha ao obter faturas na API (${res.status})`;
+                    console.warn(apiErrMessage);
+                }
+            } catch (err: any) {
+                apiErrMessage = err?.message || String(err);
+                console.warn("Falha ao comunicar com a API. Usando cache local.", err);
             }
-            const data: Invoice[] = await res.json();
+
+            // Merge cache + local invoice buffer
+            const cached = localStorage.getItem('cached_invoices');
+            const localUploaded = localStorage.getItem('local_invoices');
+            const parsedCached: Invoice[] = cached ? JSON.parse(cached) : [];
+            const parsedLocal: Invoice[] = localUploaded ? JSON.parse(localUploaded) : [];
+
+            if (!fetchSuccess) {
+                // Fetch failed under 500 or offline, combine locally uploaded and last cached values
+                data = [...parsedLocal];
+                parsedCached.forEach(c => {
+                    if (!data.some(d => d.id === c.id)) {
+                        data.push(c);
+                    }
+                });
+
+                // Only show screen level error to user if absolutely no data is available
+                if (data.length === 0) {
+                    throw new Error(apiErrMessage || "Não há faturas salvas ou histórico disponível para sugerir previsões.");
+                }
+            } else {
+                // Fetch succeeded, merge locally uploaded ones that have not made it to the database yet
+                parsedLocal.forEach(l => {
+                    if (!data.some(d => d.id === l.id)) {
+                        data.push(l);
+                    }
+                });
+            }
 
             // Sort by date ASC to ensure we keep the last supplier
             data.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
@@ -219,6 +306,12 @@ export const PurchaseForecastView: React.FC<Props> = ({ suppliers, saveSupplier,
         let imported = 0;
         let updated = 0;
 
+        let localInvoices: Invoice[] = [];
+        try {
+            const stored = localStorage.getItem('local_invoices');
+            if (stored) localInvoices = JSON.parse(stored);
+        } catch (e) {}
+
         for (let i = 0; i < files.length; i++) {
             const file = files[i];
             if (file.name.endsWith('.xml')) {
@@ -228,6 +321,13 @@ export const PurchaseForecastView: React.FC<Props> = ({ suppliers, saveSupplier,
                     reader.onload = (e) => resolve(e.target?.result as string);
                     reader.readAsText(file);
                 });
+
+                let parsedInvoice: Invoice | null = null;
+                try {
+                    parsedInvoice = parseXmlClientSide(fileContent);
+                } catch (pe) {
+                    console.error("Erro ao analisar XML localmente:", pe);
+                }
 
                 try {
                     const response = await fetch('/api/xml/process', {
@@ -247,9 +347,32 @@ export const PurchaseForecastView: React.FC<Props> = ({ suppliers, saveSupplier,
                     } else if (result.status === 'updated') {
                         updated++;
                     }
+
+                    // Se enviou com sucesso pro servidor, remove dos locais se existia para sincronia
+                    if (parsedInvoice) {
+                        const filtered = localInvoices.filter(l => l.id !== parsedInvoice!.id);
+                        if (filtered.length !== localInvoices.length) {
+                            localInvoices = filtered;
+                            localStorage.setItem('local_invoices', JSON.stringify(localInvoices));
+                        }
+                    }
                 } catch (error) {
-                    const errMsg = error instanceof Error ? error.message : String(error);
-                    setError(`Erro ao processar ${file.name}: ${errMsg}`);
+                    // Fallback para armazenamento local do XML no navegador
+                    if (parsedInvoice) {
+                        const existsIdx = localInvoices.findIndex(l => l.id === parsedInvoice!.id);
+                        if (existsIdx !== -1) {
+                            localInvoices[existsIdx] = parsedInvoice;
+                            updated++;
+                        } else {
+                            localInvoices.push(parsedInvoice);
+                            imported++;
+                        }
+                        localStorage.setItem('local_invoices', JSON.stringify(localInvoices));
+                        console.log(`XML processado localmente no navegador por erro de API: ${file.name}`);
+                    } else {
+                        const errMsg = error instanceof Error ? error.message : String(error);
+                        setError(`Erro ao processar ${file.name}: ${errMsg}`);
+                    }
                 }
             }
         }
