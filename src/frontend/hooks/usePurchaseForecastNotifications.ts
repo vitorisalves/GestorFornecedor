@@ -1,0 +1,213 @@
+import { useEffect, useRef } from 'react';
+
+interface Invoice {
+    id: string;
+    supplierName: string;
+    date: string;
+    products: { code: string; name: string; quantity?: number }[];
+}
+
+interface Forecast {
+    productCode: string;
+    productName: string;
+    supplier: string;
+    lastPurchase: string;
+    avgIntervalDays: number;
+    lastQuantity: number;
+    predictedNextPurchase: string;
+}
+
+function areCodesCompatible(c1: any, c2: any): boolean {
+    if (!c1 || !c2) return false;
+    
+    const clean = (c: any) => {
+        let s = String(c || '').trim().toLowerCase();
+        s = s.replace(/^(manual|cód|cod|codigo|código)[\s-_:]*/g, '');
+        s = s.replace(/[^a-z0-9]/g, '');
+        s = s.replace(/^0+/, '');
+        return s;
+    };
+    
+    const s1 = clean(c1);
+    const s2 = clean(c2);
+    
+    if (!s1 || !s2) return false;
+    return s1 === s2;
+}
+
+export const usePurchaseForecastNotifications = (
+    isAuthReady: boolean,
+    isApproved: boolean,
+    addAppNotification: (title: string, message: string, type?: 'forecast' | 'default') => void
+) => {
+    const executedRef = useRef(false);
+
+    useEffect(() => {
+        if (!isAuthReady || !isApproved) return;
+
+        const checkForecasts = async () => {
+            try {
+                let data: Invoice[] = [];
+                let fetchSuccess = false;
+
+                try {
+                    const res = await fetch('/api/xml/invoices?t=' + Date.now());
+                    if (res.ok) {
+                        data = await res.ok ? await res.json() : [];
+                        localStorage.setItem('cached_invoices', JSON.stringify(data));
+                        fetchSuccess = true;
+                    }
+                } catch (err) {
+                    console.warn("[ForecastNotifications] Falha ao comunicar com a API. Usando cache local.", err);
+                }
+
+                const cached = localStorage.getItem('cached_invoices');
+                const localUploaded = localStorage.getItem('local_invoices');
+                const parsedCached: Invoice[] = cached ? JSON.parse(cached) : [];
+                const parsedLocal: Invoice[] = localUploaded ? JSON.parse(localUploaded) : [];
+
+                if (!fetchSuccess) {
+                    data = [...parsedLocal];
+                    parsedCached.forEach(c => {
+                        if (!data.some(d => d.id === c.id)) {
+                            data.push(c);
+                        }
+                    });
+                } else {
+                    parsedLocal.forEach(l => {
+                        if (!data.some(d => d.id === l.id)) {
+                            data.push(l);
+                        }
+                    });
+                }
+
+                if (data.length === 0) return;
+
+                // Sort ASC
+                data.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
+                const productHistory: Record<string, { dates: string[], name: string, supplier: string, lastQuantity: number, code: string }> = {};
+                
+                data.forEach(invoice => {
+                    const date = new Date(invoice.date).toISOString().split('T')[0];
+                    invoice.products.forEach(product => {
+                        const pCode = String(product.code !== undefined && product.code !== null ? product.code : '');
+                        
+                        let targetKey = Object.keys(productHistory).find(existingKey => 
+                            areCodesCompatible(existingKey, pCode)
+                        );
+                        
+                        if (!targetKey) {
+                            targetKey = pCode;
+                        }
+                        
+                        if (!productHistory[targetKey]) {
+                            productHistory[targetKey] = { 
+                                dates: [], 
+                                name: product.name, 
+                                supplier: invoice.supplierName, 
+                                lastQuantity: 0,
+                                code: targetKey || pCode
+                            };
+                        }
+                        
+                        productHistory[targetKey].supplier = invoice.supplierName;
+                        productHistory[targetKey].lastQuantity = (product.quantity !== undefined ? product.quantity : 0);
+                        productHistory[targetKey].name = product.name;
+                        
+                        if (pCode && !pCode.toUpperCase().startsWith('MANUAL') && String(productHistory[targetKey].code).toUpperCase().startsWith('MANUAL')) {
+                            productHistory[targetKey].code = pCode;
+                        }
+                        
+                        if (!productHistory[targetKey].dates.includes(date)) {
+                            productHistory[targetKey].dates.push(date);
+                        }
+                    });
+                });
+
+                const computedForecasts: Forecast[] = Object.values(productHistory)
+                    .filter(item => item.dates.length >= 1)
+                    .map(item => {
+                        const dates = item.dates.sort();
+                        let avgInterval = 30; // 30 days default
+                        if (dates.length >= 2) {
+                            let totalInterval = 0;
+                            for (let i = 1; i < dates.length; i++) {
+                                const diff = (new Date(dates[i]).getTime() - new Date(dates[i-1]).getTime()) / (1000 * 60 * 60 * 24);
+                                totalInterval += diff;
+                            }
+                            avgInterval = totalInterval / (dates.length - 1);
+                        }
+                        
+                        const lastDate = new Date(dates[dates.length - 1]);
+                        const nextDate = new Date(lastDate.getTime() + avgInterval * 24 * 60 * 60 * 1000);
+
+                        return {
+                            productCode: item.code,
+                            productName: item.name,
+                            supplier: item.supplier,
+                            lastPurchase: dates[dates.length - 1],
+                            avgIntervalDays: dates.length >= 2 ? Math.round(avgInterval) : 0,
+                            lastQuantity: item.lastQuantity,
+                            predictedNextPurchase: nextDate.toISOString().split('T')[0]
+                        };
+                    });
+
+                // Let's get list of already notified forecasts
+                let notifiedList: string[] = [];
+                try {
+                    const stored = localStorage.getItem('notified_purchase_forecasts');
+                    if (stored) {
+                        notifiedList = JSON.parse(stored);
+                    }
+                } catch (e) {}
+
+                const today = new Date();
+                const currentYear = today.getFullYear();
+                const currentMonth = today.getMonth(); // 0-11
+                const todayStr = today.toISOString().split('T')[0];
+                let listChanged = false;
+
+                computedForecasts.forEach(forecast => {
+                    const forecastKey = `${forecast.productName}:::${forecast.supplier}:::${forecast.predictedNextPurchase}`;
+                    
+                    // Parser safe for predicted format YYYY-MM-DD
+                    const forecastDate = new Date(forecast.predictedNextPurchase + 'T12:00:00');
+                    const isSameMonthAndYear = forecastDate.getFullYear() === currentYear && forecastDate.getMonth() === currentMonth;
+
+                    // If target date is reached or passed in the current month, and not already notified
+                    if (isSameMonthAndYear && forecast.predictedNextPurchase <= todayStr) {
+                        if (!notifiedList.includes(forecastKey)) {
+                            addAppNotification(
+                                "📅 Previsão de Compra!",
+                                `O dia estimado para recomprar o produto "${forecast.productName}" (Fornecedor: ${forecast.supplier}) chegou (${forecast.predictedNextPurchase.split('-').reverse().join('/')}).`,
+                                'forecast'
+                            );
+                            notifiedList.push(forecastKey);
+                            listChanged = true;
+                        }
+                    }
+                });
+
+                if (listChanged) {
+                    localStorage.setItem('notified_purchase_forecasts', JSON.stringify(notifiedList));
+                }
+
+            } catch (err) {
+                console.error("[ForecastNotifications] Erro ao verificar previsões de compra:", err);
+            }
+        };
+
+        // Run once on load
+        if (!executedRef.current) {
+            checkForecasts();
+            executedRef.current = true;
+        }
+
+        // Run every hour to keep it alive
+        const interval = setInterval(checkForecasts, 3600000);
+
+        return () => clearInterval(interval);
+
+    }, [isAuthReady, isApproved, addAppNotification]);
+};

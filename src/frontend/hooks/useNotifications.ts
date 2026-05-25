@@ -116,14 +116,15 @@ export const useNotifications = () => {
     }, 3000);
   }, []);
 
-  const addAppNotification = useCallback((title: string, message: string) => {
+  const addAppNotification = useCallback((title: string, message: string, type?: 'forecast' | 'default') => {
     const id = Math.random().toString(36).substr(2, 9);
     const newNotif: AppNotification = {
       id,
       title,
       message,
       date: new Date().toISOString(),
-      read: false
+      read: false,
+      type
     };
 
     // Notificação Nativa do Navegador (Sistema/Celular)

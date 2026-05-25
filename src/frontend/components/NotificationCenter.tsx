@@ -171,28 +171,49 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({
                     <p>Nenhuma notificação por aqui</p>
                   </div>
                 ) : (
-                  appNotifications.map((notif) => (
-                    <div
-                      key={notif.id}
-                      className={`p-4 rounded-2xl border transition-all ${
-                        notif.read 
-                          ? 'bg-white border-slate-100' 
-                          : 'bg-indigo-50 border-indigo-100 shadow-sm'
-                      }`}
-                    >
-                      <div className="flex justify-between items-start mb-1">
-                        <h3 className={`font-semibold text-sm ${notif.read ? 'text-slate-700' : 'text-indigo-900'}`}>
-                          {notif.title}
-                        </h3>
-                        <span className="text-[10px] text-slate-400 font-medium">
-                          {formatDate(notif.date)}
-                        </span>
+                  appNotifications.map((notif) => {
+                    const isForecast = notif.type === 'forecast';
+                    let cardClass = "";
+                    let titleClass = "";
+                    
+                    if (isForecast) {
+                      cardClass = notif.read
+                        ? 'bg-amber-50/30 border-amber-100/50 hover:bg-amber-50/50'
+                        : 'bg-amber-50 border-amber-200/80 shadow-sm border-l-4 border-l-amber-500';
+                      titleClass = notif.read ? 'text-slate-800' : 'text-amber-900';
+                    } else {
+                      cardClass = notif.read
+                        ? 'bg-white border-slate-100'
+                        : 'bg-indigo-50 border-indigo-100 shadow-sm';
+                      titleClass = notif.read ? 'text-slate-700' : 'text-indigo-900';
+                    }
+
+                    return (
+                      <div
+                        key={notif.id}
+                        className={`p-4 rounded-2xl border transition-all ${cardClass}`}
+                      >
+                        <div className="flex justify-between items-start mb-1 gap-2">
+                          <div className="flex items-center gap-1.5 flex-1 min-w-0">
+                            {isForecast && (
+                              <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-black uppercase tracking-wider bg-amber-500 text-white shrink-0">
+                                Previsão
+                              </span>
+                            )}
+                            <h3 className={`font-semibold text-sm truncate ${titleClass}`}>
+                              {notif.title}
+                            </h3>
+                          </div>
+                          <span className="text-[10px] text-slate-400 font-medium shrink-0">
+                            {formatDate(notif.date)}
+                          </span>
+                        </div>
+                        <p className="text-sm text-slate-600 leading-relaxed">
+                          {notif.message}
+                        </p>
                       </div>
-                      <p className="text-sm text-slate-600 leading-relaxed">
-                        {notif.message}
-                      </p>
-                    </div>
-                  ))
+                    );
+                  })
                 )}
               </div>
 

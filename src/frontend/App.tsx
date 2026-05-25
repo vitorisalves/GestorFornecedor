@@ -19,6 +19,7 @@ import { useReminders } from './hooks/useReminders';
 import { useExcel } from './hooks/useExcel';
 import { useSupplierForm } from './hooks/useSupplierForm';
 import { useDeletions } from './hooks/useDeletions';
+import { usePurchaseForecastNotifications } from './hooks/usePurchaseForecastNotifications';
 
 // Components
 import { Login } from './components/Login';
@@ -130,6 +131,9 @@ export default function App() {
     updateDeliveryDate,
     updateDeliveredQuantity
   } = useDeliveredProducts(isAuthReady, isApproved, addAppNotification);
+
+  // Monitoramento automático das datas de previsão de compra
+  usePurchaseForecastNotifications(isAuthReady, isApproved, addAppNotification);
 
   const handleUpdateCartQuantity = React.useCallback((name: string, supplierName: string, delta: number) => {
     // 1. Update cart

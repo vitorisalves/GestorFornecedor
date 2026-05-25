@@ -32,6 +32,7 @@ export interface AppNotification {
   message: string;
   date: string;
   read: boolean;
+  type?: 'forecast' | 'default';
 }
 
 export interface CartItem extends Product {
