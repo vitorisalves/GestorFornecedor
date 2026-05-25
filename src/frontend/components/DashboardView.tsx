@@ -469,8 +469,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ savedLists }) => {
             </button>
           </div>
 
-          <div className="h-[350px] w-full">
-            <ResponsiveContainer width="100%" height="100%">
+          <div className="h-[350px] w-full min-h-[350px]">
+            <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={350}>
               <AreaChart data={expenseData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
                 <defs>
                   <linearGradient id="colorExpense" x1="0" y1="0" x2="0" y2="1">
@@ -547,8 +547,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ savedLists }) => {
               <p className="text-slate-400 text-xs font-bold uppercase text-center max-w-xs">Nenhum dado encontrado para comparação no período selecionado.</p>
             </div>
           ) : (
-            <div className="w-full" style={{ height: `${Math.max(450, quantityData.length * 40)}px` }}>
-              <ResponsiveContainer width="100%" height="100%">
+            <div className="w-full min-h-[450px]" style={{ height: `${Math.max(450, quantityData.length * 40)}px` }}>
+              <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={450}>
                 <BarChart data={quantityData} layout="vertical" margin={{ left: 60, right: 40 }}>
                   <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#e2e8f0" />
                   <XAxis type="number" axisLine={false} tickLine={false} tick={{ fill: '#0f172a', fontSize: 13, fontWeight: 800 }} />
