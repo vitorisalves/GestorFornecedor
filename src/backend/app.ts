@@ -84,15 +84,23 @@ app.get("/api/xml/invoices", asyncHandler(async (req: Request, res: Response) =>
   console.log("Fetching invoices...");
   try {
     const snapshot = await fsOps.getDocs('invoices', 'invoices');
-    console.log("Got snapshot, found docs:", snapshot.docs?.length);
+    console.log("Got snapshot, found docs:", snapshot?.docs?.length);
+    if (!snapshot || !snapshot.docs) {
+      throw new Error("Snapshot or snapshot.docs is undefined");
+    }
     const data = snapshot.docs.map((doc: any) => {
       const d = typeof doc.data === 'function' ? doc.data() : doc.data;
       return { id: doc.id, ...d };
     });
     res.json(data);
-  } catch (error) {
+  } catch (error: any) {
     console.error("Error fetching invoices:", error);
-    throw error;
+    res.status(500).json({
+      error: "Error fetching invoices",
+      message: error?.message || String(error),
+      code: error?.code || "",
+      stack: error?.stack || ""
+    });
   }
 }));
 

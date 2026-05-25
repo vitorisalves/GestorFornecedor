@@ -2,11 +2,8 @@
   "version": 2,
   "builds": [
     {
-      "src": "api/index.ts",
-      "use": "@vercel/node",
-      "config": {
-        "bundle": true
-      }
+      "src": "api/index.js",
+      "use": "@vercel/node"
     },
     {
       "src": "package.json",
@@ -17,7 +14,7 @@
   "routes": [
     {
       "src": "/api/(.*)",
-      "dest": "api/index.ts"
+      "dest": "api/index.js"
     },
     {
       "src": "/(.*)",
