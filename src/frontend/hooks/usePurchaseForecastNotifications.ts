@@ -5,6 +5,8 @@ interface Invoice {
     supplierName: string;
     date: string;
     products: { code: string; name: string; quantity?: number }[];
+    xmlStatus?: 'Aguardando XML' | 'Confirmado via XML' | 'Sem Código';
+    associatedXmlInvoiceId?: string;
 }
 
 interface Forecast {
@@ -15,6 +17,7 @@ interface Forecast {
     avgIntervalDays: number;
     lastQuantity: number;
     predictedNextPurchase: string;
+    xmlStatus?: 'Aguardando XML' | 'Confirmado via XML' | 'Sem Código';
 }
 
 function areCodesCompatible(c1: any, c2: any): boolean {
@@ -86,9 +89,26 @@ export const usePurchaseForecastNotifications = (
                 // Sort ASC
                 data.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
-                const productHistory: Record<string, { dates: string[], name: string, supplier: string, lastQuantity: number, code: string }> = {};
+                const productHistory: Record<string, { 
+                    dates: string[], 
+                    name: string, 
+                    supplier: string, 
+                    lastQuantity: number, 
+                    code: string,
+                    xmlStatus?: 'Aguardando XML' | 'Confirmado via XML' | 'Sem Código' 
+                }> = {};
                 
-                data.forEach(invoice => {
+                const activeXmlIds = new Set(data.filter(inv => !inv.id.startsWith('manual-inv-')).map(inv => inv.id));
+                const filteredInvoices = data.filter(invoice => {
+                    if (invoice.id.startsWith('manual-inv-')) {
+                        if (invoice.xmlStatus === 'Confirmado via XML' && invoice.associatedXmlInvoiceId && activeXmlIds.has(invoice.associatedXmlInvoiceId)) {
+                            return false;
+                        }
+                    }
+                    return true;
+                });
+
+                filteredInvoices.forEach(invoice => {
                     const date = new Date(invoice.date).toISOString().split('T')[0];
                     invoice.products.forEach(product => {
                         const pCode = String(product.code !== undefined && product.code !== null ? product.code : '');
@@ -107,13 +127,15 @@ export const usePurchaseForecastNotifications = (
                                 name: product.name, 
                                 supplier: invoice.supplierName, 
                                 lastQuantity: 0,
-                                code: targetKey || pCode
+                                code: targetKey || pCode,
+                                xmlStatus: invoice.id.startsWith('manual-inv-') ? (invoice.xmlStatus || 'Aguardando XML') : 'Confirmado via XML'
                             };
                         }
                         
                         productHistory[targetKey].supplier = invoice.supplierName;
                         productHistory[targetKey].lastQuantity = (product.quantity !== undefined ? product.quantity : 0);
                         productHistory[targetKey].name = product.name;
+                        productHistory[targetKey].xmlStatus = invoice.id.startsWith('manual-inv-') ? (invoice.xmlStatus || 'Aguardando XML') : 'Confirmado via XML';
                         
                         if (pCode && !pCode.toUpperCase().startsWith('MANUAL') && String(productHistory[targetKey].code).toUpperCase().startsWith('MANUAL')) {
                             productHistory[targetKey].code = pCode;
@@ -149,7 +171,8 @@ export const usePurchaseForecastNotifications = (
                             lastPurchase: dates[dates.length - 1],
                             avgIntervalDays: dates.length >= 2 ? Math.round(avgInterval) : 0,
                             lastQuantity: item.lastQuantity,
-                            predictedNextPurchase: nextDate.toISOString().split('T')[0]
+                            predictedNextPurchase: nextDate.toISOString().split('T')[0],
+                            xmlStatus: item.xmlStatus
                         };
                     });
 
@@ -163,24 +186,37 @@ export const usePurchaseForecastNotifications = (
                 } catch (e) {}
 
                 const today = new Date();
-                const currentYear = today.getFullYear();
-                const currentMonth = today.getMonth(); // 0-11
-                const todayStr = today.toISOString().split('T')[0];
+                today.setHours(0, 0, 0, 0);
+
+                const sevenDaysFromToday = new Date(today);
+                sevenDaysFromToday.setDate(today.getDate() + 7);
+                sevenDaysFromToday.setHours(23, 59, 59, 999);
+
                 let listChanged = false;
 
                 computedForecasts.forEach(forecast => {
                     const forecastKey = `${forecast.productName}:::${forecast.supplier}:::${forecast.predictedNextPurchase}`;
                     
-                    // Parser safe for predicted format YYYY-MM-DD
-                    const forecastDate = new Date(forecast.predictedNextPurchase + 'T12:00:00');
-                    const isSameMonthAndYear = forecastDate.getFullYear() === currentYear && forecastDate.getMonth() === currentMonth;
+                    const [yr, dyMonth, dyDay] = forecast.predictedNextPurchase.split('-').map(Number);
+                    const forecastDate = new Date(yr, dyMonth - 1, dyDay);
+                    forecastDate.setHours(0, 0, 0, 0);
 
-                    // If target date is reached or passed in the current month, and not already notified
-                    if (isSameMonthAndYear && forecast.predictedNextPurchase <= todayStr) {
+                    // Check if forecast is of today or within the next 7 days
+                    if (forecastDate >= today && forecastDate <= sevenDaysFromToday) {
+                        const daysDiff = Math.round((forecastDate.getTime() - today.getTime()) / (24 * 60 * 60 * 1000));
+                        const formattedDate = forecast.predictedNextPurchase.split('-').reverse().join('/');
+
                         if (!notifiedList.includes(forecastKey)) {
+                            let message = "";
+                            if (daysDiff === 0) {
+                                message = `O dia estimado para recomprar o produto "${forecast.productName}" (Fornecedor: ${forecast.supplier}) chegou (${formattedDate}).`;
+                            } else {
+                                message = `Previsão de recompra estimada para o produto "${forecast.productName}" (Fornecedor: ${forecast.supplier}) em ${daysDiff} ${daysDiff === 1 ? 'dia' : 'dias'} (${formattedDate}).`;
+                            }
+
                             addAppNotification(
                                 "📅 Previsão de Compra!",
-                                `O dia estimado para recomprar o produto "${forecast.productName}" (Fornecedor: ${forecast.supplier}) chegou (${forecast.predictedNextPurchase.split('-').reverse().join('/')}).`,
+                                message,
                                 'forecast'
                             );
                             notifiedList.push(forecastKey);

@@ -141,12 +141,14 @@ export function useDeliveredProducts(
 
     if (updatedProduct.delivered) {
       updatedProduct.deliveryDate = formattedDate;
+      updatedProduct.deliveredAt = now.toISOString();
       if (deliveryTimeDays !== undefined) {
         updatedProduct.deliveryTimeDays = deliveryTimeDays;
       }
     } else {
       updatedProduct.deliveryDate = undefined;
       updatedProduct.deliveryTimeDays = undefined;
+      updatedProduct.deliveredAt = undefined;
     }
 
     await saveDeliveredProduct(updatedProduct);
@@ -180,9 +182,21 @@ export function useDeliveredProducts(
     const product = deliveredProducts.find(p => p.id === id);
     if (!product) return;
 
+    let isoDate: string | undefined = undefined;
+    try {
+      const parts = newDate.split('/');
+      if (parts.length === 3) {
+        const [day, month, year] = parts;
+        isoDate = `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}T12:00:00.000Z`;
+      }
+    } catch (e) {
+      console.error(e);
+    }
+
     const updatedProduct: DeliveredProduct = {
       ...product,
-      deliveryDate: newDate
+      deliveryDate: newDate,
+      deliveredAt: isoDate || new Date().toISOString()
     };
 
     await saveDeliveredProduct(updatedProduct);

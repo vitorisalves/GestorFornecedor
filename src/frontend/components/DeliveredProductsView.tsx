@@ -132,6 +132,12 @@ export const DeliveredProductsView: React.FC<DeliveredProductsViewProps> = ({
       }
       
       if (a.delivered) {
+        if (a.deliveredAt && b.deliveredAt) {
+          return b.deliveredAt.localeCompare(a.deliveredAt);
+        }
+        if (a.deliveredAt) return -1;
+        if (b.deliveredAt) return 1;
+
         const dateA = toISODate(a.deliveryDate || '01/01/1970');
         const dateB = toISODate(b.deliveryDate || '01/01/1970');
         return dateB.localeCompare(dateA);

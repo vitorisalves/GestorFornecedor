@@ -60,6 +60,7 @@ export interface DeliveredProduct {
   forecastDate?: string;
   quantity?: number;
   deliveryTimeDays?: number;
+  deliveredAt?: string;
 }
 
 export interface Reminder {

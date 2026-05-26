@@ -114,6 +114,31 @@ export const useSupplierForm = (
         setEditingProductIndex(i);
     }, [productList]);
 
+    const removeProduct = useCallback((index: number) => {
+        setProductList(prev => prev.filter((_, idx) => idx !== index));
+        setEditingProductIndex(prev => {
+            if (prev === null) return null;
+            if (prev === index) {
+                // If the product currently being edited is deleted, clear the product inputs
+                setFormState(f => ({
+                    ...f,
+                    productName: '',
+                    productCode: '',
+                    productPrice: '',
+                    productCategory: '',
+                    productLastPurchaseDate: '',
+                    productPaymentMethod: '',
+                }));
+                return null;
+            }
+            if (prev > index) {
+                // Shift down because an item before it was removed
+                return prev - 1;
+            }
+            return prev;
+        });
+    }, []);
+
     const onAddSupplier = useCallback(async (e: React.FormEvent, setIsAdding: (v: boolean) => void) => {
         e.preventDefault();
 
@@ -209,6 +234,7 @@ export const useSupplierForm = (
         resetForm,
         addProduct,
         handleEditProduct,
+        removeProduct,
         onAddSupplier,
         onEditSupplier
     };

@@ -8,6 +8,8 @@ interface Invoice {
     supplierName: string;
     date: string;
     products: { code: string; name: string; quantity?: number }[];
+    xmlStatus?: 'Aguardando XML' | 'Confirmado via XML' | 'Sem Código';
+    associatedXmlInvoiceId?: string;
 }
 
 interface Forecast {
@@ -18,6 +20,7 @@ interface Forecast {
     avgIntervalDays: number;
     lastQuantity: number;
     predictedNextPurchase: string;
+    xmlStatus?: 'Aguardando XML' | 'Confirmado via XML' | 'Sem Código';
 }
 
 interface Props {
@@ -170,8 +173,26 @@ export const PurchaseForecastView: React.FC<Props> = ({ suppliers, saveSupplier,
             // Sort by date ASC to ensure we keep the last supplier
             data.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
             
-            const productHistory: Record<string, { dates: string[], name: string, supplier: string, lastQuantity: number, code: string }> = {};
-            data.forEach(invoice => {
+            const productHistory: Record<string, { 
+                dates: string[], 
+                name: string, 
+                supplier: string, 
+                lastQuantity: number, 
+                code: string,
+                xmlStatus?: 'Aguardando XML' | 'Confirmado via XML' | 'Sem Código'
+            }> = {};
+
+            const activeXmlIds = new Set(data.filter(inv => !inv.id.startsWith('manual-inv-')).map(inv => inv.id));
+            const filteredInvoices = data.filter(invoice => {
+                if (invoice.id.startsWith('manual-inv-')) {
+                    if (invoice.xmlStatus === 'Confirmado via XML' && invoice.associatedXmlInvoiceId && activeXmlIds.has(invoice.associatedXmlInvoiceId)) {
+                        return false;
+                    }
+                }
+                return true;
+            });
+
+            filteredInvoices.forEach(invoice => {
                 const date = new Date(invoice.date).toISOString().split('T')[0];
                 invoice.products.forEach(product => {
                     const pCode = String(product.code !== undefined && product.code !== null ? product.code : '');
@@ -191,7 +212,8 @@ export const PurchaseForecastView: React.FC<Props> = ({ suppliers, saveSupplier,
                             name: product.name, 
                             supplier: invoice.supplierName, 
                             lastQuantity: 0,
-                            code: targetKey || pCode
+                            code: targetKey || pCode,
+                            xmlStatus: invoice.id.startsWith('manual-inv-') ? (invoice.xmlStatus || 'Aguardando XML') : 'Confirmado via XML'
                         };
                     }
                     
@@ -199,6 +221,7 @@ export const PurchaseForecastView: React.FC<Props> = ({ suppliers, saveSupplier,
                     productHistory[targetKey].supplier = invoice.supplierName;
                     productHistory[targetKey].lastQuantity = (product.quantity !== undefined ? product.quantity : 0);
                     productHistory[targetKey].name = product.name;
+                    productHistory[targetKey].xmlStatus = invoice.id.startsWith('manual-inv-') ? (invoice.xmlStatus || 'Aguardando XML') : 'Confirmado via XML';
                     
                     // Keep the real code instead of "MANUAL-..." if possible
                     if (pCode && !pCode.toUpperCase().startsWith('MANUAL') && String(productHistory[targetKey].code).toUpperCase().startsWith('MANUAL')) {
@@ -236,7 +259,8 @@ export const PurchaseForecastView: React.FC<Props> = ({ suppliers, saveSupplier,
                         lastPurchase: dates[dates.length - 1],
                         avgIntervalDays: dates.length >= 2 ? Math.round(avgInterval) : 0,
                         lastQuantity: data.lastQuantity,
-                        predictedNextPurchase: nextDate.toISOString().split('T')[0]
+                        predictedNextPurchase: nextDate.toISOString().split('T')[0],
+                        xmlStatus: data.xmlStatus
                     };
                 })
                 .sort((a, b) => new Date(a.predictedNextPurchase).getTime() - new Date(b.predictedNextPurchase).getTime());
@@ -510,7 +534,19 @@ export const PurchaseForecastView: React.FC<Props> = ({ suppliers, saveSupplier,
                                 paginatedForecasts.map(f => (
                                 <tr key={`${f.productName}-${f.supplier}`} className="border-b border-slate-50 hover:bg-slate-50/50">
                                     <td className="p-4 font-bold text-slate-800">
-                                        <div>{f.productName}</div>
+                                        <div className="flex flex-wrap items-center gap-2">
+                                            <span>{f.productName}</span>
+                                            {f.xmlStatus === 'Aguardando XML' && (
+                                                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-50 text-amber-700 border border-amber-200">
+                                                    Aguardando XML
+                                                </span>
+                                            )}
+                                            {f.xmlStatus === 'Confirmado via XML' && (
+                                                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                                    Confirmado via XML
+                                                </span>
+                                            )}
+                                        </div>
                                         <input 
                                             type="text" 
                                             placeholder="Adicionar apelido..."

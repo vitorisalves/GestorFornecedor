@@ -206,15 +206,18 @@ export default function App() {
             });
 
             // Adiciona fatura manual para a Previsão de Compra
+            const productCode = updatedSupplier.products[productIndex].code;
+            const hasCode = !!(productCode && productCode.trim());
             setDoc(doc(db, 'invoices', newInvoiceId!), {
               id: newInvoiceId,
               date: now.toISOString(),
               supplierName: supplierName,
               products: [{
-                code: updatedSupplier.products[productIndex].code || `MANUAL-${sanitizeForId(productName)}`,
+                code: productCode || `MANUAL-${sanitizeForId(productName)}`,
                 name: productName,
                 quantity: item.quantity || 1
-              }]
+              }],
+              xmlStatus: hasCode ? 'Aguardando XML' : 'Sem Código'
             }).catch(e => console.error('Erro ao salvar invoice manual:', e));
 
           } catch (err) {
@@ -373,6 +376,7 @@ export default function App() {
     resetForm,
     addProduct,
     handleEditProduct,
+    removeProduct,
     onAddSupplier,
     onEditSupplier
   } = useSupplierForm(suppliers, saveSupplier, updateProductPriceInLists, addNotification);
@@ -739,7 +743,7 @@ export default function App() {
         productNameRef={productNameRef}
         addProduct={addProduct}
         handleEditProduct={(i) => { handleEditProduct(i); setIsAdding(true); }}
-        removeProduct={(i) => setProductList(productList.filter((_, idx) => idx !== i))}
+        removeProduct={removeProduct}
         handleAddSupplier={(e) => onAddSupplier(e, setIsAdding)}
         resetForm={resetForm}
         isCartOpen={isCartOpen}
