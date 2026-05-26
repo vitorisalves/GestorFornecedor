@@ -259,20 +259,22 @@ export default function App() {
 
       try {
         const manualPref = `manual-inv-${sanitizeForId(productName)}-${sanitizeForId(supplierName)}`;
-        const invoicesQuery = query(
-          collection(db, 'invoices'),
-          where('supplierName', '==', supplierName)
-        );
-        const invoiceSnap = await getDocs(invoicesQuery);
+        const invoicesRef = collection(db, 'invoices');
+        const invoiceSnap = await getDocs(invoicesRef);
         invoiceSnap.forEach((docSnap) => {
-          if (docSnap.id.startsWith(manualPref) || (docSnap.id.startsWith('manual-inv-') && docSnap.id.includes(sanitizeForId(productName)))) {
-            if (!invoicesToDelete.includes(docSnap.id)) {
-              invoicesToDelete.push(docSnap.id);
+          const id = docSnap.id;
+          if (id.startsWith('manual-inv-')) {
+            const includesProduct = id.includes(sanitizeForId(productName));
+            const includesSupplier = id.includes(sanitizeForId(supplierName));
+            if (id.startsWith(manualPref) || (includesProduct && includesSupplier)) {
+              if (!invoicesToDelete.includes(id)) {
+                invoicesToDelete.push(id);
+              }
             }
           }
         });
       } catch (err) {
-        console.error("Erro ao carregar faturas para deletar:", err);
+        console.error("Erro ao carregar faturas manuais para deletar:", err);
       }
 
       if (invoicesToDelete.length > 0) {
