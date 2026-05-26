@@ -75,6 +75,12 @@ export const CartModal: React.FC<CartModalProps> = ({
                       className="w-full px-5 py-3 bg-slate-50 border border-slate-100 focus:border-indigo-500 focus:bg-white rounded-xl outline-none transition-all font-medium text-slate-700"
                       value={listName}
                       onChange={(e) => setListName(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && listName.trim() && !isFinalizing) {
+                          e.preventDefault();
+                          finalizeList();
+                        }
+                      }}
                     />
                   </div>
                   <div className="space-y-1.5">
