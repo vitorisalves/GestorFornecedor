@@ -89,15 +89,21 @@ export const SuppliersView: React.FC<SuppliersViewProps> = ({
   };
 
   const handleQuantityChange = (key: string, value: string) => {
-    // Permite vazio ou apenas números
-    if (value === '' || /^\d+$/.test(value)) {
+    // Permite vazio, números inteiros ou decimais com ponto ou vírgula
+    if (value === '' || /^\d*[.,]?\d*$/.test(value)) {
       setQuantities(prev => ({ ...prev, [key]: value }));
     }
   };
 
   const handleQuantityBlur = (key: string) => {
-    // Se estiver vazio volta para 1
-    if (!quantities[key]) {
+    // Se estiver vazio ou inválido volta para 1
+    const val = quantities[key];
+    if (val === undefined || val === null || val === '') {
+      setQuantities(prev => ({ ...prev, [key]: '1' }));
+      return;
+    }
+    const num = parseFloat(val.replace(',', '.'));
+    if (isNaN(num) || num <= 0) {
       setQuantities(prev => ({ ...prev, [key]: '1' }));
     }
   };
@@ -105,16 +111,18 @@ export const SuppliersView: React.FC<SuppliersViewProps> = ({
   const adjustQuantity = (key: string, delta: number) => {
     setQuantities(prev => {
       const val = prev[key];
-      const current = (val && !isNaN(parseInt(val))) ? parseInt(val) : 1;
+      const current = (val && !isNaN(parseFloat(val.replace(',', '.')))) ? parseFloat(val.replace(',', '.')) : 1;
       const newVal = Math.max(0, current + delta);
-      return { ...prev, [key]: newVal.toString() };
+      return { ...prev, [key]: Number(newVal.toFixed(3)).toString().replace('.', ',') };
     });
   };
 
   const onAddToCart = (product: any, supplierName: string, key: string) => {
     const val = quantities[key] || '1';
-    const qty = parseInt(val);
-    if (isNaN(qty) || qty < 1) return;
+    let qty = parseFloat(val.replace(',', '.'));
+    if (isNaN(qty) || qty <= 0) {
+      qty = 1;
+    }
     addToCart(product, supplierName, qty);
     setQuantities(prev => ({ ...prev, [key]: '1' }));
   };

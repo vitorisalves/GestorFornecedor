@@ -39,9 +39,9 @@ export const useSuppliers = (isAuthReady: boolean, isApproved: boolean) => {
       setIsLoading(false);
       setError(null);
     }, (err: any) => {
+      handleFirestoreError(err, OperationType.GET, 'suppliers');
       const isQuota = err.message.toLowerCase().includes('quota') || err.message.toLowerCase().includes('resource-exhausted');
-      if (!isQuota) console.error("Suppliers sync error:", extractErrorMessage(err));
-      setError(extractErrorMessage(err));
+      if (!isQuota) setError(extractErrorMessage(err));
       setIsLoading(false);
     });
 
@@ -52,6 +52,10 @@ export const useSuppliers = (isAuthReady: boolean, isApproved: boolean) => {
         setCategories(categoriesData);
         localStorage.setItem('cache_categories', safeStringify(categoriesData));
       }
+    }, (err: any) => {
+      handleFirestoreError(err, OperationType.GET, 'categories');
+      const isQuota = err.message.toLowerCase().includes('quota') || err.message.toLowerCase().includes('resource-exhausted');
+      if (!isQuota) console.error("Categories sync error:", extractErrorMessage(err));
     });
 
     return () => {

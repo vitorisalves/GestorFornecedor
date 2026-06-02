@@ -78,19 +78,45 @@ export const ShoppingView: React.FC<ShoppingViewProps> = ({
    */
   const handleQtyChange = (uniqueId: string, delta: number) => {
     setShoppingQuantities(prev => {
-      const current = Number(prev[uniqueId] || 1);
+      const val = prev[uniqueId];
+      const current = (val !== undefined && val !== null && val !== '') ? parseFloat(String(val).replace(',', '.')) : 1;
       const nextValue = Math.max(0, current + delta);
-      return { ...prev, [uniqueId]: nextValue };
+      return { ...prev, [uniqueId]: Number(nextValue.toFixed(3)).toString().replace('.', ',') };
     });
+  };
+
+  const handleShoppingQuantityChange = (uniqueId: string, value: string) => {
+    if (value === '' || /^\d*[.,]?\d*$/.test(value)) {
+      setShoppingQuantities(prev => ({ ...prev, [uniqueId]: value }));
+    }
+  };
+
+  const handleShoppingQuantityBlur = (uniqueId: string) => {
+    const val = shoppingQuantities[uniqueId];
+    if (val === undefined || val === null || val === '') {
+      setShoppingQuantities(prev => ({ ...prev, [uniqueId]: '1' }));
+      return;
+    }
+    const num = parseFloat(String(val).replace(',', '.'));
+    if (isNaN(num) || num <= 0) {
+      setShoppingQuantities(prev => ({ ...prev, [uniqueId]: '1' }));
+    }
   };
 
   /**
    * Finaliza a adição ao carrinho e reseta a quantidade para o padrão (1)
    */
   const handleAddToCart = (product: ProductWithSupplier, uniqueId: string) => {
-    const qty = Number(shoppingQuantities[uniqueId] || 1);
+    const val = shoppingQuantities[uniqueId];
+    let qty = 1;
+    if (val !== undefined && val !== null && val !== '') {
+      qty = parseFloat(String(val).replace(',', '.'));
+    }
+    if (isNaN(qty) || qty <= 0) {
+      qty = 1;
+    }
     addToCart(product, product.supplierName, qty);
-    setShoppingQuantities(prev => ({ ...prev, [uniqueId]: 1 }));
+    setShoppingQuantities(prev => ({ ...prev, [uniqueId]: '1' }));
   };
 
   return (
@@ -163,7 +189,7 @@ export const ShoppingView: React.FC<ShoppingViewProps> = ({
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 mt-6">
                       {products.map((product, index) => {
                         const uniqueId = `${product.supplierName}-${product.name}-${index}`;
-                        const qty = shoppingQuantities[uniqueId] || 1;
+                        const qty = shoppingQuantities[uniqueId] ?? '1';
                         
                         return (
                           <div 
@@ -218,10 +244,11 @@ export const ShoppingView: React.FC<ShoppingViewProps> = ({
                                   <Minus className="w-3.5 h-3.5" />
                                 </button>
                                 <input
-                                  type="number"
+                                  type="text"
                                   className="w-10 text-center font-bold text-slate-700 bg-transparent outline-none text-base tabular-nums"
                                   value={qty}
-                                  onChange={(e) => setShoppingQuantities(prev => ({ ...prev, [uniqueId]: e.target.value }))}
+                                  onChange={(e) => handleShoppingQuantityChange(uniqueId, e.target.value)}
+                                  onBlur={() => handleShoppingQuantityBlur(uniqueId)}
                                   onKeyDown={(e) => {
                                     if (e.key === 'Enter') handleAddToCart(product, uniqueId);
                                   }}

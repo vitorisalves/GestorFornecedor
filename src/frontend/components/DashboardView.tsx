@@ -71,6 +71,14 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ savedLists }) => {
     return saved ? JSON.parse(saved) : {};
   });
   const [isMatchingAI, setIsMatchingAI] = useState(false);
+  const [isChartReady, setIsChartReady] = useState(false);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setIsChartReady(true);
+    }, 150);
+    return () => clearTimeout(timer);
+  }, []);
   
   // Persist data when changed
   useEffect(() => {
@@ -469,45 +477,51 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ savedLists }) => {
             </button>
           </div>
 
-          <div className="h-[350px] w-full min-h-[350px]">
-            <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={350}>
-              <AreaChart data={expenseData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
-                <defs>
-                  <linearGradient id="colorExpense" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#4f46e5" stopOpacity={0.3}/>
-                    <stop offset="95%" stopColor="#4f46e5" stopOpacity={0}/>
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                <XAxis 
-                  dataKey="name" 
-                  axisLine={false} 
-                  tickLine={false} 
-                  tick={{ fill: '#0f172a', fontSize: 13, fontWeight: 800 }}
-                  dy={10}
-                />
-                <YAxis 
-                  axisLine={false} 
-                  tickLine={false} 
-                  tick={{ fill: '#0f172a', fontSize: 13, fontWeight: 800 }}
-                  tickFormatter={(val) => `R$${val}`}
-                />
-                <RechartsTooltip 
-                  contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)', padding: '12px' }}
-                  labelStyle={{ fontWeight: 800, marginBottom: '4px', color: '#1e293b' }}
-                  itemStyle={{ color: '#0f172a', fontWeight: 800 }}
-                  formatter={(value: number) => [formatCurrency(value), 'Gasto']}
-                />
-                <Area 
-                  type="monotone" 
-                  dataKey="valor" 
-                  stroke="#4f46e5" 
-                  strokeWidth={3}
-                  fillOpacity={1} 
-                  fill="url(#colorExpense)" 
-                />
-              </AreaChart>
-            </ResponsiveContainer>
+          <div className="relative h-[350px] w-full min-h-[350px]">
+            {isChartReady ? (
+              <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={350}>
+                <AreaChart data={expenseData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id="colorExpense" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#4f46e5" stopOpacity={0.3}/>
+                      <stop offset="95%" stopColor="#4f46e5" stopOpacity={0}/>
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                  <XAxis 
+                    dataKey="name" 
+                    axisLine={false} 
+                    tickLine={false} 
+                    tick={{ fill: '#0f172a', fontSize: 13, fontWeight: 800 }}
+                    dy={10}
+                  />
+                  <YAxis 
+                    axisLine={false} 
+                    tickLine={false} 
+                    tick={{ fill: '#0f172a', fontSize: 13, fontWeight: 800 }}
+                    tickFormatter={(val) => `R$${val}`}
+                  />
+                  <RechartsTooltip 
+                    contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)', padding: '12px' }}
+                    labelStyle={{ fontWeight: 800, marginBottom: '4px', color: '#1e293b' }}
+                    itemStyle={{ color: '#0f172a', fontWeight: 800 }}
+                    formatter={(value: number) => [formatCurrency(value), 'Gasto']}
+                  />
+                  <Area 
+                    type="monotone" 
+                    dataKey="valor" 
+                    stroke="#4f46e5" 
+                    strokeWidth={3}
+                    fillOpacity={1} 
+                    fill="url(#colorExpense)" 
+                  />
+                </AreaChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="w-full h-full bg-slate-50 rounded-2xl animate-pulse flex items-center justify-center">
+                <span className="text-slate-400 text-xs font-bold uppercase tracking-wider">Carregando gráfico...</span>
+              </div>
+            )}
           </div>
         </div>
 
@@ -541,13 +555,17 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ savedLists }) => {
               <div className="w-12 h-12 border-4 border-indigo-100 border-t-indigo-600 rounded-full animate-spin" />
               <p className="text-slate-400 text-xs font-bold uppercase">Sincronizando com planilha de metas...</p>
             </div>
+          ) : !isChartReady ? (
+            <div className="flex flex-col items-center justify-center h-[400px] w-full bg-slate-50 rounded-2xl animate-pulse">
+              <span className="text-slate-400 text-xs font-bold uppercase tracking-wider">Carregando gráfico de metas...</span>
+            </div>
           ) : quantityData.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-[400px] gap-4">
               <AlertCircle className="w-12 h-12 text-slate-200" />
-              <p className="text-slate-400 text-xs font-bold uppercase text-center max-w-xs">Nenhum dado encontrado para comparação no período selecionado.</p>
+              <p className="text-slate-400 text-xs font-bold uppercase text-center max-w-xs font-bold">Nenhum dado encontrado para comparação no período selecionado.</p>
             </div>
           ) : (
-            <div className="w-full min-h-[450px]" style={{ height: `${Math.max(450, quantityData.length * 40)}px` }}>
+            <div className="relative w-full min-h-[450px]" style={{ height: `${Math.max(450, quantityData.length * 40)}px` }}>
               <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={450}>
                 <BarChart data={quantityData} layout="vertical" margin={{ left: 60, right: 40 }}>
                   <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#e2e8f0" />

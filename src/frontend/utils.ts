@@ -69,8 +69,20 @@ export function handleFirestoreError(error: unknown, operationType: OperationTyp
   const stringified = safeStringify(errInfo);
   
   // Skip throwing for NOT_FOUND / 404
-  if (errInfo.error.toLowerCase().includes('not found') || errInfo.error.includes('404')) {
+  const errMsgLower = errInfo.error.toLowerCase();
+  if (errMsgLower.includes('not found') || errMsgLower.includes('404')) {
     console.warn('Firestore Warn (Not Found): ', stringified);
+    return;
+  }
+
+  // Skip throwing for Quota Exceeded/Resource Exhaustion
+  if (
+    errMsgLower.includes('quota') ||
+    errMsgLower.includes('resource-exhausted') ||
+    errMsgLower.includes('limit') ||
+    errMsgLower.includes('exhausted')
+  ) {
+    console.warn('Firestore Warn (Quota Exceeded): ', stringified);
     return;
   }
   

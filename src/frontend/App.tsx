@@ -274,7 +274,9 @@ export default function App() {
           }
         });
       } catch (err) {
-        console.error("Erro ao carregar faturas manuais para deletar:", err);
+        if (!String(err).toLowerCase().includes('quota')) {
+          console.error("Erro ao carregar faturas manuais para deletar:", err);
+        }
       }
 
       if (invoicesToDelete.length > 0) {
