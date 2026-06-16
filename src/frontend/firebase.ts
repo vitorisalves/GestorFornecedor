@@ -23,7 +23,7 @@ if (getApps().length === 0) {
   // Using persistentLocalCache to reduce read units on page reloads and allow offline usage.
   firestoreDb = initializeFirestore(app, {
     localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() }),
-    experimentalForceLongPolling: true
+    experimentalAutoDetectLongPolling: true
   }, firebaseConfig.firestoreDatabaseId || '(default)');
 } else {
   const app = getApp();

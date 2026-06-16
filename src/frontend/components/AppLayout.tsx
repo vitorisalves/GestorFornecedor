@@ -24,6 +24,8 @@ interface AppLayoutProps {
   setIsCartOpen: (open: boolean) => void;
   isOffline: boolean;
   onReconnect: () => void;
+  activeWindow?: 'compras' | 'dre';
+  onWindowChange?: (win: 'compras' | 'dre') => void;
 }
 
 export const AppLayout: React.FC<AppLayoutProps> = ({
@@ -47,6 +49,8 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
   setIsCartOpen,
   isOffline,
   onReconnect,
+  activeWindow,
+  onWindowChange
 }) => {
   return (
     <div className="min-h-screen bg-slate-200 flex">
@@ -59,6 +63,7 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
         loggedName={loggedName}
         isOpen={isSidebarOpen}
         onClose={() => setIsSidebarOpen(false)}
+        activeWindow={activeWindow}
       />
 
       <main className="flex-1 lg:ml-64 p-4 md:p-8 lg:p-12 w-full overflow-x-hidden min-h-screen transition-all">
@@ -76,6 +81,8 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
             onMenuToggle={() => setIsSidebarOpen(true)}
             isOffline={isOffline}
             onReconnect={onReconnect}
+            activeWindow={activeWindow}
+            onWindowChange={onWindowChange}
           />
           {children}
         </div>

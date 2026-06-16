@@ -4,7 +4,7 @@
  */
 
 import React from 'react';
-import { ShoppingCart, Menu, CloudOff, RefreshCw } from 'lucide-react';
+import { ShoppingCart, Menu, CloudOff, RefreshCw, LayoutGrid } from 'lucide-react';
 import { NotificationCenter } from './NotificationCenter';
 import { UINotification, AppNotification, CartItem } from '../types';
 
@@ -21,6 +21,8 @@ interface HeaderProps {
   requestPermission?: () => void;
   isOffline?: boolean;
   onReconnect?: () => void;
+  activeWindow?: 'compras' | 'dre';
+  onWindowChange?: (win: 'compras' | 'dre') => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -35,18 +37,48 @@ export const Header: React.FC<HeaderProps> = ({
   onMenuToggle,
   requestPermission,
   isOffline,
-  onReconnect
+  onReconnect,
+  activeWindow,
+  onWindowChange
 }) => {
   const cartItemsCount = cart.reduce((acc, item) => acc + item.quantity, 0);
 
   return (
-    <header className="flex justify-between items-center gap-4 mb-8 md:mb-12">
-      <button
-        onClick={onMenuToggle}
-        className="lg:hidden p-2.5 bg-white border border-slate-200 text-slate-900 rounded-xl hover:bg-slate-50 transition-all shadow-sm"
-      >
-        <Menu className="w-5 h-5" />
-      </button>
+    <header className="flex justify-between items-center gap-4 mb-8 md:mb-12 flex-wrap">
+      <div className="flex items-center gap-3">
+        <button
+          onClick={onMenuToggle}
+          className="lg:hidden p-2.5 bg-white border border-slate-200 text-slate-900 rounded-xl hover:bg-slate-50 transition-all shadow-sm"
+        >
+          <Menu className="w-5 h-5" />
+        </button>
+
+        {/* Alternador de Janela */}
+        {activeWindow && onWindowChange && (
+          <div className="flex bg-slate-300 p-0.5 rounded-xl border border-slate-400/40 shadow-sm shrink-0">
+            <button
+              onClick={() => onWindowChange('compras')}
+              className={`px-3 py-1.5 text-[10px] font-black uppercase tracking-wider rounded-lg transition-all border-0 cursor-pointer ${
+                activeWindow === 'compras'
+                  ? 'bg-indigo-600 text-white shadow-sm'
+                  : 'text-slate-600 hover:text-slate-950'
+              }`}
+            >
+              Compras
+            </button>
+            <button
+              onClick={() => onWindowChange('dre')}
+              className={`px-3 py-1.5 text-[10px] font-black uppercase tracking-wider rounded-lg transition-all border-0 cursor-pointer ${
+                activeWindow === 'dre'
+                  ? 'bg-indigo-600 text-white shadow-sm'
+                  : 'text-slate-600 hover:text-slate-950'
+              }`}
+            >
+              DRE
+            </button>
+          </div>
+        )}
+      </div>
 
       <div className="flex items-center gap-3 md:gap-4 ml-auto">
         {/* Indicador de Status de Sincronização */}

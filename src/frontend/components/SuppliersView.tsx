@@ -405,6 +405,12 @@ export const SuppliersView: React.FC<SuppliersViewProps> = ({
                                       if (e.key === 'Enter') {
                                         e.preventDefault();
                                         onAddToCart(product, supplier.name, qKey);
+                                      } else if (e.key === 'Backspace') {
+                                        const currentVal = quantities[qKey] ?? '1';
+                                        if (currentVal === '1') {
+                                          e.preventDefault();
+                                          setQuantities(prev => ({ ...prev, [qKey]: '' }));
+                                        }
                                       }
                                     }}
                                     className="w-10 h-full bg-transparent text-center font-bold text-slate-900 outline-none text-sm"
@@ -559,6 +565,12 @@ export const SuppliersView: React.FC<SuppliersViewProps> = ({
                                 if (e.key === 'Enter') {
                                   e.preventDefault();
                                   onAddToCart(product, 'MERCADO', qKey);
+                                } else if (e.key === 'Backspace') {
+                                  const currentVal = quantities[qKey] ?? '1';
+                                  if (currentVal === '1') {
+                                    e.preventDefault();
+                                    setQuantities(prev => ({ ...prev, [qKey]: '' }));
+                                  }
                                 }
                               }}
                               className="w-10 h-full bg-transparent text-center font-bold text-slate-700 outline-none text-sm"
@@ -709,6 +721,12 @@ export const SuppliersView: React.FC<SuppliersViewProps> = ({
                                 if (e.key === 'Enter') {
                                   e.preventDefault();
                                   onAddToCart(product, 'MATERIAIS', qKey);
+                                } else if (e.key === 'Backspace') {
+                                  const currentVal = quantities[qKey] ?? '1';
+                                  if (currentVal === '1') {
+                                    e.preventDefault();
+                                    setQuantities(prev => ({ ...prev, [qKey]: '' }));
+                                  }
                                 }
                               }}
                               className="w-10 h-full bg-transparent text-center font-bold text-slate-700 outline-none text-sm"

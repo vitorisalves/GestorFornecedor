@@ -39,6 +39,7 @@ import { AppLayout } from './components/AppLayout';
 import { QuotaBanner } from './components/QuotaBanner';
 import { ActiveTargetBanner } from './components/ActiveTargetBanner';
 import { PermissionBanner } from './components/PermissionBanner';
+import { DREVendasView } from './components/DREVendasView';
 
 // Types
 import { Product, Supplier } from './types';
@@ -324,7 +325,17 @@ export default function App() {
     }
   }, [activeTargetListId, activeTargetListName, addItemToList, addNotification, addToCart]);
 
-  const [currentPage, setCurrentPage] = useState<'dashboard' | 'suppliers' | 'shopping' | 'history' | 'delivered' | 'reminders' | 'ai' | 'purchase-forecast'>('dashboard');
+  const [activeWindow, setActiveWindow] = useState<'compras' | 'dre'>('compras');
+  const [currentPage, setCurrentPage] = useState<'dashboard' | 'suppliers' | 'shopping' | 'history' | 'delivered' | 'reminders' | 'ai' | 'purchase-forecast' | 'vendas'>('dashboard');
+
+  const handleWindowChange = (win: 'compras' | 'dre') => {
+    setActiveWindow(win);
+    if (win === 'dre') {
+      setCurrentPage('vendas');
+    } else {
+      setCurrentPage('dashboard');
+    }
+  };
   
   const {
     handleExportExcel,
@@ -605,6 +616,8 @@ export default function App() {
       setIsCartOpen={setIsCartOpen}
       isOffline={isQuotaExceeded}
       onReconnect={handleReconnect}
+      activeWindow={activeWindow}
+      onWindowChange={handleWindowChange}
     >
       <PermissionBanner 
         show={showNativePermissionBanner}
@@ -716,6 +729,12 @@ export default function App() {
             key="purchase-forecast"
             suppliers={suppliers}
             saveSupplier={saveSupplier}
+            addNotification={addNotification}
+          />
+        )}
+        {currentPage === 'vendas' && (
+          <DREVendasView 
+            key="vendas"
             addNotification={addNotification}
           />
         )}

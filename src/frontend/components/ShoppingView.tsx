@@ -250,7 +250,14 @@ export const ShoppingView: React.FC<ShoppingViewProps> = ({
                                   onChange={(e) => handleShoppingQuantityChange(uniqueId, e.target.value)}
                                   onBlur={() => handleShoppingQuantityBlur(uniqueId)}
                                   onKeyDown={(e) => {
-                                    if (e.key === 'Enter') handleAddToCart(product, uniqueId);
+                                    if (e.key === 'Enter') {
+                                      handleAddToCart(product, uniqueId);
+                                    } else if (e.key === 'Backspace') {
+                                      if (qty === '1') {
+                                        e.preventDefault();
+                                        setShoppingQuantities(prev => ({ ...prev, [uniqueId]: '' }));
+                                      }
+                                    }
                                   }}
                                 />
                                 <button

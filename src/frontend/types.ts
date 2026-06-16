@@ -79,3 +79,50 @@ export interface AuthorizedUser {
   lastLogin?: string;
   role?: 'admin' | 'user';
 }
+
+// --- DRE & SALES TYPES ---
+export interface SalesRecord {
+  id: string;
+  date?: string;
+  channel: 'Loja' | 'Comercial' | 'Evento' | 'Site' | 'Outro';
+  value: number;
+  description?: string;
+  reference?: string;
+}
+
+export interface DREDadoRow {
+  id: string;
+  descricao: string;
+  codigo: string;
+  qtdTotal: number;
+  cmcUnitario: number;
+  cmcTotal: number;
+  qtdTotalNfProduto: number;
+  totalMercadoria?: number;
+  totalNotaFiscal?: number;
+  vendedor?: string;
+  setor: 'Loja' | 'Comercial' | 'Evento' | 'Site' | '';
+  mes: string; // "YYYY-MM"
+  origemArquivo?: string;
+  notaFiscalId?: string;
+  invoices?: { id: string; val: number }[];
+}
+
+export interface DRESalesData {
+  records: SalesRecord[];
+  totals: {
+    Loja: number;
+    Comercial: number;
+    Evento: number;
+    Site: number;
+    Total: number;
+  };
+  counts: {
+    Loja: number;
+    Comercial: number;
+    Evento: number;
+    Site: number;
+    Total: number;
+  };
+}
+

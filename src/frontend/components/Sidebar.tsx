@@ -31,6 +31,7 @@ interface SidebarProps {
   loggedName: string;
   isOpen: boolean;
   onClose: () => void;
+  activeWindow?: 'compras' | 'dre';
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -41,18 +42,24 @@ export const Sidebar: React.FC<SidebarProps> = ({
   handleLogout,
   loggedName,
   isOpen,
-  onClose
+  onClose,
+  activeWindow = 'compras'
 }) => {
-  const menuItems = [
-    { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
-    { id: 'suppliers', label: 'Produtos', icon: Building2 },
-    { id: 'shopping', label: 'Fazer Compras', icon: ShoppingCart },
-    { id: 'history', label: 'Minhas Listas', icon: ListChecks },
-    { id: 'delivered', label: 'Produtos Entregues', icon: Truck },
-    { id: 'reminders', label: 'Lembretes', icon: Bell },
-    { id: 'ai', label: 'I.A.', icon: Sparkles },
-    { id: 'purchase-forecast', label: 'Previsão de Compra', icon: TrendingUp },
-  ];
+  const menuItems = activeWindow === 'dre'
+    ? [
+        { id: 'vendas', label: 'Dados DRE', icon: TrendingUp },
+      ]
+    : [
+        { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
+        { id: 'suppliers', label: 'Produtos', icon: Building2 },
+        { id: 'shopping', label: 'Fazer Compras', icon: ShoppingCart },
+        { id: 'history', label: 'Minhas Listas', icon: ListChecks },
+        { id: 'delivered', label: 'Produtos Entregues', icon: Truck },
+        { id: 'reminders', label: 'Lembretes', icon: Bell },
+        { id: 'ai', label: 'I.A.', icon: Sparkles },
+        { id: 'purchase-forecast', label: 'Previsão de Compra', icon: TrendingUp },
+      ];
+
 
   return (
     <>

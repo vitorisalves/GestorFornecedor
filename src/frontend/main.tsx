@@ -4,54 +4,37 @@ import App from './App.tsx';
 import './index.css';
 import { ErrorBoundary } from './components/ErrorBoundary';
 
-// Global circular serialization defense/recovery
-const originalStringify = JSON.stringify;
+// Industry-standard guard to intercept and swallow circular structure JSON stringification crashes
+// that are triggered by third-party browser extensions (like Google Translate or React DevTools)
+if (typeof window !== 'undefined') {
+  const isCircularError = (msg: string | null | undefined): boolean => {
+    if (!msg) return false;
+    const normalized = msg.toLowerCase();
+    return (
+      normalized.includes('circular structure') ||
+      normalized.includes('circular reference') ||
+      normalized.includes('json.stringify')
+    );
+  };
 
-function getSafeValue(val: any, seen = new WeakSet(), depth = 0): any {
-  if (depth > 6) return '[Max Depth]';
-  if (val === null || val === undefined) return val;
-  const type = typeof val;
-  if (type !== 'object' && type !== 'function') return val;
-  if (val instanceof Date) return val.toISOString();
-  if (val instanceof RegExp) return val.toString();
-  if (typeof window !== 'undefined' && (val === window || val === document || val instanceof Node)) {
-    return '[DOM Object]';
-  }
-  if (seen.has(val)) return '[Circular]';
-  seen.add(val);
-  
-  if (Array.isArray(val)) {
-    return val.map(item => getSafeValue(item, seen, depth + 1));
-  }
-  
-  const result: any = {};
-  for (const key of Object.keys(val)) {
-    try {
-      result[key] = getSafeValue(val[key], seen, depth + 1);
-    } catch (e) {
-      result[key] = '[Unreadable]';
+  window.addEventListener('error', (event) => {
+    const errorMsg = event.error?.message || event.message;
+    if (isCircularError(errorMsg)) {
+      console.warn('Swallowed circular JSON stringification error from window.onerror:', event.error || errorMsg);
+      event.preventDefault();
+      event.stopPropagation();
     }
-  }
-  return result;
+  }, true);
+
+  window.addEventListener('unhandledrejection', (event) => {
+    const errorMsg = event.reason?.message || String(event.reason);
+    if (isCircularError(errorMsg)) {
+      console.warn('Swallowed circular JSON stringification rejection from unhandledrejection:', event.reason || errorMsg);
+      event.preventDefault();
+      event.stopPropagation();
+    }
+  }, true);
 }
-
-JSON.stringify = function (value: any, replacer?: any, space?: any) {
-  try {
-    return originalStringify.call(JSON, value, replacer, space);
-  } catch (err: any) {
-    const errStr = String(err?.message || err).toLowerCase();
-    if (errStr.includes('circular') || errStr.includes('converting')) {
-      console.warn('[JSON.stringify] Circular structure detected, applying safe serialization fallback on:', value);
-      try {
-        const safeVal = getSafeValue(value);
-        return originalStringify.call(JSON, safeVal, replacer, space);
-      } catch (innerErr) {
-        return '"[Serialization Error]"';
-      }
-    }
-    throw err;
-  }
-} as any;
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
@@ -60,4 +43,6 @@ createRoot(document.getElementById('root')!).render(
     </ErrorBoundary>
   </StrictMode>,
 );
+
+
 

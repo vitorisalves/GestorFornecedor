@@ -8,8 +8,8 @@
   },
   "scripts": {
     "dev": "tsx src/backend/server.ts",
-    "start": "node src/backend/server.ts",
-    "build": "tsc && vite build && esbuild src/backend/app.ts --bundle --platform=node --format=esm --packages=external --outfile=api/index.js",
+    "start": "node dist/server.cjs",
+    "build": "tsc && vite build && esbuild src/backend/server.ts --bundle --platform=node --format=cjs --packages=external --sourcemap --outfile=dist/server.cjs",
     "preview": "vite preview",
     "lint": "tsc --noEmit"
   },
@@ -22,6 +22,7 @@
     "firebase": "11.2.0",
     "firebase-admin": "^12.1.1",
     "framer-motion": "^12.38.0",
+    "idb-keyval": "^6.2.5",
     "jspdf": "^4.2.1",
     "jspdf-autotable": "^5.0.7",
     "lucide-react": "^0.344.0",
