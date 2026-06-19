@@ -17,6 +17,44 @@ if (typeof window !== 'undefined') {
     );
   };
 
+  const originalStringify = JSON.stringify;
+  JSON.stringify = function (value: any, replacer?: any, space?: any) {
+    try {
+      return originalStringify.call(JSON, value, replacer, space);
+    } catch (e: any) {
+      if (e instanceof TypeError && (
+        e.message.toLowerCase().includes('circular') || 
+        e.message.toLowerCase().includes('json.stringify') ||
+        e.message.toLowerCase().includes('stringifying')
+      )) {
+        try {
+          const seen = new WeakSet();
+          const clean = function (val: any): any {
+            if (val === null || typeof val !== 'object') return val;
+            if (seen.has(val)) return '[Circular]';
+            seen.add(val);
+            if (Array.isArray(val)) {
+              return val.map(clean);
+            }
+            const res: any = {};
+            for (const key of Object.keys(val)) {
+              try {
+                res[key] = clean(val[key]);
+              } catch (keysErr) {
+                res[key] = '[Property Unreadable]';
+              }
+            }
+            return res;
+          };
+          return originalStringify.call(JSON, clean(value), replacer, space);
+        } catch (innerErr) {
+          return '"[Circular/Error]"';
+        }
+      }
+      throw e;
+    }
+  } as any;
+
   window.addEventListener('error', (event) => {
     const errorMsg = event.error?.message || event.message;
     if (isCircularError(errorMsg)) {

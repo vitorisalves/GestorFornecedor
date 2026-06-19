@@ -47,6 +47,12 @@ export const DeliveredProductsView: React.FC<DeliveredProductsViewProps> = ({
   const [tempForecastDate, setTempForecastDate] = React.useState('');
   const [editingDeliveryId, setEditingDeliveryId] = React.useState<string | null>(null);
   const [tempDeliveryDate, setTempDeliveryDate] = React.useState('');
+  const [currentPage, setCurrentPage] = React.useState(1);
+  const ITEMS_PER_PAGE = 20;
+
+  React.useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm]);
 
   const toISODate = (dateStr: string) => {
     try {
@@ -148,6 +154,13 @@ export const DeliveredProductsView: React.FC<DeliveredProductsViewProps> = ({
       }
     });
 
+  const totalPages = Math.ceil(filteredProducts.length / ITEMS_PER_PAGE);
+
+  const paginatedProducts = React.useMemo(() => {
+    const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
+    return filteredProducts.slice(startIndex, startIndex + ITEMS_PER_PAGE);
+  }, [filteredProducts, currentPage]);
+
   const handleDeleteConfirm = () => {
     if (productToDelete) {
       deleteDeliveredProduct(productToDelete);
@@ -213,7 +226,7 @@ export const DeliveredProductsView: React.FC<DeliveredProductsViewProps> = ({
                   </td>
                 </tr>
               ) : (
-                filteredProducts.map((p) => (
+                paginatedProducts.map((p) => (
                   <tr 
                     key={p.id} 
                     className={`group transition-all hover:bg-slate-50/50 ${p.delivered ? 'bg-emerald-50/20' : ''}`}
@@ -396,6 +409,93 @@ export const DeliveredProductsView: React.FC<DeliveredProductsViewProps> = ({
             </tbody>
           </table>
         </div>
+
+        {totalPages > 1 && (
+          <div className="flex items-center justify-between border-t border-slate-100 bg-white px-6 py-4">
+            <div className="flex flex-1 justify-between sm:hidden">
+              <button
+                onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                disabled={currentPage === 1}
+                className="relative inline-flex items-center rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-black uppercase text-slate-700 hover:bg-slate-50 disabled:opacity-50 transition-all cursor-pointer"
+              >
+                Anterior
+              </button>
+              <button
+                onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                disabled={currentPage === totalPages}
+                className="relative ml-3 inline-flex items-center rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-black uppercase text-slate-700 hover:bg-slate-50 disabled:opacity-50 transition-all cursor-pointer"
+              >
+                Próximo
+              </button>
+            </div>
+            <div className="hidden sm:flex sm:flex-1 sm:items-center sm:justify-between">
+              <div>
+                <p className="text-xs text-slate-500 font-bold uppercase tracking-wider">
+                  Mostrando <span className="text-slate-900">{(currentPage - 1) * ITEMS_PER_PAGE + 1}</span> a{' '}
+                  <span className="text-slate-900">
+                    {Math.min(currentPage * ITEMS_PER_PAGE, filteredProducts.length)}
+                  </span>{' '}
+                  de <span className="text-slate-900">{filteredProducts.length}</span> registros
+                </p>
+              </div>
+              <div>
+                <nav className="isolate inline-flex -space-x-px rounded-xl shadow-xs" aria-label="Pagination">
+                  <button
+                    onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                    disabled={currentPage === 1}
+                    className="relative inline-flex items-center rounded-l-xl border border-slate-200 bg-white px-3 py-2 text-xs font-black uppercase text-slate-500 hover:bg-slate-50 active:bg-slate-100 disabled:opacity-50 transition-all cursor-pointer"
+                  >
+                    Anterior
+                  </button>
+                  
+                  {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => {
+                    if (
+                      page === 1 ||
+                      page === totalPages ||
+                      Math.abs(page - currentPage) <= 1
+                    ) {
+                      return (
+                        <button
+                          key={page}
+                          onClick={() => setCurrentPage(page)}
+                          className={`relative inline-flex items-center border px-4 py-2 text-xs font-black uppercase tracking-wider transition-all cursor-pointer ${
+                            currentPage === page
+                              ? 'z-10 bg-indigo-600 border-indigo-600 text-white hover:bg-indigo-700'
+                              : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50 active:bg-slate-100'
+                          }`}
+                        >
+                          {page}
+                        </button>
+                      );
+                    }
+                    if (
+                      (page === 2 && currentPage > 3) ||
+                      (page === totalPages - 1 && currentPage < totalPages - 2)
+                    ) {
+                      return (
+                        <span
+                          key={page}
+                          className="relative inline-flex items-center border border-slate-200 bg-white px-4 py-2 text-xs font-medium text-slate-500"
+                        >
+                          ...
+                        </span>
+                      );
+                    }
+                    return null;
+                  })}
+
+                  <button
+                    onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                    disabled={currentPage === totalPages}
+                    className="relative inline-flex items-center rounded-r-xl border border-slate-200 bg-white px-3 py-2 text-xs font-black uppercase text-slate-500 hover:bg-slate-50 active:bg-slate-100 disabled:opacity-50 transition-all cursor-pointer"
+                  >
+                    Próximo
+                  </button>
+                </nav>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       <ConfirmationModal

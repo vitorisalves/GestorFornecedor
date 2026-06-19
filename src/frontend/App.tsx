@@ -661,6 +661,7 @@ export default function App() {
             handleSyncSheets={onSyncSheets}
             addNotification={addNotification}
             onEditProduct={onEditProductFromShopping}
+            saveSupplier={saveSupplier}
           />
         )}
         {currentPage === 'shopping' && (
