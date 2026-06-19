@@ -171,5 +171,9 @@ service cloud.firestore {
       allow read, create, update: if true; // TEMPORARY FIX: Allow anonymous operations for backend service
       allow delete: if true;
     }
+
+    match /xml_spendings/{spendingId} {
+      allow read, create, update, delete: if true;
+    }
   }
 }

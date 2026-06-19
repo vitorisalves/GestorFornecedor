@@ -116,12 +116,29 @@
         "updatedAt": { "type": "string" }
       },
       "required": ["endpoint", "keys"]
+    },
+    "XmlSpending": {
+      "title": "XML Spending",
+      "description": "Monthly spending item parsed from XML",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "supplierName": { "type": "string" },
+        "dhEmi": { "type": "string" },
+        "vTotTrib": { "type": "number" },
+        "fileName": { "type": "string" }
+      },
+      "required": ["id", "supplierName", "dhEmi", "vTotTrib", "fileName"]
     }
   },
   "firestore": {
     "/suppliers/{supplierId}": {
       "schema": "Supplier",
       "description": "Collection of suppliers"
+    },
+    "/xml_spendings/{spendingId}": {
+      "schema": "XmlSpending",
+      "description": "Collection of parsed XML spendings"
     },
     "/invoices/{invoiceId}": {
       "schema": "Invoice",

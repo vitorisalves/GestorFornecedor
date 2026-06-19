@@ -6,72 +6,69 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { 
   TrendingUp, 
-  Package, 
   Calendar as CalendarIcon, 
   Download,
   AlertCircle,
   Clock,
-  ArrowRight,
-  Filter,
-  CheckCircle2,
   RefreshCcw,
-  Sparkles
+  Upload,
+  FileText,
+  Trash2,
+  XCircle,
+  FileCheck2,
+  HelpCircle,
+  Briefcase
 } from 'lucide-react';
 import { 
-  BarChart, 
-  Bar, 
-  XAxis, 
-  YAxis, 
   CartesianGrid, 
   Tooltip as RechartsTooltip, 
   ResponsiveContainer, 
-  Cell,
-  Legend,
-  LineChart,
-  Line,
   AreaChart,
-  Area
+  Area,
+  XAxis,
+  YAxis
 } from 'recharts';
-import { format, isWithinInterval, startOfMonth, endOfMonth, parseISO, subMonths } from 'date-fns';
+import { format, isWithinInterval, startOfMonth, endOfMonth, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import Papa from 'papaparse';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { domToCanvas } from 'modern-screenshot';
 
+import { db } from '../firebase';
+import { collection, onSnapshot, doc, setDoc, deleteDoc } from 'firebase/firestore';
+import { formatCurrency, safeStringify, handleFirestoreError, OperationType } from '../utils';
 import { SavedList } from '../types';
-import { formatCurrency, normalizeText, safeStringify } from '../utils';
-import { matchDashboardWithAI } from '../../services/geminiService';
-
-interface SpreadsheetItem {
-  id: string;
-  name: string;
-  quantity: number;
-  type: 'embalagem' | 'insumo';
-}
 
 interface DashboardViewProps {
-  savedLists: SavedList[];
+  savedLists?: SavedList[];
 }
 
-export const DashboardView: React.FC<DashboardViewProps> = ({ savedLists }) => {
+export const DashboardView: React.FC<DashboardViewProps> = () => {
   const [startDate, setStartDate] = useState<string>(format(startOfMonth(new Date()), 'yyyy-MM-dd'));
   const [endDate, setEndDate] = useState<string>(format(endOfMonth(new Date()), 'yyyy-MM-dd'));
-  const [spreadsheetData, setSpreadsheetData] = useState<SpreadsheetItem[]>(() => {
-    const saved = localStorage.getItem('dashboard_spreadsheet_data');
-    return saved ? JSON.parse(saved) : [];
-  });
-  const [isLoadingSpreadsheet, setIsLoadingSpreadsheet] = useState(false);
-  const [lastUpdated, setLastUpdated] = useState<Date | null>(() => {
-    const saved = localStorage.getItem('dashboard_last_updated');
-    return saved ? new Date(saved) : null;
-  });
-  const [aiMappings, setAiMappings] = useState<Record<string, string>>(() => {
-    const saved = localStorage.getItem('dashboard_ai_mappings');
-    return saved ? JSON.parse(saved) : {};
-  });
-  const [isMatchingAI, setIsMatchingAI] = useState(false);
   const [isChartReady, setIsChartReady] = useState(false);
+  
+  // Real-time XML Spendings State with localStorage caching
+  const [xmlSpendings, setXmlSpendings] = useState<any[]>(() => {
+    try {
+      const cached = localStorage.getItem('cached_dashboard_xml_spendings');
+      return cached ? JSON.parse(cached) : [];
+    } catch {
+      return [];
+    }
+  });
+  const [isLoading, setIsLoading] = useState(() => {
+    try {
+      const cached = localStorage.getItem('cached_dashboard_xml_spendings');
+      return cached ? false : true;
+    } catch {
+      return true;
+    }
+  });
+  
+  // Upload state
+  const [isUploading, setIsUploading] = useState(false);
+  const [xmlLogs, setXmlLogs] = useState<{ type: 'success' | 'warning' | 'error', text: string }[]>([]);
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -79,223 +76,241 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ savedLists }) => {
     }, 150);
     return () => clearTimeout(timer);
   }, []);
-  
-  // Persist data when changed
+
+  // Fetch / Listen to xml_spendings real-time
   useEffect(() => {
-    localStorage.setItem('dashboard_spreadsheet_data', safeStringify(spreadsheetData));
-  }, [spreadsheetData]);
-
-  useEffect(() => {
-    localStorage.setItem('dashboard_ai_mappings', safeStringify(aiMappings));
-  }, [aiMappings]);
-
-  useEffect(() => {
-    if (lastUpdated) {
-      localStorage.setItem('dashboard_last_updated', lastUpdated.toISOString());
-    }
-  }, [lastUpdated]);
-  
-  const expenseChartRef = useRef<HTMLDivElement>(null);
-  const quantityChartRef = useRef<HTMLDivElement>(null);
-
-  // Filtered lists based on selected date range
-  const filteredLists = useMemo(() => {
-    const start = new Date(startDate + 'T00:00:00');
-    const end = new Date(endDate + 'T23:59:59');
-    
-    return savedLists.filter(list => {
-      const listDate = parseISO(list.date);
-      return isWithinInterval(listDate, { start, end });
-    });
-  }, [savedLists, startDate, endDate]);
-
-  // Gemini AI Matching Logic
-  const performAIMatching = async (currentSpreadsheetData: SpreadsheetItem[], currentLists: SavedList[]) => {
-    if (currentSpreadsheetData.length === 0 || currentLists.length === 0) return;
-    
-    setIsMatchingAI(true);
-    try {
-      const spreadsheetNames = Array.from(new Set(currentSpreadsheetData.map(d => d.name.trim()))).slice(0, 150);
-      const shoppingItemNames = Array.from(new Set(
-        currentLists.flatMap(l => l.items.filter(i => i.bought).map(i => i.name.trim()))
-      )).slice(0, 150);
-
-      if (shoppingItemNames.length === 0) {
-        setAiMappings({});
-        setIsMatchingAI(false);
-        return;
-      }
-
-      const mapping = await matchDashboardWithAI(spreadsheetNames, shoppingItemNames);
-      console.log('AI Logic - New Product Mappings (Direct):', mapping);
-      setAiMappings(prev => ({ ...prev, ...mapping }));
-    } catch (error) {
-      console.error('Error during AI product matching:', error);
-    } finally {
-      setIsMatchingAI(false);
-    }
-  };
-
-  // Spreadsheet ID: 1LaE1o-zv0ZSaQHo1-_Z7LZZZxgCehi-kO2nzYt1AQHo
-  const fetchSpreadsheet = async () => {
-    setIsLoadingSpreadsheet(true);
-    try {
-      // Use export format with timestamp to avoid cache
-      const timestamp = new Date().getTime();
-      const SHEET_ID = '1LaE1o-zv0ZSaQHo1-_Z7LZZZxgCehi-kO2nzYt1AQHo';
-      const SPREADSHEET_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/export?format=csv&t=${timestamp}`;
-      
-      const response = await fetch(SPREADSHEET_URL);
-      const csvText = await response.text();
-      
-      Papa.parse(csvText, {
-        header: true,
-        skipEmptyLines: true,
-        complete: (results) => {
-          const parsedItems: SpreadsheetItem[] = results.data.map((row: any, idx: number) => {
-            // Flexible header detection
-            const name = row['PRODUTO'] || row['Produto'] || row['name'] || row['Name'] || Object.values(row)[0] || '';
-            const qtyStr = String(row['QUANTIDADE'] || row['Quantidade'] || row['qty'] || row['Quantity'] || Object.values(row)[1] || '0');
-            const quantity = parseFloat(qtyStr.replace('.', '').replace(',', '.')) || 0;
-            
-            let type: 'embalagem' | 'insumo' = 'insumo';
-            const lowerName = String(name).toLowerCase();
-            if (lowerName.trim().startsWith('emb')) {
-              type = 'embalagem';
-            } else if (lowerName.trim().startsWith('i')) {
-              type = 'insumo';
-            }
-
-            return {
-              id: `sheet-${idx}`,
-              name: String(name),
-              quantity,
-              type
-            };
-          });
-          const filtered = parsedItems.filter(item => item.name && item.name !== 'undefined');
-          setSpreadsheetData(filtered);
-          setLastUpdated(new Date());
-          
-          // Trigger AI matching after load
-          performAIMatching(filtered, filteredLists);
-        },
-        error: (err) => {
-          console.error('Error parsing CSV:', err);
-        }
+    const q = collection(db, 'xml_spendings');
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const items: any[] = [];
+      snapshot.forEach((doc) => {
+        items.push({ id: doc.id, ...doc.data() });
       });
-    } catch (error) {
-      console.error('Error fetching spreadsheet:', error);
-    } finally {
-      setIsLoadingSpreadsheet(false);
-    }
-  };
-
-  useEffect(() => {
-    // Only auto-fetch if we don't have data yet
-    if (spreadsheetData.length === 0) {
-      fetchSpreadsheet();
-    }
+      setXmlSpendings(items);
+      try {
+        localStorage.setItem('cached_dashboard_xml_spendings', JSON.stringify(items));
+      } catch (err) {
+        console.error("Erro ao salvar cache local:", err);
+      }
+      setIsLoading(false);
+    }, (error) => {
+      console.error("Erro ao carregar dados XML de gastos:", error);
+      setIsLoading(false);
+      handleFirestoreError(error, OperationType.GET, 'xml_spendings');
+    });
+    return () => unsubscribe();
   }, []);
 
-  // Sync AI when dates or lists change - but only if we don't have enough mappings
-  // useEffect(() => {
-  //   const shoppingItemNames = Array.from(new Set(
-  //     filteredLists.flatMap(l => l.items.filter(i => i.bought).map(i => i.name.trim()))
-  //   ));
-  // 
-  //   const needsSync = shoppingItemNames.some(name => !aiMappings[name]);
-  // 
-  //   if (needsSync && spreadsheetData.length > 0 && shoppingItemNames.length > 0) {
-  //     const timer = setTimeout(() => {
-  //       performAIMatching(spreadsheetData, filteredLists);
-  //     }, 2000); // Wait bit longer for auto-sync
-  //     return () => clearTimeout(timer);
-  //   }
-  // }, [filteredLists, spreadsheetData.length]);
+  const expenseChartRef = useRef<HTMLDivElement>(null);
 
-  // Chart 1 Data: Monthly Expense
+  // Parse XML Function
+  const parseNFeXml = (xmlText: string, fileName: string) => {
+    const parser = new DOMParser();
+    const xmlDoc = parser.parseFromString(xmlText, "text/xml");
+
+    const parserError = xmlDoc.getElementsByTagName("parsererror");
+    if (parserError.length > 0) {
+      throw new Error(`Erro ao parsing do XML de ${fileName}`);
+    }
+
+    // Identificação da Nota (nfeKey) para prevenção de duplicidade
+    const infNFeEl = xmlDoc.getElementsByTagName("infNFe")[0];
+    let nfeKey = infNFeEl?.getAttribute("Id") || "";
+    if (nfeKey.startsWith("NFe")) {
+      nfeKey = nfeKey.substring(3);
+    }
+    if (!nfeKey) {
+      nfeKey = xmlDoc.getElementsByTagName("chNFe")[0]?.textContent || "";
+    }
+    if (!nfeKey) {
+      const cNPJ = xmlDoc.getElementsByTagName("CNPJ")[0]?.textContent || "";
+      const nNF = xmlDoc.getElementsByTagName("nNF")[0]?.textContent || "";
+      nfeKey = cNPJ && nNF ? `${cNPJ}_${nNF}` : `${fileName}_${Date.now()}`;
+    }
+
+    // Identificar Data de Emissão (dhEmi)
+    const ideEl = xmlDoc.getElementsByTagName("ide")[0];
+    const dhEmiRaw = ideEl?.getElementsByTagName("dhEmi")[0]?.textContent || 
+                     xmlDoc.getElementsByTagName("dhEmi")[0]?.textContent || 
+                     ideEl?.getElementsByTagName("dEmi")[0]?.textContent || 
+                     xmlDoc.getElementsByTagName("dEmi")[0]?.textContent || 
+                     new Date().toISOString();
+
+    let dhEmi = dhEmiRaw;
+    if (dhEmiRaw.includes("T")) {
+      dhEmi = dhEmiRaw.split("T")[0];
+    }
+
+    // Identificar Valor Total da Nota, preferindo vNF (Valor da Nota) para o Gasto Mensal Real
+    const vTotTribText = xmlDoc.getElementsByTagName("vNF")[0]?.textContent || 
+                         xmlDoc.getElementsByTagName("vTotTrib")[0]?.textContent || 
+                         "0";
+    const vTotTrib = parseFloat(vTotTribText.replace(",", ".")) || 0;
+
+    const emitEl = xmlDoc.getElementsByTagName("emit")[0];
+    const supplierName = emitEl?.getElementsByTagName("xNome")[0]?.textContent || 
+                         xmlDoc.getElementsByTagName("xNome")[0]?.textContent || 
+                         "FORNECEDOR XML";
+
+    return { nfeKey, dhEmi, vTotTrib, supplierName };
+  };
+
+  const processXmlFiles = async (files: File[]) => {
+    setIsUploading(true);
+    const logs: { type: 'success' | 'warning' | 'error', text: string }[] = [];
+    let earliestDate: Date | null = null;
+    let latestDate: Date | null = null;
+
+    for (const file of files) {
+      try {
+        if (!file.name.toLowerCase().endsWith('.xml')) {
+          logs.push({ type: 'error', text: `Arquivo "${file.name}" inválido. Não é um arquivo XML.` });
+          continue;
+        }
+
+        const text = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = (e) => resolve(e.target?.result as string);
+          reader.onerror = () => reject(new Error("Falha ao ler arquivo"));
+          reader.readAsText(file);
+        });
+
+        const parsed = parseNFeXml(text, file.name);
+
+        // Identificação nas notas para duplicados
+        const alreadyExists = xmlSpendings.some(item => item.id === parsed.nfeKey);
+        if (alreadyExists) {
+          logs.push({ 
+            type: 'warning', 
+            text: `Aviso: A nota com chave "${parsed.nfeKey}" do arquivo "${file.name}" já foi enviada anteriormente.` 
+          });
+          continue;
+        }
+
+        // Salvar apenas os dados necessários do XML no Banco de Dados
+        const docRef = doc(db, 'xml_spendings', parsed.nfeKey);
+        try {
+          await setDoc(docRef, {
+            id: parsed.nfeKey,
+            supplierName: parsed.supplierName,
+            dhEmi: parsed.dhEmi,
+            vTotTrib: parsed.vTotTrib,
+            fileName: file.name
+          });
+        } catch (setDocErr) {
+          handleFirestoreError(setDocErr, OperationType.WRITE, `xml_spendings/${parsed.nfeKey}`);
+          throw setDocErr;
+        }
+
+        const parsedDate = new Date(parsed.dhEmi + 'T00:00:00');
+        if (!isNaN(parsedDate.getTime())) {
+          if (!earliestDate || parsedDate < earliestDate) earliestDate = parsedDate;
+          if (!latestDate || parsedDate > latestDate) latestDate = parsedDate;
+        }
+
+        logs.push({ 
+          type: 'success', 
+          text: `Sucesso: Nota de "${parsed.supplierName}" (R$ ${parsed.vTotTrib.toFixed(2)}) importada.` 
+        });
+
+      } catch (err: any) {
+        logs.push({ type: 'error', text: `Erro em ${file.name}: ${err.message}` });
+      }
+    }
+
+    if (earliestDate && latestDate) {
+      setStartDate(format(startOfMonth(earliestDate), 'yyyy-MM-dd'));
+      setEndDate(format(endOfMonth(latestDate), 'yyyy-MM-dd'));
+    }
+
+    setXmlLogs(prev => [...logs, ...prev]);
+    setIsUploading(false);
+  };
+
+  const handleDeleteXmlSpending = async (id: string) => {
+    try {
+      await deleteDoc(doc(db, 'xml_spendings', id));
+    } catch (err) {
+      console.error("Erro ao deletar gasto XML:", err);
+      handleFirestoreError(err, OperationType.DELETE, `xml_spendings/${id}`);
+    }
+  };
+
+  // Filtered expense data within selected dates
   const expenseData = useMemo(() => {
     const dayMap = new Map<string, number>();
     
-    // Initialize day map for the range
     const start = new Date(startDate + 'T00:00:00');
     const end = new Date(endDate + 'T23:59:59');
+    
+    // Initialize interval days list
     let current = new Date(start);
     while (current <= end) {
       dayMap.set(format(current, 'dd/MM'), 0);
       current.setDate(current.getDate() + 1);
     }
 
-    filteredLists.forEach(list => {
-      const dateKey = format(parseISO(list.date), 'dd/MM');
-      const boughtTotal = list.items.reduce((acc, item) => {
-        return item.bought ? acc + (item.price * item.quantity) : acc;
-      }, (list.shippingFee || 0));
-      
-      const currentVal = dayMap.get(dateKey) || 0;
-      dayMap.set(dateKey, currentVal + boughtTotal);
+    xmlSpendings.forEach(spending => {
+      if (!spending.dhEmi) return;
+      const spendingDate = parseISO(spending.dhEmi);
+      if (isWithinInterval(spendingDate, { start, end })) {
+        const dateKey = format(spendingDate, 'dd/MM');
+        const amount = spending.vTotTrib || 0;
+        const currentVal = dayMap.get(dateKey) || 0;
+        dayMap.set(dateKey, currentVal + amount);
+      }
     });
 
     return Array.from(dayMap.entries()).map(([name, valor]) => ({ name, valor }));
-  }, [filteredLists, startDate, endDate]);
+  }, [xmlSpendings, startDate, endDate]);
 
-  const totalExpense = useMemo(() => expenseData.reduce((acc, d) => acc + d.valor, 0), [expenseData]);
+  // Totals calculations
+  const totalExpense = useMemo(() => {
+    const start = new Date(startDate + 'T00:00:00');
+    const end = new Date(endDate + 'T23:59:59');
+    
+    return xmlSpendings.reduce((acc, spending) => {
+      if (!spending.dhEmi) return acc;
+      const spendingDate = parseISO(spending.dhEmi);
+      if (isWithinInterval(spendingDate, { start, end })) {
+        return acc + (spending.vTotTrib || 0);
+      }
+      return acc;
+    }, 0);
+  }, [xmlSpendings, startDate, endDate]);
 
-  // Chart 2 Data: Quantity Comparison
-  // Matching strategy: Spreadsheet items to shopping list items
-  const quantityData = useMemo(() => {
-    if (spreadsheetData.length === 0) return [];
+  const activeInvoicesCount = useMemo(() => {
+    const start = new Date(startDate + 'T00:00:00');
+    const end = new Date(endDate + 'T23:59:59');
+    
+    return xmlSpendings.filter(spending => {
+      if (!spending.dhEmi) return false;
+      const spendingDate = parseISO(spending.dhEmi);
+      return isWithinInterval(spendingDate, { start, end });
+    }).length;
+  }, [xmlSpendings, startDate, endDate]);
 
-    const matches = spreadsheetData.map(target => {
-      let purchasedQty = 0;
-      filteredLists.forEach(list => {
-        list.items.forEach(item => {
-          // SE O ITEM ESTIVER MARCADO (BOUGHT), ELE ENTRA NO CÁLCULO
-          if (!item.bought) return;
+  const averageInvoiceValue = useMemo(() => {
+    return activeInvoicesCount > 0 ? totalExpense / activeInvoicesCount : 0;
+  }, [totalExpense, activeInvoicesCount]);
 
-      // 1. AI Mapping Check (Primary)
-          // We normalize the key to be more resilient
-          const itemKey = item.name.trim();
-          const aiMatchName = aiMappings[itemKey];
-          const isAIMatch = aiMatchName === target.name;
+  // List of invoices inside range
+  const invoicesInRange = useMemo(() => {
+    const start = new Date(startDate + 'T00:00:00');
+    const end = new Date(endDate + 'T23:59:59');
+    
+    return xmlSpendings.filter(spending => {
+      if (!spending.dhEmi) return false;
+      const spendingDate = parseISO(spending.dhEmi);
+      return isWithinInterval(spendingDate, { start, end });
+    }).sort((a, b) => new Date(b.dhEmi).getTime() - new Date(a.dhEmi).getTime());
+  }, [xmlSpendings, startDate, endDate]);
 
-          // 2. Normalization Fallback
-          const normalizedTarget = normalizeText(target.name).trim().toLowerCase();
-          const targetSearch = normalizedTarget.replace(/^(emb|i)\s+/, '').trim();
-          const normalizedItem = normalizeText(item.name).trim().toLowerCase();
-          
-          const isExact = normalizedItem === normalizedTarget;
-          const containsSearch = targetSearch.length > 2 && 
-            (normalizedItem.includes(targetSearch) || targetSearch.includes(normalizedItem));
-          
-          const itemSearch = normalizedItem.replace(/^(emb|i)\s+/, '').trim();
-          const isSearchMatch = itemSearch === targetSearch && targetSearch.length > 0;
-
-          if (isAIMatch || isExact || isSearchMatch || containsSearch) {
-            purchasedQty += item.quantity;
-          }
-        });
-      });
-
-      return {
-        name: target.name,
-        planejado: target.quantity,
-        comprado: purchasedQty,
-        percent: target.quantity > 0 ? (purchasedQty / target.quantity) * 100 : 0,
-        type: target.type
-      };
-    });
-
-    return matches.sort((a, b) => b.percent - a.percent);
-  }, [spreadsheetData, filteredLists, aiMappings]);
-
-  const generateReport = async (chartId: 'expense' | 'quantity') => {
-    const chartRef = chartId === 'expense' ? expenseChartRef : quantityChartRef;
-    if (!chartRef.current) return;
+  // Generate PDF Report
+  const generateReport = async () => {
+    if (!expenseChartRef.current) return;
 
     try {
-      const canvas = await domToCanvas(chartRef.current, {
+      const canvas = await domToCanvas(expenseChartRef.current, {
         scale: 2,
         backgroundColor: '#ffffff'
       });
@@ -303,182 +318,213 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ savedLists }) => {
       const pdf = new jsPDF('p', 'mm', 'a4');
       const pageWidth = pdf.internal.pageSize.getWidth();
       
-      // Header
       pdf.setFontSize(20);
-      pdf.setTextColor(30, 41, 59); // slate-800
-      pdf.text(chartId === 'expense' ? 'Relatório de Gastos Mensais' : 'Relatório de Metas de Compra', 20, 20);
+      pdf.setTextColor(30, 41, 59);
+      pdf.text('Relatório de Gastos Mensais - XML', 20, 20);
       
       pdf.setFontSize(10);
-      pdf.setTextColor(100, 116, 139); // slate-500
+      pdf.setTextColor(100, 116, 139);
       pdf.text(`Período: ${format(parseISO(startDate), 'dd/MM/yyyy')} até ${format(parseISO(endDate), 'dd/MM/yyyy')}`, 20, 28);
       pdf.text(`Gerado em: ${format(new Date(), 'dd/MM/yyyy HH:mm')}`, 20, 33);
       
-      // Charts usually look better if we limit width
       const imgWidth = pageWidth - 40;
       const imgHeight = (canvas.height * imgWidth) / canvas.width;
       pdf.addImage(imgData, 'PNG', 20, 45, imgWidth, imgHeight);
       
-      // Data Table
-      const tableData = chartId === 'expense' 
-        ? expenseData.filter(d => d.valor > 0).map(d => [d.name, formatCurrency(d.valor)])
-        : quantityData.map(d => [
-            d.name, 
-            d.type === 'embalagem' ? Math.round(d.planejado) : `${d.planejado.toFixed(2)}kg`,
-            d.type === 'embalagem' ? Math.round(d.comprado) : `${d.comprado.toFixed(2)}kg`,
-            `${d.percent.toFixed(1)}%`
-          ]);
+      const tableData = invoicesInRange.map(inv => [
+        inv.supplierName,
+        format(parseISO(inv.dhEmi), 'dd/MM/yyyy'),
+        inv.id,
+        formatCurrency(inv.vTotTrib)
+      ]);
       
-      const tableHeaders = chartId === 'expense' 
-        ? ['Data', 'Gasto']
-        : ['Produto', 'Meta', 'Comprado', 'Progresso'];
+      const tableHeaders = ['Fornecedor', 'Emissão', 'Chave de Acesso', 'Valor Total'];
 
       autoTable(pdf, {
         startY: imgHeight + 60,
         head: [tableHeaders],
         body: tableData,
         theme: 'striped',
-        headStyles: { fillColor: [79, 70, 229] }, // Indigo
+        headStyles: { fillColor: [79, 70, 229] },
         margin: { left: 20, right: 20 }
       });
+      
+      const finalY = (pdf as any).lastAutoTable.finalY + 15;
+      pdf.setFontSize(14);
+      pdf.setTextColor(30, 41, 59);
+      pdf.text(`Gasto Total no Período (XML): ${formatCurrency(totalExpense)}`, 20, finalY);
 
-      // Summary
-      if (chartId === 'expense') {
-        const finalY = (pdf as any).lastAutoTable.finalY + 15;
-        pdf.setFontSize(14);
-        pdf.setTextColor(30, 41, 59);
-        pdf.text(`Gasto Total no Período: ${formatCurrency(totalExpense)}`, 20, finalY);
-      }
-
-      pdf.save(`relatorio-${chartId}-${format(new Date(), 'yyyy-MM-dd')}.pdf`);
+      pdf.save(`relatorio-gastos-xml-${format(new Date(), 'yyyy-MM-dd')}.pdf`);
     } catch (error) {
-      console.error('Error generating PDF:', error);
+      console.error('Erro ao gerar relatório jspdf:', error);
     }
   };
 
   return (
     <div className="p-4 md:p-8 space-y-8 max-w-7xl mx-auto pb-24">
       {/* Header & Filters */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 bg-white p-6 rounded-3xl border border-slate-100 shadow-sm">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 bg-white p-6 rounded-3xl border border-slate-100 shadow-sm animate-in fade-in slide-in-from-top-4 duration-500">
         <div>
           <h1 className="text-3xl font-black text-slate-900 tracking-tighter uppercase flex items-center gap-3">
-            <TrendingUp className="w-8 h-8 text-indigo-700" />
-            Dashboard
+            <TrendingUp className="w-8 h-8 text-indigo-700 animate-pulse" />
+            Dashboard XML
           </h1>
-          <p className="text-slate-700 text-sm font-bold mt-1">Análise de gastos e metas de suprimentos.</p>
+          <p className="text-slate-700 text-sm font-bold mt-1">Análise de gastos reais baseado exclusivamente nos XMLs importados.</p>
         </div>
 
         <div className="flex flex-wrap items-center gap-3">
-          <button
-            onClick={() => performAIMatching(spreadsheetData, filteredLists)}
-            disabled={isMatchingAI || spreadsheetData.length === 0}
-            className={`flex items-center gap-2 px-4 py-2 rounded-2xl text-[10px] font-black uppercase transition-all border ${
-              isMatchingAI 
-                ? 'bg-slate-50 text-slate-400 border-slate-100 cursor-not-allowed' 
-                : 'bg-white text-indigo-700 border-indigo-100 hover:bg-indigo-50 shadow-sm'
-            }`}
-          >
-            <Sparkles className={`w-3 h-3 ${isMatchingAI ? 'animate-pulse' : ''}`} />
-            {isMatchingAI ? 'Mapeando com IA...' : 'Sincronizar com IA'}
-          </button>
-
-          <div className="flex flex-col items-end gap-1">
-            <button
-              onClick={fetchSpreadsheet}
-              disabled={isLoadingSpreadsheet}
-              className={`flex items-center gap-2 px-4 py-2 rounded-2xl text-[10px] font-black uppercase transition-all border ${
-                isLoadingSpreadsheet 
-                  ? 'bg-slate-50 text-slate-400 border-slate-100 cursor-not-allowed' 
-                  : 'bg-white text-emerald-600 border-emerald-100 hover:bg-emerald-50 shadow-sm'
-              }`}
-            >
-              <RefreshCcw className={`w-3 h-3 ${isLoadingSpreadsheet ? 'animate-spin' : ''}`} />
-              Sincronizar Planilha
-            </button>
-            {lastUpdated && !isLoadingSpreadsheet && (
-              <span className="text-[9px] font-bold text-slate-400 uppercase tracking-tighter mr-2">
-                Última sincronização: {format(lastUpdated, 'dd/MM HH:mm')}
-              </span>
-            )}
-          </div>
-          
-          <div className="flex items-center gap-3 bg-slate-50 p-2 rounded-2xl border border-slate-100">
+          <div className="flex items-center gap-3 bg-slate-50 p-2 rounded-2xl border border-slate-100 shadow-inner">
             <div className="flex items-center gap-2 px-3">
-              <CalendarIcon className="w-4 h-4 text-slate-400" />
+              <CalendarIcon className="w-4 h-4 text-indigo-500" />
               <input 
                 type="date" 
                 value={startDate}
                 onChange={(e) => setStartDate(e.target.value)}
-                className="bg-transparent border-0 text-sm font-black text-slate-900 focus:outline-none uppercase"
+                className="bg-transparent border-0 text-sm font-black text-slate-900 focus:outline-none uppercase cursor-pointer"
               />
             </div>
             <div className="w-px h-6 bg-slate-200" />
             <div className="flex items-center gap-2 px-3">
-              <CalendarIcon className="w-4 h-4 text-slate-400" />
+              <CalendarIcon className="w-4 h-4 text-indigo-500" />
               <input 
                 type="date" 
                 value={endDate}
                 onChange={(e) => setEndDate(e.target.value)}
-                className="bg-transparent border-0 text-sm font-black text-slate-900 focus:outline-none uppercase"
+                className="bg-transparent border-0 text-sm font-black text-slate-900 focus:outline-none uppercase cursor-pointer"
               />
             </div>
           </div>
+
+          <input
+            type="file"
+            accept=".xml"
+            multiple
+            onChange={(e) => e.target.files && processXmlFiles(Array.from(e.target.files))}
+            className="hidden"
+            id="dashboard-xml-file-picker"
+          />
+          <label 
+            htmlFor="dashboard-xml-file-picker" 
+            className="flex items-center gap-2 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-black uppercase rounded-2xl transition-all shadow-sm cursor-pointer whitespace-nowrap font-bold"
+          >
+            <Upload className="w-4 h-4" />
+            Importar XML
+          </label>
         </div>
       </div>
 
-      {/* Stats Overview */}
+      {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm relative overflow-hidden group">
+        {/* Total Spend */}
+        <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm relative overflow-hidden group hover:shadow-md transition-shadow">
           <div className="absolute top-0 right-0 p-8 opacity-5 group-hover:scale-110 transition-transform">
-            <TrendingUp className="w-24 h-24 text-indigo-600" />
+            <TrendingUp className="w-24 h-24 text-indigo-700" />
           </div>
-          <p className="text-[10px] font-black text-slate-600 uppercase tracking-widest mb-2">Gasto Total no Período</p>
-          <h3 className="text-3xl font-black text-slate-900 tracking-tighter">{formatCurrency(totalExpense)}</h3>
-          <p className="text-xs text-indigo-700 font-bold mt-2">Baseado em itens marcados na lista</p>
+          <p className="text-[10px] font-black text-slate-600 uppercase tracking-widest mb-2">Gasto no Período (XML)</p>
+          <h3 className="text-3xl font-black text-indigo-700 tracking-tighter">
+            {isLoading ? "Carregando..." : formatCurrency(totalExpense)}
+          </h3>
+          <p className="text-xs text-slate-500 font-bold mt-2">Data de Emissão (dhEmi) filtrada</p>
         </div>
 
-        <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm relative overflow-hidden group">
+        {/* Invoices Amount */}
+        <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm relative overflow-hidden group hover:shadow-md transition-shadow">
           <div className="absolute top-0 right-0 p-8 opacity-5 group-hover:scale-110 transition-transform">
-            <Package className="w-24 h-24 text-emerald-600" />
+            <FileText className="w-24 h-24 text-emerald-600" />
           </div>
-          <p className="text-[10px] font-black text-slate-600 uppercase tracking-widest mb-2">Produtos com Meta</p>
-          <h3 className="text-3xl font-black text-slate-900 tracking-tighter">{spreadsheetData.length}</h3>
-          <p className="text-xs text-emerald-700 font-bold mt-2">Itens da planilha de planejado</p>
+          <p className="text-[10px] font-black text-slate-600 uppercase tracking-widest mb-2">Notas Emitidas no Período</p>
+          <h3 className="text-3xl font-black text-emerald-600 tracking-tighter">
+            {isLoading ? "..." : `${activeInvoicesCount} notas`}
+          </h3>
+          <p className="text-xs text-slate-500 font-bold mt-2">Total geral enviado: {xmlSpendings.length}</p>
         </div>
 
-        <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm relative overflow-hidden group">
+        {/* Invoice Average */}
+        <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm relative overflow-hidden group hover:shadow-md transition-shadow">
           <div className="absolute top-0 right-0 p-8 opacity-5 group-hover:scale-110 transition-transform">
-            <CheckCircle2 className="w-24 h-24 text-amber-600" />
+            <FileCheck2 className="w-24 h-24 text-blue-600" />
           </div>
-          <p className="text-[10px] font-black text-slate-600 uppercase tracking-widest mb-2">Listas no Período</p>
-          <h3 className="text-3xl font-black text-slate-900 tracking-tighter">{filteredLists.length}</h3>
-          <p className="text-xs text-amber-700 font-bold mt-2">Total de listas de compras criadas</p>
+          <p className="text-[10px] font-black text-slate-600 uppercase tracking-widest mb-2">Ticket Médio por Nota</p>
+          <h3 className="text-3xl font-black text-blue-600 tracking-tighter">
+            {isLoading ? "..." : formatCurrency(averageInvoiceValue)}
+          </h3>
+          <p className="text-xs text-slate-500 font-bold mt-2">Gasto total / notas do período</p>
         </div>
       </div>
 
-      {/* Charts Grid */}
-      <div className="grid grid-cols-1 gap-8">
-        
-        {/* Chart 1: Gasto Mensal */}
+      {/* Uploading & Logs Panel */}
+      {(isUploading || xmlLogs.length > 0) && (
+        <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm space-y-4 animate-in fade-in duration-300">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-black text-slate-800 uppercase tracking-wider">Histórico de Importação de XMLs</span>
+              {isUploading && (
+                <div className="flex items-center gap-1.5 px-2 py-0.5 bg-indigo-50 rounded-full">
+                  <RefreshCcw className="w-3 h-3 text-indigo-600 animate-spin" />
+                  <span className="text-[9px] font-black uppercase text-indigo-700">Analisando Arquivos...</span>
+                </div>
+              )}
+            </div>
+            {xmlLogs.length > 0 && (
+              <button 
+                onClick={() => setXmlLogs([])}
+                className="text-[10px] font-bold text-slate-400 hover:text-slate-600 border-0 bg-transparent uppercase cursor-pointer"
+              >
+                Limpar Log
+              </button>
+            )}
+          </div>
+          
+          {xmlLogs.length > 0 && (
+            <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 max-h-48 overflow-y-auto space-y-2">
+              {xmlLogs.map((log, idx) => (
+                <div 
+                  key={idx} 
+                  className={`text-[10px] font-semibold leading-relaxed border-b border-slate-100 last:border-b-0 pb-1.5 flex items-start gap-2 ${
+                    log.type === 'error' 
+                      ? 'text-rose-600' 
+                      : log.type === 'warning' 
+                        ? 'text-amber-600 font-bold' 
+                        : 'text-emerald-700'
+                  }`}
+                >
+                  {log.type === 'error' && <XCircle className="w-3.5 h-3.5 mt-0.5 shrink-0" />}
+                  {log.type === 'warning' && <AlertCircle className="w-3.5 h-3.5 mt-0.5 shrink-0 animate-bounce" />}
+                  {log.type === 'success' && <FileCheck2 className="w-3.5 h-3.5 mt-0.5 shrink-0" />}
+                  <span>{log.text}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Main content sequence layout */}
+      <div className="space-y-8">
         <div className="bg-white p-8 rounded-3xl border border-slate-100 shadow-sm" ref={expenseChartRef}>
           <div className="flex items-center justify-between mb-8">
             <div>
               <h2 className="text-2xl font-bold text-slate-900 uppercase tracking-tight flex items-center gap-2">
                 <div className="w-2.5 h-7 bg-indigo-700 rounded-full" />
-                Gasto Mensal
+                Gasto Mensal Real (XML)
               </h2>
-              <p className="text-slate-600 text-[10px] font-black mt-1 uppercase tracking-wider">Acompanhamento diário de compras finalizadas</p>
+              <p className="text-slate-600 text-[10px] font-black mt-1 uppercase tracking-wider">Histórico baseado na data de emissão das notas</p>
             </div>
             <button 
-              onClick={() => generateReport('expense')}
-              className="flex items-center gap-2 px-4 py-2 bg-indigo-50 text-indigo-600 text-[10px] font-black uppercase rounded-xl hover:bg-indigo-100 transition-colors border-0"
+              onClick={generateReport}
+              className="flex items-center gap-2 px-4 py-2 bg-indigo-50 text-indigo-700 text-[10px] font-black uppercase rounded-xl hover:bg-indigo-100 transition-colors border-0 font-bold"
             >
               <Download className="w-3 h-3" />
-              PDF
+              Gerar PDF
             </button>
           </div>
 
           <div className="relative h-[350px] w-full min-h-[350px]">
-            {isChartReady ? (
+            {isLoading ? (
+              <div className="w-full h-full bg-slate-50 rounded-2xl animate-pulse flex items-center justify-center">
+                <span className="text-slate-400 text-xs font-bold uppercase tracking-wider">Carregando dados...</span>
+              </div>
+            ) : isChartReady && expenseData.length > 0 ? (
               <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={350}>
                 <AreaChart data={expenseData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
                   <defs>
@@ -505,7 +551,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ savedLists }) => {
                     contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)', padding: '12px' }}
                     labelStyle={{ fontWeight: 800, marginBottom: '4px', color: '#1e293b' }}
                     itemStyle={{ color: '#0f172a', fontWeight: 800 }}
-                    formatter={(value: number) => [formatCurrency(value), 'Gasto']}
+                    formatter={(value: number) => [formatCurrency(value), 'Valor da Nota']}
                   />
                   <Area 
                     type="monotone" 
@@ -518,85 +564,14 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ savedLists }) => {
                 </AreaChart>
               </ResponsiveContainer>
             ) : (
-              <div className="w-full h-full bg-slate-50 rounded-2xl animate-pulse flex items-center justify-center">
-                <span className="text-slate-400 text-xs font-bold uppercase tracking-wider">Carregando gráfico...</span>
+              <div className="w-full h-full bg-slate-50 rounded-2xl flex flex-col items-center justify-center p-8 text-center border-2 border-dashed border-slate-200">
+                <AlertCircle className="w-12 h-12 text-slate-300" />
+                <p className="text-slate-500 font-bold text-xs uppercase tracking-wide mt-2">Nenhum dado encontrado no intervalo selecionado</p>
+                <p className="text-slate-400 text-[10px] uppercase tracking-wider mt-1">Importe novos arquivos XML para visualizar os gastos.</p>
               </div>
             )}
           </div>
         </div>
-
-        {/* Chart 2: Comparativo de Quantidades */}
-        <div className="bg-white p-8 rounded-3xl border border-slate-100 shadow-sm" ref={quantityChartRef}>
-          <div className="flex items-center justify-between mb-8">
-            <div>
-              <h2 className="text-2xl font-bold text-slate-900 uppercase tracking-tight flex items-center gap-2">
-                <div className="w-2.5 h-7 bg-emerald-600 rounded-full" />
-                Meta vs Comprado
-                {Object.keys(aiMappings).length > 0 && (
-                  <span className="flex items-center gap-1 bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded-full text-[8px] font-black border border-indigo-100 animate-in fade-in zoom-in duration-500">
-                    <Sparkles className="w-2 h-2" />
-                    MATCH IA ATIVO
-                  </span>
-                )}
-              </h2>
-              <p className="text-slate-600 text-[10px] font-black mt-1 uppercase tracking-wider">Comparação de volumes planejados vs realizados</p>
-            </div>
-            <button 
-              onClick={() => generateReport('quantity')}
-              className="flex items-center gap-2 px-4 py-2 bg-emerald-50 text-emerald-600 text-[10px] font-black uppercase rounded-xl hover:bg-emerald-100 transition-colors border-0"
-            >
-              <Download className="w-3 h-3" />
-              PDF
-            </button>
-          </div>
-
-          {isLoadingSpreadsheet ? (
-            <div className="flex flex-col items-center justify-center h-[400px] gap-4">
-              <div className="w-12 h-12 border-4 border-indigo-100 border-t-indigo-600 rounded-full animate-spin" />
-              <p className="text-slate-400 text-xs font-bold uppercase">Sincronizando com planilha de metas...</p>
-            </div>
-          ) : !isChartReady ? (
-            <div className="flex flex-col items-center justify-center h-[400px] w-full bg-slate-50 rounded-2xl animate-pulse">
-              <span className="text-slate-400 text-xs font-bold uppercase tracking-wider">Carregando gráfico de metas...</span>
-            </div>
-          ) : quantityData.length === 0 ? (
-            <div className="flex flex-col items-center justify-center h-[400px] gap-4">
-              <AlertCircle className="w-12 h-12 text-slate-200" />
-              <p className="text-slate-400 text-xs font-bold uppercase text-center max-w-xs font-bold">Nenhum dado encontrado para comparação no período selecionado.</p>
-            </div>
-          ) : (
-            <div className="relative w-full min-h-[450px]" style={{ height: `${Math.max(450, quantityData.length * 40)}px` }}>
-              <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={450}>
-                <BarChart data={quantityData} layout="vertical" margin={{ left: 60, right: 40 }}>
-                  <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#e2e8f0" />
-                  <XAxis type="number" axisLine={false} tickLine={false} tick={{ fill: '#0f172a', fontSize: 13, fontWeight: 800 }} />
-                  <YAxis 
-                    type="category" 
-                    dataKey="name" 
-                    axisLine={false} 
-                    tickLine={false} 
-                    tick={{ fill: '#0f172a', fontSize: 12, fontWeight: 900, width: 250 }}
-                    width={180}
-                  />
-                  <RechartsTooltip 
-                    contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)', padding: '12px' }}
-                    labelStyle={{ fontWeight: 800, marginBottom: '4px', color: '#1e293b' }}
-                    itemStyle={{ color: '#0f172a', fontWeight: 800 }}
-                    formatter={(value: number, name: string, props: any) => {
-                      const item = props.payload;
-                      const unit = item.type === 'embalagem' ? 'und' : 'kg';
-                      return [`${value.toFixed(2)}${unit}`, name];
-                    }}
-                  />
-                  <Legend iconType="circle" wrapperStyle={{ paddingTop: '20px', fontSize: '13px', fontWeight: 900, textTransform: 'uppercase' }} />
-                  <Bar dataKey="planejado" name="Meta Planejada" fill="#cbd5e1" radius={[0, 4, 4, 0]} barSize={20} />
-                  <Bar dataKey="comprado" name="Quantidade Comprada" fill="#059669" radius={[0, 4, 4, 0]} barSize={20} />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          )}
-        </div>
-
       </div>
     </div>
   );
