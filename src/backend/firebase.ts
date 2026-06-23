@@ -63,6 +63,7 @@ export const initFirebase = async () => {
         try {
           await adminDb.collection('_health_check').limit(1).get();
           console.log("[Firebase] Admin SDK verified successfully.");
+          adminDisabled = false;
         } catch (healthErr: any) {
           if (healthErr.message?.includes('PERMISSION_DENIED') || healthErr.code === 7) {
             console.warn("[Firebase] Admin SDK health check failed (PERMISSION_DENIED). Falling back to Client SDK.");
