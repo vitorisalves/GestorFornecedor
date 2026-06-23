@@ -5,7 +5,7 @@
 
 import { useState, useEffect } from 'react';
 import { db } from '../firebase';
-import { collection, onSnapshot, addDoc, query, orderBy, deleteDoc, doc, updateDoc, limit } from 'firebase/firestore';
+import { collection, getDocs, addDoc, query, orderBy, deleteDoc, doc, updateDoc, limit } from 'firebase/firestore';
 import { Product, SavedList } from '../types';
 import { extractErrorMessage, safeStringify, handleFirestoreError, OperationType, cleanObject } from '../utils';
 
@@ -33,51 +33,82 @@ export const useCart = (
     localStorage.setItem('cache_savedLists', safeStringify(savedLists));
   }, [savedLists]);
 
-  useEffect(() => {
+  const invalidateBackendCache = async (collectionName: string) => {
+    try {
+      await fetch('/api/xml/cache/invalidate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ collection: collectionName })
+      });
+    } catch (err) {
+      console.warn("Backend cache invalidation failed:", err);
+    }
+  };
+
+  const loadLists = async (force: boolean = false) => {
     if (!isAuthReady || !isApproved) return;
 
-    setIsLoadingLists(true);
-    const q = query(
-      collection(db, 'shopping_lists'), 
-      orderBy('date', 'desc'), 
-      limit(25)
-    );
+    const cacheDuration = 30 * 1000 * 60; // 30 minutes cache
+    const lastFetch = localStorage.getItem('shopping_lists_last_fetch');
+    const cachedLists = localStorage.getItem('cache_savedLists');
+    const now = Date.now();
 
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      snapshot.docChanges().forEach((change) => {
-        if (change.type === 'added') {
-          const newList = { id: change.doc.id, ...change.doc.data() } as SavedList;
-          // Se o documento for novo (não de snapshot inicial massivo) e não for do próprio usuário
-          // Usamos um timestamp para evitar notificações de itens antigos no carregamento inicial
-          const listDate = new Date(newList.date).getTime();
-          if (listDate > Date.now() - 30000 && newList.createdBy !== loggedName) {
-            addAppNotification(
-              'Nova Lista de Compras',
-              `"${newList.name}" foi criada por ${newList.createdBy || 'outro usuário'}.`
-            );
-          }
-        }
-      });
-
-      const lists = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      })) as SavedList[];
-      
-      setSavedLists(lists);
+    if (!force && lastFetch && cachedLists && (now - Number(lastFetch)) < cacheDuration) {
+      setSavedLists(JSON.parse(cachedLists));
       setIsLoadingLists(false);
-    }, (error: any) => {
+      return;
+    }
+
+    setIsLoadingLists(true);
+    try {
+      let lists: SavedList[] = [];
+      try {
+        const res = await fetch('/api/xml/shopping_lists');
+        if (res.ok) {
+          lists = await res.json() as SavedList[];
+          lists.sort((a, b) => b.date.localeCompare(a.date));
+          // Limit 25
+          if (lists.length > 25) {
+            lists = lists.slice(0, 25);
+          }
+        } else {
+          throw new Error("Backend caching route failed");
+        }
+      } catch (backendErr) {
+        console.warn("Backend shopping_lists failed, resorting to client-side Firestore:", backendErr);
+        const q = query(
+          collection(db, 'shopping_lists'), 
+          orderBy('date', 'desc'), 
+          limit(25)
+        );
+        const snapshot = await getDocs(q);
+        lists = snapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        })) as SavedList[];
+      }
+
+      setSavedLists(lists);
+      localStorage.setItem('cache_savedLists', safeStringify(lists));
+      localStorage.setItem('shopping_lists_last_fetch', String(now));
+    } catch (error: any) {
       handleFirestoreError(error, OperationType.GET, 'shopping_lists');
+      if (cachedLists) {
+        setSavedLists(JSON.parse(cachedLists));
+      }
       const isQuota = extractErrorMessage(error).toLowerCase().includes('quota') || extractErrorMessage(error).toLowerCase().includes('resource-exhausted');
       if (!isQuota) console.error("Shopping lists sync error:", extractErrorMessage(error));
+    } finally {
       setIsLoadingLists(false);
-    });
+    }
+  };
 
-    return () => unsubscribe();
+  useEffect(() => {
+    loadLists(false);
   }, [isAuthReady, isApproved]);
 
   const refreshLists = async () => {
-    // onSnapshot já lida com o refresh
+    await loadLists(true);
   };
 
   const addToCart = (product: Product, supplierName: string, quantity: number = 1) => {
@@ -131,6 +162,7 @@ export const useCart = (
       
       try {
         await updateDoc(doc(db, 'shopping_lists', editingListId), listData);
+        await invalidateBackendCache('shopping_lists');
       } catch (err: any) {
         handleFirestoreError(err, OperationType.UPDATE, `shopping_lists/${editingListId}`);
         console.warn("Could not sync list update:", err.message);
@@ -145,6 +177,7 @@ export const useCart = (
 
       try {
         const docRef = await addDoc(collection(db, 'shopping_lists'), listData);
+        await invalidateBackendCache('shopping_lists');
         // Replace temp ID with real ID
         setSavedLists(prev => prev.map(l => l.id === tempId ? { ...l, id: docRef.id } : l));
         return { id: docRef.id, ...listData };
@@ -173,6 +206,7 @@ export const useCart = (
     try {
       if (!listId.startsWith('temp-')) {
         await updateDoc(doc(db, 'shopping_lists', listId), { items: updatedItems.map(item => cleanObject(item)) });
+        await invalidateBackendCache('shopping_lists');
       }
     } catch (e) {
       handleFirestoreError(e, OperationType.UPDATE, `shopping_lists/${listId}`);
@@ -187,6 +221,7 @@ export const useCart = (
     try {
       if (!id.startsWith('temp-')) {
         await deleteDoc(doc(db, 'shopping_lists', id));
+        await invalidateBackendCache('shopping_lists');
       }
     } catch (err: any) {
       handleFirestoreError(err, OperationType.DELETE, `shopping_lists/${id}`);
@@ -230,6 +265,7 @@ export const useCart = (
     try {
       if (!listId.startsWith('temp-')) {
         await updateDoc(doc(db, 'shopping_lists', listId), updatedListData);
+        await invalidateBackendCache('shopping_lists');
       }
     } catch (err: any) {
       handleFirestoreError(err, OperationType.UPDATE, `shopping_lists/${listId}`);

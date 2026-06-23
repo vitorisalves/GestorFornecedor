@@ -97,6 +97,7 @@ export const SuppliersView: React.FC<SuppliersViewProps> = ({
   const [xmlLogs, setXmlLogs] = React.useState<string[]>([]);
   const [dragActive, setDragActive] = React.useState(false);
   const [deletingRowId, setDeletingRowId] = React.useState<string | null>(null);
+  const xmlContentsRef = React.useRef<Record<string, string>>({});
 
   const parseNFeXml = (xmlText: string, fileName: string) => {
     const parser = new DOMParser();
@@ -151,7 +152,11 @@ export const SuppliersView: React.FC<SuppliersViewProps> = ({
         const qTribText = prodEl.getElementsByTagName("qTrib")[0]?.textContent || "0";
         const qTrib = parseFloat(qTribText.replace(",", ".")) || 0;
 
-        const vUnComText = prodEl.getElementsByTagName("vUnCom")[0]?.textContent || "0";
+        const vUnTribEl = prodEl.getElementsByTagName("vUnTrib")[0];
+        const vUnComEl = prodEl.getElementsByTagName("vUnCom")[0];
+        const vUnComText = (vUnTribEl && parseFloat(vUnTribEl.textContent?.replace(",", ".") || "0") > 0)
+          ? vUnTribEl.textContent || "0"
+          : vUnComEl?.textContent || "0";
         const vUnCom = parseFloat(vUnComText.replace(",", ".")) || 0;
 
         results.push({
@@ -212,6 +217,7 @@ export const SuppliersView: React.FC<SuppliersViewProps> = ({
         }
 
         const key = productsParsed[0].nfeKey;
+        xmlContentsRef.current[key] = text;
         if (processedKeysList.includes(key)) {
           logs.push(`Aviso: XML ${file.name} (Chave: ${key}) já foi importado anteriormente.`);
         }
@@ -457,6 +463,23 @@ export const SuppliersView: React.FC<SuppliersViewProps> = ({
       });
 
       await Promise.all(modifiedSuppliers.map(supplier => saveSupplier(supplier)));
+
+      // Sincroniza todas as notas fiscais XML novas com o banco central de faturas/invoices do Dashboard
+      const syncPromises = Array.from(newlyImportedNfeKeys).map(async (nfeKey) => {
+        const rawXml = xmlContentsRef.current[nfeKey];
+        if (rawXml) {
+          try {
+            await fetch('/api/xml/process', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ xmlData: rawXml })
+            });
+          } catch (apiErr) {
+            console.error(`Erro ao sincronizar nota ${nfeKey} com banco central:`, apiErr);
+          }
+        }
+      });
+      await Promise.all(syncPromises);
 
       const storedProcessedKeys = localStorage.getItem('processed_nfe_keys');
       const processedKeysList: string[] = storedProcessedKeys ? JSON.parse(storedProcessedKeys) : [];
@@ -1172,6 +1195,20 @@ export const SuppliersView: React.FC<SuppliersViewProps> = ({
             <div>
               <h2 className="text-xl font-bold text-slate-800 uppercase tracking-tight">Importação de NF-e XML</h2>
               <p className="text-xs text-slate-500 font-medium">Faça o upload de diversos arquivos XML para conciliação em lote</p>
+              <button
+                type="button"
+                onClick={() => {
+                  localStorage.removeItem('processed_nfe_keys');
+                  if (addNotification) {
+                    addNotification("Histórico de NF-es importadas limpo! Você já pode reimportar os mesmos arquivos XML.", 1, 'info');
+                  }
+                }}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-red-50 hover:bg-red-100 text-red-700 rounded-lg text-[10px] font-bold uppercase transition-all border border-red-200 mt-2.5 cursor-pointer"
+                title="Limpa o registro temporário interno do navegador para permitir reimportar os mesmos XMLs"
+              >
+                <Trash2 className="w-3 h-3 text-red-600" />
+                Limpar Histórico de XMLs Importados
+              </button>
             </div>
             {importRows.length > 0 && (
               <div className="flex gap-3">

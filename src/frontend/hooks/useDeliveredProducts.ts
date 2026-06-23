@@ -6,7 +6,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { 
   collection, 
-  onSnapshot, 
+  getDocs, 
   doc, 
   setDoc, 
   deleteDoc, 
@@ -22,30 +22,78 @@ export function useDeliveredProducts(
   isApproved: boolean, 
   addAppNotification?: (title: string, message: string) => void
 ) {
-  const [deliveredProducts, setDeliveredProducts] = useState<DeliveredProduct[]>([]);
+  const [deliveredProducts, setDeliveredProducts] = useState<DeliveredProduct[]>(() => {
+    const cached = localStorage.getItem('cache_delivered_products');
+    return cached ? JSON.parse(cached) : [];
+  });
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const notifiedRefs = useRef<Set<string>>(new Set());
 
-  useEffect(() => {
-    if (!isAuthReady || !isApproved) return;
+  const loadDeliveredProducts = useCallback(async (force: boolean = false) => {
+    if (!isAuthReady || !isApproved) {
+      setIsLoading(false);
+      return;
+    }
+
+    const cacheDuration = 30 * 1000 * 60; // 30 minutes cache
+    const lastFetch = localStorage.getItem('delivered_products_last_fetch');
+    const cached = localStorage.getItem('cache_delivered_products');
+    const now = Date.now();
+
+    if (!force && lastFetch && cached && (now - Number(lastFetch)) < cacheDuration) {
+      setDeliveredProducts(JSON.parse(cached));
+      setIsLoading(false);
+      return;
+    }
 
     setIsLoading(true);
-    const q = query(collection(db, 'delivered_products'), orderBy('purchaseDate', 'desc'));
-    
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const docs = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as DeliveredProduct));
+    try {
+      let docs: DeliveredProduct[] = [];
+      try {
+        const res = await fetch('/api/xml/delivered_products');
+        if (res.ok) {
+          docs = await res.json() as DeliveredProduct[];
+          // Obter formato DD/MM/AAAA ou ISO e ordenar
+          docs.sort((a, b) => {
+            try {
+              const [d1, m1, y1] = a.purchaseDate.split('/').map(Number);
+              const [d2, m2, y2] = b.purchaseDate.split('/').map(Number);
+              const date1 = new Date(y1, m1 - 1, d1).getTime();
+              const date2 = new Date(y2, m2 - 1, d2).getTime();
+              return date2 - date1;
+            } catch (e) {
+              return b.purchaseDate.localeCompare(a.purchaseDate);
+            }
+          });
+        } else {
+          throw new Error("Backend caching route failed");
+        }
+      } catch (backendErr) {
+        console.warn("Backend delivered_products failed, resorting to client-side Firestore:", backendErr);
+        const q = query(collection(db, 'delivered_products'), orderBy('purchaseDate', 'desc'));
+        const snapshot = await getDocs(q);
+        docs = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as DeliveredProduct));
+      }
+
       setDeliveredProducts(docs);
-      setIsLoading(false);
-    }, (err) => {
+      localStorage.setItem('cache_delivered_products', JSON.stringify(docs));
+      localStorage.setItem('delivered_products_last_fetch', String(now));
+    } catch (err: any) {
       handleFirestoreError(err, OperationType.GET, 'delivered_products');
       console.error("Firestore Error (delivered_products):", err);
+      if (cached) {
+        setDeliveredProducts(JSON.parse(cached));
+      }
       setError(extractErrorMessage(err));
+    } finally {
       setIsLoading(false);
-    });
-
-    return () => unsubscribe();
+    }
   }, [isAuthReady, isApproved]);
+
+  useEffect(() => {
+    loadDeliveredProducts(false);
+  }, [loadDeliveredProducts]);
 
   useEffect(() => {
     if (!addAppNotification || deliveredProducts.length === 0) return;
@@ -72,24 +120,36 @@ export function useDeliveredProducts(
     });
   }, [deliveredProducts, addAppNotification]);
 
-  const saveDeliveredProduct = useCallback(async (product: DeliveredProduct) => {
+  const invalidateBackendCache = async (collectionName: string) => {
     try {
-      // Check for circularity
-      const isCircular = (val: any, seen = new WeakSet()): boolean => {
-        if (typeof val !== 'object' || val === null) return false;
-        if (seen.has(val)) return true;
-        seen.add(val);
-        return Object.values(val).some(v => isCircular(v, seen));
-      };
+      await fetch('/api/xml/cache/invalidate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ collection: collectionName })
+      });
+    } catch (err) {
+      console.warn("Backend cache invalidation failed:", err);
+    }
+  };
 
-      if (isCircular(product)) {
-        console.warn("Circular product found, cleaning before save.");
-        // continue and let cleanObject handle it since it uses a structured way
+  const saveDeliveredProduct = useCallback(async (product: DeliveredProduct) => {
+    setDeliveredProducts(prev => {
+      const index = prev.findIndex(p => p.id === product.id);
+      const next = [...prev];
+      if (index !== -1) {
+        next[index] = product;
+      } else {
+        next.unshift(product);
       }
+      localStorage.setItem('cache_delivered_products', JSON.stringify(next));
+      return next;
+    });
 
+    try {
       const docRef = doc(db, 'delivered_products', product.id);
       const cleanedData = cleanObject(product);
       await setDoc(docRef, cleanedData);
+      await invalidateBackendCache('delivered_products');
     } catch (err) {
       handleFirestoreError(err, OperationType.WRITE, `delivered_products/${product.id}`);
       console.error("Error saving delivered product:", err);
@@ -98,8 +158,15 @@ export function useDeliveredProducts(
   }, []);
 
   const deleteDeliveredProduct = useCallback(async (id: string) => {
+    setDeliveredProducts(prev => {
+      const next = prev.filter(p => p.id !== id);
+      localStorage.setItem('cache_delivered_products', JSON.stringify(next));
+      return next;
+    });
+
     try {
       await deleteDoc(doc(db, 'delivered_products', id));
+      await invalidateBackendCache('delivered_products');
     } catch (err) {
       handleFirestoreError(err, OperationType.DELETE, `delivered_products/${id}`);
       console.error("Error deleting delivered product:", err);
@@ -220,6 +287,7 @@ export function useDeliveredProducts(
     updatePurchaseDate,
     updateForecastDate,
     updateDeliveryDate,
-    updateDeliveredQuantity
+    updateDeliveredQuantity,
+    refreshDeliveredProducts: () => loadDeliveredProducts(true)
   };
 }

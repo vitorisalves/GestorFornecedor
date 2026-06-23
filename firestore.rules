@@ -146,22 +146,22 @@ service cloud.firestore {
     }
 
     match /suppliers/{supplierId} {
-      allow read: if isApproved();
+      allow read: if true;
       allow write: if isApproved();
     }
 
     match /shopping_lists/{listId} {
-      allow read: if isApproved();
+      allow read: if true;
       allow write: if isApproved();
     }
 
     match /categories/{categoryId} {
-      allow read: if isApproved();
+      allow read: if true;
       allow write: if isApproved();
     }
 
     match /delivered_products/{productId} {
-      allow read: if isApproved();
+      allow read: if true;
       allow create: if isApproved() && isValidDeliveredProduct(incoming());
       allow update: if isApproved() && isValidDeliveredProduct(incoming());
       allow delete: if isApproved();

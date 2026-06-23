@@ -46,6 +46,29 @@ export class XMLService {
     return 0;
   }
 
+  private getVal(val: any): string {
+    if (val === undefined || val === null) return "0";
+    if (typeof val === 'object') {
+      if ("#text" in val) return (val["#text"] || "").toString();
+      const values = Object.values(val);
+      if (values.length > 0) return this.getVal(values[0]);
+    }
+    return val.toString();
+  }
+
+  private extractPrice(prod: any): number {
+    if (!prod) return 0;
+    const fields = ['vUnTrib', 'vUnCom'];
+    for (const field of fields) {
+        if (field in prod) {
+            const strVal = this.getVal(prod[field]);
+            const parsed = parseFloat(strVal.replace(',', '.'));
+            if (!isNaN(parsed) && parsed > 0) return parsed;
+        }
+    }
+    return 0;
+  }
+
   public parseNFe(xmlData: string) {
     const jsonObj = this.parser.parse(xmlData);
     
@@ -81,14 +104,20 @@ export class XMLService {
               code: item.prod?.cProd || "N/A",
               name: item.prod?.xProd || "N/A",
               quantity: this.extractQuantity(item.prod),
-              qTrib: this.getQuantity(item.prod?.qTrib)
+              qTrib: this.getQuantity(item.prod?.qTrib),
+              price: this.extractPrice(item.prod),
+              vUnCom: parseFloat(this.getVal(item.prod?.vUnCom).replace(',', '.')) || parseFloat(this.getVal(item.prod?.vUnTrib).replace(',', '.')) || 0,
+              vUnTrib: parseFloat(this.getVal(item.prod?.vUnTrib).replace(',', '.')) || parseFloat(this.getVal(item.prod?.vUnCom).replace(',', '.')) || 0
           };
       })
       : items ? [{
           code: items.prod?.cProd || "N/A",
           name: items.prod?.xProd || "N/A",
           quantity: this.extractQuantity(items.prod),
-          qTrib: this.getQuantity(items.prod?.qTrib)
+          qTrib: this.getQuantity(items.prod?.qTrib),
+          price: this.extractPrice(items.prod),
+          vUnCom: parseFloat(this.getVal(items.prod?.vUnCom).replace(',', '.')) || parseFloat(this.getVal(items.prod?.vUnTrib).replace(',', '.')) || 0,
+          vUnTrib: parseFloat(this.getVal(items.prod?.vUnTrib).replace(',', '.')) || parseFloat(this.getVal(items.prod?.vUnCom).replace(',', '.')) || 0
         }] : [];
 
     return {

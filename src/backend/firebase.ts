@@ -246,10 +246,9 @@ export const fsOps = {
     }
 
     const now = Date.now();
-    const isCacheExpired = !cached || (now - cached.timestamp > 15000); // 15s TTL
+    const isCacheExpired = !cached || (now - cached.timestamp > 600000); // 10 minutes (600,000ms) TTL for extreme read optimization
 
     if (!isCacheExpired && cached) {
-      console.log(`[FirestoreCache] Servindo cache válido de ${cacheKey} (${cached.docs.length} docs)`);
       return {
         docs: cached.docs,
         empty: cached.docs.length === 0
@@ -332,10 +331,9 @@ export const fsOps = {
     const cacheKey = path;
     const cached = g_docCache[cacheKey];
     const now = Date.now();
-    const isCacheExpired = !cached || (now - cached.timestamp > 15000); // 15s TTL
+    const isCacheExpired = !cached || (now - cached.timestamp > 600000); // 10 minutes (600,000ms) TTL for extreme read optimization
 
     if (!isCacheExpired && cached) {
-      console.log(`[FirestoreCache] Servindo cache válido de documento ${cacheKey}`);
       return {
         exists: () => cached.exists,
         data: () => cached.data,
@@ -431,5 +429,8 @@ export const fsOps = {
       handleFirestoreError(err, OperationType.DELETE, path);
       throw err;
     }
+  },
+  invalidateCache: (pathStr: string) => {
+    invalidateCache(pathStr);
   }
 };

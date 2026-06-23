@@ -5,7 +5,7 @@
 
 import { useState, useEffect } from 'react';
 import { db } from '../firebase';
-import { collection, onSnapshot, addDoc, doc, updateDoc, query, orderBy, deleteDoc, where } from 'firebase/firestore';
+import { collection, getDocs, addDoc, doc, updateDoc, query, orderBy, deleteDoc, where } from 'firebase/firestore';
 import { Reminder } from '../types';
 import { extractErrorMessage, safeStringify, handleFirestoreError, OperationType, cleanObject } from '../utils';
 
@@ -24,6 +24,18 @@ export const useReminders = (
     localStorage.setItem('cache_reminders', safeStringify(reminders));
   }, [reminders]);
 
+  const invalidateBackendCache = async (collectionName: string) => {
+    try {
+      await fetch('/api/xml/cache/invalidate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ collection: collectionName })
+      });
+    } catch (err) {
+      console.warn("Backend cache invalidation failed:", err);
+    }
+  };
+
   const checkForDueReminders = (data: Reminder[]) => {
     const now = new Date();
     data.forEach(reminder => {
@@ -36,39 +48,71 @@ export const useReminders = (
           );
           // Mark as notified in DB
           if (reminder.id && !reminder.id.startsWith('temp-')) {
-            updateDoc(doc(db, 'reminders', reminder.id), { notified: true }).catch(err => {
-              handleFirestoreError(err, OperationType.UPDATE, `reminders/${reminder.id}`);
-              console.warn("Could not sync reminder status:", err.message);
-            });
+            updateDoc(doc(db, 'reminders', reminder.id), { notified: true })
+              .then(() => invalidateBackendCache('reminders'))
+              .catch(err => {
+                handleFirestoreError(err, OperationType.UPDATE, `reminders/${reminder.id}`);
+                console.warn("Could not sync reminder status:", err.message);
+              });
           }
         }
       }
     });
   };
 
-  useEffect(() => {
+  const loadReminders = async (force: boolean = false) => {
     if (!isAuthReady || !isApproved) return;
 
-    const q = query(
-      collection(db, 'reminders'), 
-      orderBy('date', 'asc')
-    );
+    const cacheDuration = 30 * 1000 * 60; // 30 minutes cache
+    const lastFetch = localStorage.getItem('reminders_last_fetch');
+    const cachedReminders = localStorage.getItem('cache_reminders');
+    const now = Date.now();
 
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const data = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      })) as Reminder[];
-      
+    if (!force && lastFetch && cachedReminders && (now - Number(lastFetch)) < cacheDuration) {
+      const data = JSON.parse(cachedReminders);
       setReminders(data);
       checkForDueReminders(data);
-    }, (err: any) => {
+      return;
+    }
+
+    try {
+      let data: Reminder[] = [];
+      try {
+        const res = await fetch('/api/xml/reminders');
+        if (res.ok) {
+          data = await res.json() as Reminder[];
+          data.sort((a, b) => a.date.localeCompare(b.date));
+        } else {
+          throw new Error("Backend caching route failed");
+        }
+      } catch (backendErr) {
+        console.warn("Backend reminders failed, resorting to client-side Firestore:", backendErr);
+        const q = query(collection(db, 'reminders'), orderBy('date', 'asc'));
+        const snapshot = await getDocs(q);
+        data = snapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        })) as Reminder[];
+      }
+
+      setReminders(data);
+      localStorage.setItem('cache_reminders', safeStringify(data));
+      localStorage.setItem('reminders_last_fetch', String(now));
+      checkForDueReminders(data);
+    } catch (err: any) {
       handleFirestoreError(err, OperationType.GET, 'reminders');
+      if (cachedReminders) {
+        const data = JSON.parse(cachedReminders);
+        setReminders(data);
+        checkForDueReminders(data);
+      }
       const isQuota = extractErrorMessage(err).toLowerCase().includes('quota') || extractErrorMessage(err).toLowerCase().includes('resource-exhausted');
       if (!isQuota) console.error("Reminders sync error:", extractErrorMessage(err));
-    });
+    }
+  };
 
-    return () => unsubscribe();
+  useEffect(() => {
+    loadReminders(false);
   }, [isAuthReady, isApproved, addAppNotification]);
 
   useEffect(() => {
@@ -103,6 +147,7 @@ export const useReminders = (
         notified: false
       });
       const docRef = await addDoc(collection(db, 'reminders'), cleaned);
+      await invalidateBackendCache('reminders');
       // Replace temporary ID with real Firestore ID
       setReminders(prev => prev.map(r => r.id === tempId ? { ...r, id: docRef.id } : r));
     } catch (err: any) {
@@ -118,6 +163,7 @@ export const useReminders = (
     try {
       if (!id.startsWith('temp-')) {
         await deleteDoc(doc(db, 'reminders', id));
+        await invalidateBackendCache('reminders');
       }
     } catch (err: any) {
       handleFirestoreError(err, OperationType.DELETE, `reminders/${id}`);
@@ -127,7 +173,7 @@ export const useReminders = (
 
   return {
     reminders,
-    refreshReminders: () => {}, // onSnapshot handles it
+    refreshReminders: () => loadReminders(true),
     addReminder,
     deleteReminder,
     error

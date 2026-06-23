@@ -76,6 +76,7 @@ app.post("/api/xml/process", asyncHandler(async (req: Request, res: Response) =>
   const exists = typeof docSnapshot.exists === 'function' ? docSnapshot.exists() : !!docSnapshot.exists;
   
   await fsOps.set(docRef, parsedData, 'invoices/' + parsedData.id);
+  fsOps.invalidateCache('xml_spendings'); // Invalida o cache de gastos XML, pois um novo arquivo foi inserido
   
   res.json({ status: exists ? 'updated' : 'imported', id: parsedData.id });
 }));
@@ -104,25 +105,152 @@ app.get("/api/xml/invoices", asyncHandler(async (req: Request, res: Response) =>
   }
 }));
 
-app.post("/api/xml/invoices/delete", asyncHandler(async (req: Request, res: Response) => {
-  console.log("Request body:", req.body);
-  const { id } = req.body;
+app.get("/api/xml/suppliers", asyncHandler(async (req: Request, res: Response) => {
+  try {
+    const snapshot = await fsOps.getDocs('suppliers', 'suppliers');
+    const data = snapshot.docs.map((doc: any) => {
+      const d = typeof doc.data === 'function' ? doc.data() : doc.data;
+      return { id: doc.id, ...d };
+    });
+    res.json(data);
+  } catch (error: any) {
+    console.error("Error fetching cached suppliers:", error);
+    res.status(500).json({ error: "Error fetching suppliers", message: error.message });
+  }
+}));
+
+app.get("/api/xml/spendings", asyncHandler(async (req: Request, res: Response) => {
+  try {
+    const snapshot = await fsOps.getDocs('xml_spendings', 'xml_spendings');
+    const data = snapshot.docs.map((doc: any) => {
+      const d = typeof doc.data === 'function' ? doc.data() : doc.data;
+      return { id: doc.id, ...d };
+    });
+    res.json(data);
+  } catch (error: any) {
+    console.error("Error fetching cached spendings:", error);
+    res.status(500).json({ error: "Error fetching spendings", message: error.message });
+  }
+}));
+
+app.get("/api/xml/categories", asyncHandler(async (req: Request, res: Response) => {
+  try {
+    const snapshot = await fsOps.getDocs('categories', 'categories');
+    const data = snapshot.docs.map((doc: any) => {
+      const d = typeof doc.data === 'function' ? doc.data() : doc.data;
+      return { id: doc.id, ...d };
+    });
+    res.json(data);
+  } catch (error: any) {
+    console.error("Error fetching cached categories:", error);
+    res.status(500).json({ error: "Error fetching categories", message: error.message });
+  }
+}));
+
+app.get("/api/xml/delivered_products", asyncHandler(async (req: Request, res: Response) => {
+  try {
+    const snapshot = await fsOps.getDocs('delivered_products', 'delivered_products');
+    const data = snapshot.docs.map((doc: any) => {
+      const d = typeof doc.data === 'function' ? doc.data() : doc.data;
+      return { id: doc.id, ...d };
+    });
+    res.json(data);
+  } catch (error: any) {
+    console.error("Error fetching cached delivered_products:", error);
+    res.status(500).json({ error: "Error fetching delivered products", message: error.message });
+  }
+}));
+
+app.get("/api/xml/reminders", asyncHandler(async (req: Request, res: Response) => {
+  try {
+    const snapshot = await fsOps.getDocs('reminders', 'reminders');
+    const data = snapshot.docs.map((doc: any) => {
+      const d = typeof doc.data === 'function' ? doc.data() : doc.data;
+      return { id: doc.id, ...d };
+    });
+    res.json(data);
+  } catch (error: any) {
+    console.error("Error fetching cached reminders:", error);
+    res.status(500).json({ error: "Error fetching reminders", message: error.message });
+  }
+}));
+
+app.get("/api/xml/shopping_lists", asyncHandler(async (req: Request, res: Response) => {
+  try {
+    const snapshot = await fsOps.getDocs('shopping_lists', 'shopping_lists');
+    const data = snapshot.docs.map((doc: any) => {
+      const d = typeof doc.data === 'function' ? doc.data() : doc.data;
+      return { id: doc.id, ...d };
+    });
+    res.json(data);
+  } catch (error: any) {
+    console.error("Error fetching cached shopping_lists:", error);
+    res.status(500).json({ error: "Error fetching shopping lists", message: error.message });
+  }
+}));
+
+app.post("/api/xml/cache/invalidate", asyncHandler(async (req: Request, res: Response) => {
+  const { collection } = req.body;
+  if (collection) {
+    fsOps.invalidateCache(collection);
+    console.log(`[Cache Invalidation] Invalidated cache for collection: ${collection}`);
+    res.json({ status: 'ok', collection });
+  } else {
+    res.status(400).json({ error: 'Collection not specified' });
+  }
+}));
+
+// --- AUXILIAR DE DELEÇÃO DE FATURA ---
+const deleteInvoiceHelper = async (id: string, res: Response) => {
   if (!id) {
     return res.status(400).json({ status: 'error', error: 'ID not provided' });
   }
   console.log("Backend deleting invoice ID:", id);
-  
-  const docRef = fsOps.doc('invoices', id);
-  const docSnapshot = await fsOps.getDoc(docRef, 'invoices/' + id);
-  const exists = typeof docSnapshot.exists === 'function' ? docSnapshot.exists() : !!docSnapshot.exists;
-  console.log("Doc exists before delete:", exists);
+
+  // Tenta com o ID fornecido direto
+  let docRef = await fsOps.doc('invoices', id);
+  let docSnapshot = await fsOps.getDoc(docRef, 'invoices/' + id);
+  let exists = typeof docSnapshot.exists === 'function' ? docSnapshot.exists() : !!docSnapshot.exists;
+
+  // Se não existe e não começa com 'NFe', tenta adicionar o prefixo 'NFe'
+  if (!exists && !id.startsWith('NFe')) {
+    const alternativeId = 'NFe' + id;
+    console.log(`ID ${id} não encontrado. Tentando ID alternativo: ${alternativeId}`);
+    docRef = await fsOps.doc('invoices', alternativeId);
+    docSnapshot = await fsOps.getDoc(docRef, 'invoices/' + alternativeId);
+    exists = typeof docSnapshot.exists === 'function' ? docSnapshot.exists() : !!docSnapshot.exists;
+  }
+
+  // Se começou com 'NFe' e não encontrou, tenta remover o prefixo 'NFe'
+  if (!exists && id.startsWith('NFe')) {
+    const alternativeId = id.substring(3);
+    console.log(`ID ${id} não encontrado. Tentando ID alternativo sem NFe: ${alternativeId}`);
+    docRef = await fsOps.doc('invoices', alternativeId);
+    docSnapshot = await fsOps.getDoc(docRef, 'invoices/' + alternativeId);
+    exists = typeof docSnapshot.exists === 'function' ? docSnapshot.exists() : !!docSnapshot.exists;
+  }
+
+  const finalId = docSnapshot.id || id;
+  console.log(`Doc exists at final ID ${finalId} before delete:`, exists);
 
   if (exists) {
-    await fsOps.delete(docRef, 'invoices/' + id);
-    res.json({ status: 'deleted' });
+    await fsOps.delete(docRef, 'invoices/' + finalId);
+    fsOps.invalidateCache('xml_spendings'); // Invalida o cache de gastos também
+    res.json({ status: 'deleted', id: finalId });
   } else {
-    res.status(404).json({ status: 'error', error: 'Document not found' });
+    // Retornamos 200/sucesso mesmo se não encontrar para evitar quebrar o fluxo do frontend de forma destrutiva
+    res.json({ status: 'not_found', message: `Invoice ${id} not found but checked.` });
   }
+};
+
+app.post("/api/xml/invoices/delete", asyncHandler(async (req: Request, res: Response) => {
+  const { id } = req.body;
+  await deleteInvoiceHelper(id, res);
+}));
+
+app.delete("/api/xml/invoices/:id", asyncHandler(async (req: Request, res: Response) => {
+  const id = req.params.id;
+  await deleteInvoiceHelper(id, res);
 }));
 
 // --- ROTAS DE NOTIFICAÇÃO ---

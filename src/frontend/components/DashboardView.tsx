@@ -17,7 +17,10 @@ import {
   XCircle,
   FileCheck2,
   HelpCircle,
-  Briefcase
+  Briefcase,
+  Search,
+  ArrowUpRight,
+  ArrowDownRight
 } from 'lucide-react';
 import { 
   CartesianGrid, 
@@ -35,7 +38,7 @@ import autoTable from 'jspdf-autotable';
 import { domToCanvas } from 'modern-screenshot';
 
 import { db } from '../firebase';
-import { collection, onSnapshot, doc, setDoc, deleteDoc } from 'firebase/firestore';
+import { collection, onSnapshot, doc, setDoc, deleteDoc, getDocs } from 'firebase/firestore';
 import { formatCurrency, safeStringify, handleFirestoreError, OperationType } from '../utils';
 import { SavedList } from '../types';
 
@@ -70,6 +73,81 @@ export const DashboardView: React.FC<DashboardViewProps> = () => {
   const [isUploading, setIsUploading] = useState(false);
   const [xmlLogs, setXmlLogs] = useState<{ type: 'success' | 'warning' | 'error', text: string }[]>([]);
 
+  // States of invoices and suppliers for pricing dashboard
+  const [invoices, setInvoices] = useState<any[]>(() => {
+    try {
+      const cached = localStorage.getItem('cached_dashboard_invoices');
+      return cached ? JSON.parse(cached) : [];
+    } catch {
+      return [];
+    }
+  });
+
+  const [suppliers, setSuppliers] = useState<any[]>(() => {
+    try {
+      const cached = localStorage.getItem('cached_dashboard_suppliers');
+      return cached ? JSON.parse(cached) : [];
+    } catch {
+      return [];
+    }
+  });
+
+  const [isPriceLoading, setIsPriceLoading] = useState(false);
+  const [priceSearchQuery, setPriceSearchQuery] = useState('');
+  const [selectedProduct, setSelectedProduct] = useState<any | null>(null);
+  const [showSearchDropdown, setShowSearchDropdown] = useState(false);
+
+  const fetchPricingData = async (force = false) => {
+    const cacheDuration = 15 * 1000 * 60; // 15 minutes cache for high database reads saving
+    const lastFetch = localStorage.getItem('dashboard_last_fetch');
+    const now = Date.now();
+
+    if (!force && lastFetch && (now - Number(lastFetch)) < cacheDuration) {
+      return;
+    }
+
+    setIsPriceLoading(true);
+    try {
+      // Fetch invoices from backend cache
+      const invoicesRes = await fetch('/api/xml/invoices');
+      let invoicesData: any[] = [];
+      if (invoicesRes.ok) {
+        invoicesData = await invoicesRes.json();
+      }
+
+      // Fetch suppliers from backend cache with client-side fallback
+      let suppliersData: any[] = [];
+      try {
+        const suppliersRes = await fetch('/api/xml/suppliers');
+        if (suppliersRes.ok) {
+          suppliersData = await suppliersRes.json();
+        } else {
+          throw new Error("Backend suppliers failed");
+        }
+      } catch (backendErr) {
+        console.warn("Falling back to client-side Firestore for suppliers:", backendErr);
+        const suppSnap = await getDocs(collection(db, 'suppliers'));
+        suppSnap.forEach(doc => {
+          suppliersData.push({ id: doc.id, ...doc.data() });
+        });
+      }
+
+      setInvoices(invoicesData);
+      setSuppliers(suppliersData);
+      localStorage.setItem('cached_dashboard_invoices', JSON.stringify(invoicesData));
+      localStorage.setItem('cached_dashboard_suppliers', JSON.stringify(suppliersData));
+      localStorage.setItem('dashboard_last_fetch', String(now));
+    } catch (err) {
+      console.error("Erro ao carregar dados de preços:", err);
+    } finally {
+      setIsPriceLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchPricingData();
+  }, []);
+
   useEffect(() => {
     const timer = setTimeout(() => {
       setIsChartReady(true);
@@ -77,27 +155,72 @@ export const DashboardView: React.FC<DashboardViewProps> = () => {
     return () => clearTimeout(timer);
   }, []);
 
-  // Fetch / Listen to xml_spendings real-time
+  // Fetch xml_spendings with caching
   useEffect(() => {
-    const q = collection(db, 'xml_spendings');
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const items: any[] = [];
-      snapshot.forEach((doc) => {
-        items.push({ id: doc.id, ...doc.data() });
-      });
-      setXmlSpendings(items);
-      try {
-        localStorage.setItem('cached_dashboard_xml_spendings', JSON.stringify(items));
-      } catch (err) {
-        console.error("Erro ao salvar cache local:", err);
+    let active = true;
+    const fetchSpendings = async () => {
+      const cacheDuration = 30 * 1000 * 60; // 30 minutes cache for extreme read optimization
+      const lastFetch = localStorage.getItem('xml_spendings_last_fetch');
+      const cached = localStorage.getItem('cached_dashboard_xml_spendings');
+      const now = Date.now();
+
+      if (cached && lastFetch && (now - Number(lastFetch)) < cacheDuration) {
+        if (active) {
+          try {
+            setXmlSpendings(JSON.parse(cached));
+          } catch (e) {
+            console.error("Erro ao fazer parse dos dados cacheados de gastos:", e);
+          }
+          setIsLoading(false);
+        }
+        return;
       }
-      setIsLoading(false);
-    }, (error) => {
-      console.error("Erro ao carregar dados XML de gastos:", error);
-      setIsLoading(false);
-      handleFirestoreError(error, OperationType.GET, 'xml_spendings');
-    });
-    return () => unsubscribe();
+
+      setIsLoading(true);
+      try {
+        let items: any[] = [];
+        try {
+          const spendingsRes = await fetch('/api/xml/spendings');
+          if (spendingsRes.ok) {
+            items = await spendingsRes.json();
+          } else {
+            throw new Error("Backend spendings failed");
+          }
+        } catch (backendErr) {
+          console.warn("Falling back to client-side Firestore for spendings:", backendErr);
+          const q = collection(db, 'xml_spendings');
+          const snapshot = await getDocs(q);
+          snapshot.forEach((doc) => {
+            items.push({ id: doc.id, ...doc.data() });
+          });
+        }
+
+        if (active) {
+          setXmlSpendings(items);
+          localStorage.setItem('cached_dashboard_xml_spendings', JSON.stringify(items));
+          localStorage.setItem('xml_spendings_last_fetch', String(now));
+        }
+      } catch (err: any) {
+        console.error("Erro ao carregar dados XML de gastos:", err);
+        if (cached && active) {
+          try {
+            setXmlSpendings(JSON.parse(cached));
+          } catch (e) {
+            console.error(e);
+          }
+        }
+        handleFirestoreError(err, OperationType.GET, 'xml_spendings');
+      } finally {
+        if (active) {
+          setIsLoading(false);
+        }
+      }
+    };
+
+    fetchSpendings();
+    return () => {
+      active = false;
+    };
   }, []);
 
   const expenseChartRef = useRef<HTMLDivElement>(null);
@@ -181,9 +304,8 @@ export const DashboardView: React.FC<DashboardViewProps> = () => {
         if (alreadyExists) {
           logs.push({ 
             type: 'warning', 
-            text: `Aviso: A nota com chave "${parsed.nfeKey}" do arquivo "${file.name}" já foi enviada anteriormente.` 
+            text: `Aviso: A nota com chave "${parsed.nfeKey}" do arquivo "${file.name}" já constava no sistema. Atualizando dados.` 
           });
-          continue;
         }
 
         // Salvar apenas os dados necessários do XML no Banco de Dados
@@ -195,6 +317,13 @@ export const DashboardView: React.FC<DashboardViewProps> = () => {
             dhEmi: parsed.dhEmi,
             vTotTrib: parsed.vTotTrib,
             fileName: file.name
+          });
+
+          // Envia o XML para o endpoint central para extrair e armazenar os produtos e preços reais
+          await fetch('/api/xml/process', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ xmlData: text })
           });
         } catch (setDocErr) {
           handleFirestoreError(setDocErr, OperationType.WRITE, `xml_spendings/${parsed.nfeKey}`);
@@ -224,11 +353,25 @@ export const DashboardView: React.FC<DashboardViewProps> = () => {
 
     setXmlLogs(prev => [...logs, ...prev]);
     setIsUploading(false);
+
+    // Atualiza imediatamente o histórico de produtos e preços do XML
+    await fetchPricingData(true);
   };
 
   const handleDeleteXmlSpending = async (id: string) => {
     try {
       await deleteDoc(doc(db, 'xml_spendings', id));
+      
+      // Deleta também a fatura correspondente da API de faturas central
+      try {
+        await fetch(`/api/xml/invoices/${id}`, {
+          method: 'DELETE'
+        });
+      } catch (apiErr) {
+        console.error("Erro ao deletar fatura do banco de preços central:", apiErr);
+      }
+
+      await fetchPricingData(true);
     } catch (err) {
       console.error("Erro ao deletar gasto XML:", err);
       handleFirestoreError(err, OperationType.DELETE, `xml_spendings/${id}`);
@@ -359,6 +502,182 @@ export const DashboardView: React.FC<DashboardViewProps> = () => {
       console.error('Erro ao gerar relatório jspdf:', error);
     }
   };
+
+  // Pricing Engine - Processes all invoices & suppliers to build price history and increases
+  const priceAnalysis = useMemo(() => {
+    const currentYear = new Date().getFullYear();
+    const getYearFromDate = (dateStr: string) => {
+      if (dateStr && dateStr.length >= 4) {
+        const yearNum = parseInt(dateStr.substring(0, 4), 10);
+        if (!isNaN(yearNum) && yearNum > 1900 && yearNum < 2100) {
+          return yearNum;
+        }
+      }
+      return new Date(dateStr).getFullYear();
+    };
+
+    const productMap: Record<string, {
+      name: string;
+      code: string;
+      supplierNames: Set<string>;
+      history: {
+        date: string;
+        price: number;
+        supplierName: string;
+        quantity: number;
+        invoiceId: string;
+      }[];
+    }> = {};
+
+    // 1. Map current supplier product prices to use as backfill baseline
+    const fallbackPrices: Record<string, { price: number; name: string; supplier: string }> = {};
+    suppliers.forEach(supp => {
+      if (Array.isArray(supp.products)) {
+        supp.products.forEach((p: any) => {
+          if (p.name) {
+            const key = p.name.trim().toLowerCase();
+            fallbackPrices[key] = {
+              price: Number(p.price || 0),
+              name: p.name,
+              supplier: supp.name
+            };
+          }
+        });
+      }
+    });
+
+    // 2. Extract products from all invoices
+    invoices.forEach(inv => {
+      if (!Array.isArray(inv.products)) return;
+      const invoiceDate = inv.date ? inv.date.split('T')[0] : '2026-06-19';
+
+      const invoiceYear = getYearFromDate(inv.date || '2026-06-19T00:00:00Z');
+      if (invoiceYear !== currentYear) return;
+
+      inv.products.forEach((prod: any) => {
+        if (!prod.name || prod.name === 'N/A') return;
+        const name = prod.name;
+        const code = prod.code || 'N/A';
+        const normKey = name.trim().toLowerCase();
+
+        // Check if there is explicit price (vUnCom / price / vUnTrib) on the invoice doc, else default to fallback
+        let itemPrice = Number(prod.vUnCom || prod.price || prod.vUnTrib || 0);
+        if (!itemPrice || itemPrice <= 0) {
+          const suppInfo = fallbackPrices[normKey];
+          itemPrice = Number(suppInfo?.price || 15);
+        }
+
+        if (!productMap[normKey]) {
+          productMap[normKey] = {
+            name,
+            code,
+            supplierNames: new Set(),
+            history: []
+          };
+        }
+
+        productMap[normKey].supplierNames.add(inv.supplierName || 'Desconhecido');
+        productMap[normKey].history.push({
+          date: inv.date || '2026-06-19T00:00:00Z',
+          price: itemPrice,
+          supplierName: inv.supplierName || 'Desconhecido',
+          quantity: Number(prod.quantity || 1),
+          invoiceId: inv.id
+        });
+      });
+    });
+
+    // 3. Process history and sort chronologically
+    const finalProducts: {
+      name: string;
+      code: string;
+      suppliers: string[];
+      minPrice: number;
+      maxPrice: number;
+      currentPrice: number;
+      oldestPrice: number;
+      totalPercentChange: number;
+      history: {
+        date: string;
+        price: number;
+        supplierName: string;
+        quantity: number;
+        invoiceId: string;
+        percentChange: number;
+      }[];
+    }[] = [];
+
+    Object.values(productMap).forEach(p => {
+      p.history.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
+      // Filter consecutive duplicate entries from the exact same invoice
+      const uniqueHistory: typeof p.history = [];
+      p.history.forEach(h => {
+        const last = uniqueHistory[uniqueHistory.length - 1];
+        if (last && last.invoiceId === h.invoiceId) {
+          return;
+        }
+        uniqueHistory.push(h);
+      });
+
+      if (uniqueHistory.length < 2) return;
+
+      // Add variation field
+      const computedHistory = uniqueHistory.map((h, idx) => {
+        let percentChange = 0;
+        if (idx > 0) {
+          const prevPrice = uniqueHistory[idx - 1].price;
+          percentChange = prevPrice > 0 ? ((h.price - prevPrice) / prevPrice) * 100 : 0;
+        }
+        return {
+          ...h,
+          percentChange
+        };
+      });
+
+      const currentPrice = computedHistory[computedHistory.length - 1].price;
+      const oldestPrice = computedHistory.length >= 2 
+        ? computedHistory[computedHistory.length - 2].price 
+        : currentPrice;
+      const prices = computedHistory.map(h => h.price);
+      const minPrice = Math.min(...prices);
+      const maxPrice = Math.max(...prices);
+
+      // Percentage change from the penultimate purchase to the newest purchase
+      const totalPercentChange = oldestPrice > 0 ? ((currentPrice - oldestPrice) / oldestPrice) * 100 : 0;
+
+      finalProducts.push({
+        name: p.name,
+        code: p.code,
+        suppliers: Array.from(p.supplierNames),
+        minPrice,
+        maxPrice,
+        currentPrice,
+        oldestPrice,
+        totalPercentChange,
+        history: computedHistory
+      });
+    });
+
+    // Top 10 products with highest price increases (at least 2 purchases in current year, change > 0, sorted DESC)
+    const topIncreases = [...finalProducts]
+      .filter(p => p.totalPercentChange > 0)
+      .sort((a, b) => b.totalPercentChange - a.totalPercentChange)
+      .slice(0, 10);
+
+    return {
+      allProducts: finalProducts,
+      topIncreases
+    };
+  }, [invoices, suppliers]);
+
+  const parsedSearchSuggestions = useMemo(() => {
+    if (!priceSearchQuery.trim()) return [];
+    const lower = priceSearchQuery.toLowerCase();
+    return priceAnalysis.allProducts
+      .filter(p => p.name.toLowerCase().includes(lower))
+      .slice(0, 5);
+  }, [priceSearchQuery, priceAnalysis]);
 
   return (
     <div className="p-4 md:p-8 space-y-8 max-w-7xl mx-auto pb-24">
@@ -571,6 +890,275 @@ export const DashboardView: React.FC<DashboardViewProps> = () => {
               </div>
             )}
           </div>
+        </div>
+
+        {/* Painel de Análise de Preços de Produtos */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+          
+          {/* TOP 10 MAIORES AUMENTOS */}
+          <div className="bg-white p-8 rounded-3xl border border-slate-100 shadow-sm flex flex-col justify-between">
+            <div>
+              <div className="flex items-center justify-between mb-6">
+                <div>
+                  <h2 className="text-xl font-bold text-slate-900 uppercase tracking-tight flex items-center gap-2">
+                    <div className="w-2.5 h-6 bg-rose-600 rounded-full" />
+                    Top 10 Maiores Aumentos (%)
+                  </h2>
+                  <p className="text-slate-500 text-[10px] font-bold mt-1 uppercase tracking-wider">
+                    Produtos com maior aumento histórico baseado nos XMLs
+                  </p>
+                </div>
+                {isPriceLoading && <span className="text-[10px] bg-indigo-50 text-indigo-700 px-2 py-1 rounded font-black uppercase tracking-wider animate-pulse">Atualizando...</span>}
+              </div>
+
+              {priceAnalysis.topIncreases.length === 0 ? (
+                <div className="bg-slate-50 rounded-2xl p-8 text-center flex flex-col items-center justify-center border-2 border-dashed border-slate-200">
+                  <TrendingUp className="w-10 h-10 text-slate-300" />
+                  <p className="text-slate-500 font-bold text-[11px] uppercase tracking-wide mt-2">Nenhum aumento de preço detectado ainda</p>
+                  <p className="text-slate-400 text-[9px] uppercase tracking-wider mt-1">É necessário ter pelo menos 2 compras de um produto com preços diferentes para calcular a variação.</p>
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left border-collapse">
+                    <thead>
+                      <tr className="border-b border-slate-100 pb-2">
+                        <th className="text-[10px] font-black uppercase text-slate-400 py-3">Produto</th>
+                        <th className="text-[10px] font-black uppercase text-slate-400 py-3 text-right">Preço Antigo</th>
+                        <th className="text-[10px] font-black uppercase text-slate-400 py-3 text-right">Preço Novo</th>
+                        <th className="text-[10px] font-black uppercase text-slate-400 py-3 text-right">Aumento</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-50">
+                      {priceAnalysis.topIncreases.map((prod, idx) => (
+                        <tr key={idx} className="hover:bg-slate-50/50 transition-colors group">
+                          <td className="py-3.5 pr-2">
+                            <div className="font-bold text-slate-900 text-sm lines-clamp-1 group-hover:text-indigo-700 transition-colors">
+                              {prod.name}
+                            </div>
+                            <div className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mt-0.5">
+                              {prod.suppliers[0] || 'Desconhecido'}
+                            </div>
+                          </td>
+                          <td className="py-3.5 text-right font-mono text-sm text-slate-500">
+                            {formatCurrency(prod.oldestPrice)}
+                          </td>
+                          <td className="py-3.5 text-right font-mono text-sm font-bold text-slate-900">
+                            {formatCurrency(prod.currentPrice)}
+                          </td>
+                          <td className="py-3.5 text-right">
+                            <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-red-50 text-red-700 rounded-lg text-xs font-black tracking-tight">
+                              <ArrowUpRight className="w-3.5 h-3.5 text-red-600 shrink-0" />
+                              +{prod.totalPercentChange.toFixed(1)}%
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+            
+            <div className="pt-4 border-t border-slate-50 flex justify-between items-center mt-6">
+              <span className="text-[9px] text-slate-400 font-bold uppercase tracking-wider">Total analisado: {priceAnalysis.allProducts.length} produtos</span>
+              <button 
+                onClick={() => fetchPricingData(true)} 
+                type="button" 
+                disabled={isPriceLoading}
+                className="flex items-center gap-1.5 text-[10px] font-black text-indigo-700 hover:text-indigo-950 uppercase cursor-pointer bg-transparent border-0 disabled:opacity-50 font-bold transition-colors"
+              >
+                <RefreshCcw className={`w-3 h-3 ${isPriceLoading ? 'animate-spin' : ''}`} />
+                Sincronizar base
+              </button>
+            </div>
+          </div>
+
+          {/* SISTEMA DE PESQUISA E CONSULTA HISTÓRICA */}
+          <div className="bg-white p-8 rounded-3xl border border-slate-100 shadow-sm flex flex-col justify-between">
+            <div>
+              <div className="mb-6">
+                <h2 className="text-xl font-bold text-slate-900 uppercase tracking-tight flex items-center gap-2">
+                  <div className="w-2.5 h-6 bg-indigo-700 rounded-full" />
+                  Pesquisa Histórica de Preço
+                </h2>
+                <p className="text-slate-500 text-[10px] font-bold mt-1 uppercase tracking-wider">
+                  Consulte a oscliação de qualquer produto nas últimas 5 compras
+                </p>
+              </div>
+
+              {/* Barra de Busca de Preços */}
+              <div className="relative mb-6">
+                <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
+                  <Search className="h-4 w-4 text-slate-400" />
+                </div>
+                <input
+                  type="text"
+                  placeholder="DIGITE O NOME DO PRODUTO PARA BUSCAR..."
+                  value={priceSearchQuery}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    setPriceSearchQuery(value);
+                    if (!value) {
+                      setSelectedProduct(null);
+                      setShowSearchDropdown(false);
+                    } else {
+                      setShowSearchDropdown(true);
+                    }
+                  }}
+                  onFocus={() => {
+                    if (priceSearchQuery.trim()) {
+                      setShowSearchDropdown(true);
+                    }
+                  }}
+                  onBlur={() => {
+                    // Small delay to allow clicking suggestions before hiding dropdown
+                    setTimeout(() => {
+                      setShowSearchDropdown(false);
+                    }, 200);
+                  }}
+                  className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-xs font-bold text-slate-850 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 uppercase tracking-wide transition-all"
+                />
+
+                {/* Dropdown de sugestões */}
+                {showSearchDropdown && parsedSearchSuggestions.length > 0 && (
+                  <div className="absolute z-10 w-full mt-2 bg-white border border-slate-100 rounded-2xl shadow-xl overflow-hidden max-h-60 overflow-y-auto">
+                    {parsedSearchSuggestions.map((prod, idx) => (
+                      <button
+                        key={idx}
+                        type="button"
+                        onMouseDown={(e) => {
+                          e.preventDefault(); // Previne o desfoque imediato que causa o fechamento precoce do dropdown
+                          setSelectedProduct(prod);
+                          setPriceSearchQuery(prod.name);
+                          setShowSearchDropdown(false);
+                        }}
+                        className="w-full text-left px-4 py-3 hover:bg-slate-50 transition-colors border-b border-slate-50 last:border-b-0 flex justify-between items-center group cursor-pointer"
+                      >
+                        <div className="truncate max-w-[70%]">
+                          <div className="font-bold text-slate-800 text-xs truncate group-hover:text-indigo-700">
+                            {prod.name}
+                          </div>
+                          <div className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mt-0.5 truncate">
+                            {prod.suppliers.join(', ')}
+                          </div>
+                        </div>
+                        <span className={`text-[11px] font-black px-2.5 py-1 rounded-lg whitespace-nowrap ${
+                          prod.totalPercentChange > 0 
+                            ? 'bg-red-50 text-red-700' 
+                            : prod.totalPercentChange < 0 
+                              ? 'bg-emerald-50 text-emerald-700' 
+                              : 'bg-slate-100 text-slate-600'
+                        }`}>
+                          {prod.totalPercentChange > 0 ? '+' : ''}
+                          {prod.totalPercentChange.toFixed(1)}%
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Tabela das 5 Últimas compras do produto selecionado */}
+              {selectedProduct ? (
+                <div className="space-y-4">
+                  <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 flex justify-between items-center">
+                    <div className="max-w-[70%]">
+                      <div className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Produto Selecionado</div>
+                      <div className="font-black text-slate-900 text-sm mt-0.5 truncate">{selectedProduct.name}</div>
+                      <div className="text-[11px] text-slate-500 font-bold mt-1 uppercase truncate">Fornecedores: {selectedProduct.suppliers.join(', ')}</div>
+                    </div>
+                    <div className="text-right whitespace-nowrap">
+                      <div className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Variação Geral</div>
+                      <div className={`text-lg font-black tracking-tight mt-0.5 ${
+                        selectedProduct.totalPercentChange > 0 
+                          ? 'text-red-600' 
+                          : selectedProduct.totalPercentChange < 0 
+                            ? 'text-emerald-700' 
+                            : 'text-slate-600'
+                      }`}>
+                        {selectedProduct.totalPercentChange > 0 ? '▲ +' : selectedProduct.totalPercentChange < 0 ? '▼ ' : ''}
+                        {selectedProduct.totalPercentChange.toFixed(1)}%
+                      </div>
+                    </div>
+                  </div>
+
+                  <div>
+                    <div className="text-[11px] font-black text-slate-400 uppercase tracking-wider mb-2">Histórico (Até 5 últimas compras)</div>
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left border-collapse">
+                        <thead>
+                          <tr className="border-b border-slate-100 pb-1">
+                            <th className="text-[10px] font-black uppercase text-slate-400 py-2">Data</th>
+                            <th className="text-[10px] font-black uppercase text-slate-400 py-2">Fornecedor</th>
+                            <th className="text-[10px] font-black uppercase text-slate-400 py-2 text-right">Qtd</th>
+                            <th className="text-[10px] font-black uppercase text-slate-400 py-2 text-right">Preço Un.</th>
+                            <th className="text-[10px] font-black uppercase text-slate-400 py-2 text-right">Var %</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-50">
+                          {selectedProduct.history.slice(-5).reverse().map((hist: any, hIdx: number) => {
+                            let formattedDate = hist.date;
+                            try {
+                              if (hist.date) {
+                                const datePart = hist.date.split('T')[0];
+                                const parts = datePart.split('-');
+                                if (parts.length === 3) {
+                                  formattedDate = `${parts[2]}/${parts[1]}/${parts[0]}`;
+                                }
+                              }
+                            } catch {}
+
+                            return (
+                              <tr key={hIdx} className="hover:bg-slate-50/35 transition-colors">
+                                <td className="py-2.5 font-bold text-slate-800 text-xs whitespace-nowrap">{formattedDate}</td>
+                                <td className="py-2.5 text-slate-600 text-xs truncate max-w-[120px]">{hist.supplierName}</td>
+                                <td className="py-2.5 text-right text-slate-500 font-mono text-xs">{hist.quantity}</td>
+                                <td className="py-2.5 text-right text-slate-900 font-mono font-bold text-sm">{formatCurrency(hist.price)}</td>
+                                <td className="py-2.5 text-right pr-1">
+                                  {hist.percentChange === 0 ? (
+                                    <span className="text-xs font-black text-slate-400">-</span>
+                                  ) : (
+                                    <span className={`inline-flex items-center gap-0.5 text-xs font-black ${
+                                      hist.percentChange > 0 
+                                        ? 'text-red-600' 
+                                        : 'text-emerald-700'
+                                    }`}>
+                                      {hist.percentChange > 0 ? (
+                                        <>
+                                          <ArrowUpRight className="w-3.5 h-3.5 stroke-[2.5]" />
+                                          +{hist.percentChange.toFixed(1)}%
+                                        </>
+                                      ) : (
+                                        <>
+                                          <ArrowDownRight className="w-3.5 h-3.5 stroke-[2.5]" />
+                                          {hist.percentChange.toFixed(1)}%
+                                        </>
+                                      )}
+                                    </span>
+                                  )}
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="bg-slate-50 rounded-2xl p-10 text-center flex flex-col items-center justify-center border-2 border-dashed border-slate-200">
+                  <Search className="w-10 h-10 text-slate-300 animate-bounce" />
+                  <p className="text-slate-500 font-bold text-[11px] uppercase tracking-wide mt-3">Pronto para pesquisar</p>
+                  <p className="text-slate-400 text-[9px] uppercase tracking-wider mt-1">Busque qualquer produto acima para carregar o histórico de compras.</p>
+                </div>
+              )}
+            </div>
+            
+            <div className="pt-4 border-t border-slate-50 flex justify-between items-center mt-6">
+              <span className="text-[9px] text-slate-400 font-bold uppercase tracking-wider">Dica: Selecione as sugestões rápidas enquanto digita</span>
+            </div>
+          </div>
+
         </div>
       </div>
     </div>

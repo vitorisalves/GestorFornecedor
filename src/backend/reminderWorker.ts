@@ -8,8 +8,8 @@ import { PushService } from './services/pushService';
 export const startBackgroundReminderWorker = () => {
   console.log("[ReminderWorker] Inicializando verificação de lembretes (intervalo adaptativo)...");
   
-  const DEFAULT_INTERVAL = 300000; // 5 minutos padrão
-  const QUOTA_EXCEEDED_INTERVAL = 3600000; // 1 hora de pausa em caso de quota excedida
+  const DEFAULT_INTERVAL = 900000; // 15 minutos padrão para otimização extrema de leitura de cota
+  const QUOTA_EXCEEDED_INTERVAL = 7200000; // 2 horas de pausa em caso de quota excedida
   
   let currentDelay = DEFAULT_INTERVAL;
   let timerId: NodeJS.Timeout | null = null;
