@@ -77,6 +77,7 @@ app.post("/api/xml/process", asyncHandler(async (req: Request, res: Response) =>
   
   await fsOps.set(docRef, parsedData, 'invoices/' + parsedData.id);
   fsOps.invalidateCache('xml_spendings'); // Invalida o cache de gastos XML, pois um novo arquivo foi inserido
+  fsOps.invalidateCache('invoices'); // Invalida o cache de faturas, pois uma nova fatura foi importada
   
   res.json({ status: exists ? 'updated' : 'imported', id: parsedData.id });
 }));
@@ -236,6 +237,7 @@ const deleteInvoiceHelper = async (id: string, res: Response) => {
   if (exists) {
     await fsOps.delete(docRef, 'invoices/' + finalId);
     fsOps.invalidateCache('xml_spendings'); // Invalida o cache de gastos também
+    fsOps.invalidateCache('invoices'); // Invalida o cache de faturas também
     res.json({ status: 'deleted', id: finalId });
   } else {
     // Retornamos 200/sucesso mesmo se não encontrar para evitar quebrar o fluxo do frontend de forma destrutiva

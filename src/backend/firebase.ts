@@ -247,7 +247,7 @@ export const fsOps = {
     }
 
     const now = Date.now();
-    const isCacheExpired = !cached || (now - cached.timestamp > 600000); // 10 minutes (600,000ms) TTL for extreme read optimization
+    const isCacheExpired = !cached || (now - cached.timestamp > 86400000); // 24 hours (86,400,000ms) TTL for extreme read optimization
 
     if (!isCacheExpired && cached) {
       return {
@@ -332,7 +332,7 @@ export const fsOps = {
     const cacheKey = path;
     const cached = g_docCache[cacheKey];
     const now = Date.now();
-    const isCacheExpired = !cached || (now - cached.timestamp > 600000); // 10 minutes (600,000ms) TTL for extreme read optimization
+    const isCacheExpired = !cached || (now - cached.timestamp > 86400000); // 24 hours (86,400,000ms) TTL for extreme read optimization
 
     if (!isCacheExpired && cached) {
       return {

@@ -219,6 +219,12 @@ export default function App() {
                 quantity: item.quantity || 1
               }],
               xmlStatus: hasCode ? 'Aguardando XML' : 'Sem Código'
+            }).then(() => {
+              fetch('/api/xml/cache/invalidate', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ collection: 'invoices' })
+              }).catch(() => {});
             }).catch(e => console.error('Erro ao salvar invoice manual:', e));
 
           } catch (err) {
@@ -283,6 +289,11 @@ export default function App() {
       if (invoicesToDelete.length > 0) {
         try {
           await Promise.all(invoicesToDelete.map(id => deleteDoc(doc(db, 'invoices', id))));
+          fetch('/api/xml/cache/invalidate', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ collection: 'invoices' })
+          }).catch(() => {});
           addNotification("Removido da Previsão de Compra", 1, 'info');
         } catch (err) {
           console.error("Erro ao deletar notas da previsão:", err);
