@@ -16,7 +16,9 @@ import {
   ChevronUp,
   PlusCircle,
   RefreshCcw,
-  FileText
+  FileText,
+  ChevronLeft,
+  ChevronRight
 } from 'lucide-react';
 import { AnimatePresence } from 'framer-motion';
 import { jsPDF } from 'jspdf';
@@ -88,6 +90,8 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
   setActiveTargetList
 }) => {
   const [expandedList, setExpandedList] = React.useState<string | null>(null);
+  const [currentPage, setCurrentPage] = React.useState(1);
+  const itemsPerPage = 10;
 
   const sortedLists = React.useMemo(() => {
     return [...savedLists].sort((a, b) => {
@@ -101,6 +105,19 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
       return 0;
     });
   }, [savedLists]);
+
+  const totalPages = Math.ceil(sortedLists.length / itemsPerPage);
+
+  React.useEffect(() => {
+    if (currentPage > totalPages && totalPages > 0) {
+      setCurrentPage(totalPages);
+    }
+  }, [totalPages, currentPage]);
+
+  const paginatedLists = React.useMemo(() => {
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    return sortedLists.slice(startIndex, startIndex + itemsPerPage);
+  }, [sortedLists, currentPage]);
 
   const exportToPDF = (list: SavedList) => {
     const doc = new jsPDF();
@@ -172,9 +189,7 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
         >
           <RefreshCcw className={`w-6 h-6 ${isLoading ? 'animate-spin' : ''}`} />
         </button>
-      </div>
-
-      <div className="grid grid-cols-1 gap-4">
+      </div>      <div className="grid grid-cols-1 gap-4">
         {sortedLists.length === 0 ? (
           <div className="bg-white rounded-2xl p-20 border border-dashed border-slate-200 flex flex-col items-center justify-center text-slate-400">
             <ListChecks className="w-16 h-16 mb-4 opacity-20" />
@@ -182,7 +197,7 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
             <p className="text-sm text-slate-400">Suas listas finalizadas aparecerão aqui.</p>
           </div>
         ) : (
-          sortedLists.map((list) => {
+          paginatedLists.map((list) => {
             const isCompleted = list.items.length > 0 && list.items.every(item => item.bought);
             
             return (
@@ -326,10 +341,74 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
                   )}
                 </AnimatePresence>
               </motion.div>
-          );
-        })
-      )}
+            );
+          })
+        )}
       </div>
+
+      {totalPages > 1 && (
+        <div className="flex items-center justify-between border border-slate-100 bg-white px-6 py-4 rounded-2xl shadow-sm">
+          <div className="flex flex-1 justify-between sm:hidden">
+            <button
+              onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+              disabled={currentPage === 1}
+              className="relative inline-flex items-center rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-xs font-bold uppercase tracking-wider text-slate-700 hover:bg-slate-50 disabled:opacity-50 transition-colors"
+            >
+              Anterior
+            </button>
+            <button
+              onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+              disabled={currentPage === totalPages}
+              className="relative ml-3 inline-flex items-center rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-xs font-bold uppercase tracking-wider text-slate-700 hover:bg-slate-50 disabled:opacity-50 transition-colors"
+            >
+              Próximo
+            </button>
+          </div>
+          <div className="hidden sm:flex sm:flex-1 sm:items-center sm:justify-between">
+            <div>
+              <p className="text-xs text-slate-500 uppercase tracking-wider font-bold">
+                Mostrando <span className="font-black text-slate-800 text-sm">{(currentPage - 1) * itemsPerPage + 1}</span> a{' '}
+                <span className="font-black text-slate-800 text-sm">{Math.min(currentPage * itemsPerPage, sortedLists.length)}</span> de{' '}
+                <span className="font-black text-slate-800 text-sm">{sortedLists.length}</span> listas
+              </p>
+            </div>
+            <div>
+              <nav className="isolate inline-flex -space-x-px rounded-xl gap-1" aria-label="Pagination">
+                <button
+                  onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                  disabled={currentPage === 1}
+                  className="relative inline-flex items-center rounded-xl p-2 text-slate-500 hover:bg-slate-50 disabled:opacity-40 transition-colors"
+                >
+                  <span className="sr-only">Anterior</span>
+                  <ChevronLeft className="h-5 w-5" aria-hidden="true" />
+                </button>
+                {Array.from({ length: totalPages }, (_, idx) => idx + 1).map((page) => (
+                  <button
+                    key={page}
+                    onClick={() => setCurrentPage(page)}
+                    aria-current={page === currentPage ? 'page' : undefined}
+                    className={`relative inline-flex items-center justify-center min-w-10 h-10 rounded-xl text-xs font-bold transition-all ${
+                      page === currentPage
+                        ? 'z-10 bg-indigo-600 text-white shadow-md shadow-indigo-600/10'
+                        : 'text-slate-700 hover:bg-slate-50'
+                    }`}
+                  >
+                    {page}
+                  </button>
+                ))}
+                <button
+                  onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                  disabled={currentPage === totalPages}
+                  className="relative inline-flex items-center rounded-xl p-2 text-slate-500 hover:bg-slate-50 disabled:opacity-40 transition-colors"
+                >
+                  <span className="sr-only">Próximo</span>
+                  <ChevronRight className="h-5 w-5" aria-hidden="true" />
+                </button>
+              </nav>
+            </div>
+          </div>
+        </div>
+      )}
     </motion.div>
   );
 };
