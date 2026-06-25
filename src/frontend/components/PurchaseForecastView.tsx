@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { Loader2, ChevronLeft, ChevronRight, Search, FileUp, CheckCircle2, Link } from 'lucide-react';
 import { motion } from 'framer-motion';
-import { Supplier } from '../types';
+import { Supplier, SavedList } from '../types';
 
 interface Invoice {
     id: string;
@@ -27,6 +27,7 @@ interface Props {
     suppliers: Supplier[];
     saveSupplier: (supplier: Supplier) => Promise<void>;
     addNotification: (message: string, quantity: number, type?: 'info' | 'cart') => void;
+    savedLists?: SavedList[];
 }
 
 function areCodesCompatible(c1: any, c2: any): boolean {
@@ -94,13 +95,21 @@ function parseXmlClientSide(xmlText: string): Invoice {
     };
 }
 
-export const PurchaseForecastView: React.FC<Props> = ({ suppliers, saveSupplier, addNotification }) => {
+export const PurchaseForecastView: React.FC<Props> = ({ suppliers, saveSupplier, addNotification, savedLists }) => {
+    const getTodayDateString = () => {
+        const today = new Date();
+        const year = today.getFullYear();
+        const month = String(today.getMonth() + 1).padStart(2, '0');
+        const day = String(today.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
+    };
+
     const [forecasts, setForecasts] = useState<Forecast[]>([]);
     const [loading, setLoading] = useState(true);
     const [fetchError, setFetchError] = useState<string | null>(null);
     const [currentPage, setCurrentPage] = useState(1);
     const [searchTerm, setSearchTerm] = useState('');
-    const [filterDate, setFilterDate] = useState('');
+    const [filterDate, setFilterDate] = useState(getTodayDateString());
     const [viewMode, setViewMode] = useState<'forecast' | 'import'>('forecast');
     const [productAliases, setProductAliases] = useState<Record<string, string>>({});
     const [supplierAliases, setSupplierAliases] = useState<Record<string, string>>({});
@@ -119,27 +128,47 @@ export const PurchaseForecastView: React.FC<Props> = ({ suppliers, saveSupplier,
     const [updatedCount, setUpdatedCount] = useState(0);
     const [error, setError] = useState<string | null>(null);
 
-    const fetchData = async () => {
+    const fetchData = async (force: boolean = false) => {
         setLoading(true);
         setFetchError(null);
-        try {
-            let data: Invoice[] = [];
-            let fetchSuccess = false;
-            let apiErrMessage = "";
+        
+        const cacheDuration = 15 * 60 * 1000; // 15 minutes cache
+        const lastFetch = localStorage.getItem('forecast_last_fetch');
+        const cachedInvoices = localStorage.getItem('cached_invoices');
+        const now = Date.now();
 
+        let data: Invoice[] = [];
+        let fetchSuccess = false;
+        let apiErrMessage = "";
+
+        const useCache = !force && lastFetch && cachedInvoices && (now - Number(lastFetch)) < cacheDuration;
+
+        if (useCache) {
             try {
-                const res = await fetch('/api/xml/invoices?t=' + Date.now());
-                if (res.ok) {
-                    data = await res.json();
-                    localStorage.setItem('cached_invoices', JSON.stringify(data));
-                    fetchSuccess = true;
-                } else {
-                    apiErrMessage = `Falha ao obter faturas na API (${res.status})`;
-                    console.warn(apiErrMessage);
+                data = JSON.parse(cachedInvoices || '[]');
+                fetchSuccess = true;
+            } catch (err) {
+                console.warn("Erro ao ler cache de faturas:", err);
+            }
+        }
+
+        try {
+            if (!useCache || data.length === 0) {
+                try {
+                    const res = await fetch('/api/xml/invoices?t=' + Date.now());
+                    if (res.ok) {
+                        data = await res.json();
+                        localStorage.setItem('cached_invoices', JSON.stringify(data));
+                        localStorage.setItem('forecast_last_fetch', String(now));
+                        fetchSuccess = true;
+                    } else {
+                        apiErrMessage = `Falha ao obter faturas na API (${res.status})`;
+                        console.warn(apiErrMessage);
+                    }
+                } catch (err: any) {
+                    apiErrMessage = err?.message || String(err);
+                    console.warn("Falha ao comunicar com a API. Usando cache local.", err);
                 }
-            } catch (err: any) {
-                apiErrMessage = err?.message || String(err);
-                console.warn("Falha ao comunicar com a API. Usando cache local.", err);
             }
 
             // Merge cache + local invoice buffer
@@ -234,8 +263,69 @@ export const PurchaseForecastView: React.FC<Props> = ({ suppliers, saveSupplier,
                 });
             });
 
+            let listsToProcess = savedLists;
+            if (!listsToProcess) {
+                const cachedLists = localStorage.getItem('cache_savedLists');
+                if (cachedLists) {
+                    try {
+                        listsToProcess = JSON.parse(cachedLists);
+                    } catch (e) {}
+                }
+            }
+
+            if (listsToProcess) {
+                listsToProcess.forEach(list => {
+                    list.items.forEach(item => {
+                        if (item.bought) {
+                            const listDate = item.boughtAt 
+                                ? new Date(item.boughtAt).toISOString().split('T')[0] 
+                                : new Date(list.date).toISOString().split('T')[0];
+                            const pCode = String(item.code !== undefined && item.code !== null ? item.code : '');
+                            
+                            let targetKey = Object.keys(productHistory).find(existingKey => 
+                                areCodesCompatible(existingKey, pCode)
+                            );
+                            
+                            if (!targetKey) {
+                                targetKey = Object.keys(productHistory).find(existingKey => {
+                                    const hist = productHistory[existingKey];
+                                    return hist.name === item.name && hist.supplier === item.supplierName;
+                                });
+                            }
+                            
+                            if (!targetKey) {
+                                targetKey = pCode || `${item.supplierName}-${item.name}`;
+                            }
+                            
+                            if (!productHistory[targetKey]) {
+                                productHistory[targetKey] = { 
+                                    dates: [], 
+                                    name: item.name, 
+                                    supplier: item.supplierName, 
+                                    lastQuantity: 0,
+                                    code: targetKey || pCode,
+                                    xmlStatus: 'Confirmado via XML'
+                                };
+                            }
+                            
+                            productHistory[targetKey].supplier = item.supplierName;
+                            productHistory[targetKey].lastQuantity = (item.quantity !== undefined ? item.quantity : 0);
+                            productHistory[targetKey].name = item.name;
+                            
+                            if (pCode && !pCode.toUpperCase().startsWith('MANUAL') && String(productHistory[targetKey].code).toUpperCase().startsWith('MANUAL')) {
+                                productHistory[targetKey].code = pCode;
+                            }
+                            
+                            if (!productHistory[targetKey].dates.includes(listDate)) {
+                                productHistory[targetKey].dates.push(listDate);
+                            }
+                        }
+                    });
+                });
+            }
+
             const computedForecasts: Forecast[] = Object.values(productHistory)
-                .filter(data => data.dates.length >= 1)
+                .filter(data => data.dates.length >= 2)
                 .map(data => {
                     const dates = data.dates.sort();
                     
@@ -275,12 +365,15 @@ export const PurchaseForecastView: React.FC<Props> = ({ suppliers, saveSupplier,
     };
 
     useEffect(() => {
-        fetchData();
         const storedProducts = localStorage.getItem('productAliases');
         if (storedProducts) setProductAliases(JSON.parse(storedProducts));
         const storedSuppliers = localStorage.getItem('supplierAliases');
         if (storedSuppliers) setSupplierAliases(JSON.parse(storedSuppliers));
     }, []);
+
+    useEffect(() => {
+        fetchData();
+    }, [savedLists]);
 
     const handleSetProductAlias = (originalName: string, alias: string) => {
         const newAliases = { ...productAliases, [originalName]: alias };
@@ -406,7 +499,7 @@ export const PurchaseForecastView: React.FC<Props> = ({ suppliers, saveSupplier,
         setIsUploading(false);
         
         // Refresh forecast data after import
-        fetchData();
+        fetchData(true);
     };
 
     const filteredForecasts = forecasts.filter(f => {
@@ -417,7 +510,7 @@ export const PurchaseForecastView: React.FC<Props> = ({ suppliers, saveSupplier,
                 f.productName.toLowerCase().includes(searchTerm.toLowerCase()) ||
                 supMatchName.toLowerCase().includes(searchTerm.toLowerCase()) ||
                 f.supplier.toLowerCase().includes(searchTerm.toLowerCase())) &&
-               (filterDate === '' || new Date(f.predictedNextPurchase) >= new Date(filterDate));
+               (filterDate === '' || f.predictedNextPurchase >= filterDate);
     });
 
     const totalPages = Math.ceil(filteredForecasts.length / itemsPerPage);
@@ -479,7 +572,7 @@ export const PurchaseForecastView: React.FC<Props> = ({ suppliers, saveSupplier,
                             <p className="text-xs text-rose-600 mt-0.5">{fetchError}</p>
                         </div>
                         <button 
-                            onClick={fetchData} 
+                            onClick={() => fetchData()} 
                             className="bg-white hover:bg-rose-100/50 text-rose-700 border border-rose-200 px-4 py-2 rounded-xl text-xs font-bold transition-colors shadow-sm shrink-0"
                         >
                             Tentar Novamente

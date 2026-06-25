@@ -232,7 +232,7 @@ export const fsOps = {
     const db: any = await getDb();
     return db.collection ? db.collection(coll) : collection(db, coll);
   },
-  getDocs: async (collOrQuery: any, path: string = 'unknown') => {
+  getDocs: async (collOrQuery: any, path: string = 'unknown', forceNoCache: boolean = false) => {
     const cacheKey = typeof collOrQuery === 'string' ? collOrQuery : (path.split('/')[0] || 'query');
     
     // Tenta carregar do cache em memória primeiro
@@ -249,7 +249,7 @@ export const fsOps = {
     const now = Date.now();
     const isCacheExpired = !cached || (now - cached.timestamp > 86400000); // 24 hours (86,400,000ms) TTL for extreme read optimization
 
-    if (!isCacheExpired && cached) {
+    if (!forceNoCache && !isCacheExpired && cached) {
       return {
         docs: cached.docs,
         empty: cached.docs.length === 0

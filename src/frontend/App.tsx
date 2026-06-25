@@ -25,21 +25,23 @@ import { usePurchaseForecastNotifications } from './hooks/usePurchaseForecastNot
 import { Login } from './components/Login';
 import { Sidebar } from './components/Sidebar';
 import { NotificationCenter } from './components/NotificationCenter';
-import { SuppliersView } from './components/SuppliersView';
-import { ShoppingView } from './components/ShoppingView';
-import { HistoryView } from './components/HistoryView';
-import { DeliveredProductsView } from './components/DeliveredProductsView';
-import { RemindersView } from './components/RemindersView';
-import { AIView } from './components/AIView';
-import { DashboardView } from './components/DashboardView';
 import { Modals } from './components/Modals';
-import { PurchaseForecastView } from './components/PurchaseForecastView';
 import { Header } from './components/Header';
 import { AppLayout } from './components/AppLayout';
 import { QuotaBanner } from './components/QuotaBanner';
 import { ActiveTargetBanner } from './components/ActiveTargetBanner';
 import { PermissionBanner } from './components/PermissionBanner';
-import { DREVendasView } from './components/DREVendasView';
+
+// Lazy Loaded Views for Stage 1 Optimization (Lighter & Faster Bundle, on-demand loading)
+const DashboardView = React.lazy(() => import('./components/DashboardView').then(m => ({ default: m.DashboardView })));
+const SuppliersView = React.lazy(() => import('./components/SuppliersView').then(m => ({ default: m.SuppliersView })));
+const ShoppingView = React.lazy(() => import('./components/ShoppingView').then(m => ({ default: m.ShoppingView })));
+const HistoryView = React.lazy(() => import('./components/HistoryView').then(m => ({ default: m.HistoryView })));
+const DeliveredProductsView = React.lazy(() => import('./components/DeliveredProductsView').then(m => ({ default: m.DeliveredProductsView })));
+const RemindersView = React.lazy(() => import('./components/RemindersView').then(m => ({ default: m.RemindersView })));
+const AIView = React.lazy(() => import('./components/AIView').then(m => ({ default: m.AIView })));
+const PurchaseForecastView = React.lazy(() => import('./components/PurchaseForecastView').then(m => ({ default: m.PurchaseForecastView })));
+const DREVendasView = React.lazy(() => import('./components/DREVendasView').then(m => ({ default: m.DREVendasView })));
 
 // Types
 import { Product, Supplier } from './types';
@@ -167,13 +169,12 @@ export default function App() {
         .replace(/^-+|-+$/g, '');
     };
     const newDeliveryId = becomingBought ? sanitizeForId(`${productName}-${supplierName}-${now.getTime()}`) : undefined;
-    const newInvoiceId = becomingBought ? sanitizeForId(`manual-inv-${productName}-${supplierName}-${now.getTime()}`) : undefined;
 
     // Atualiza o estado da UI instantaneamente (optimistic)
     toggleSavedListItemBought(listId, productName, supplierName, { 
       bought: becomingBought, 
       deliveryId: newDeliveryId,
-      invoiceId: newInvoiceId
+      boughtAt: becomingBought ? now.toISOString() : undefined
     });
 
     if (becomingBought) {
@@ -206,27 +207,6 @@ export default function App() {
               addNotification(`Data atualizada e enviado para Entregues`, 1, 'info');
             });
 
-            // Adiciona fatura manual para a Previsão de Compra
-            const productCode = updatedSupplier.products[productIndex].code;
-            const hasCode = !!(productCode && productCode.trim());
-            setDoc(doc(db, 'invoices', newInvoiceId!), {
-              id: newInvoiceId,
-              date: now.toISOString(),
-              supplierName: supplierName,
-              products: [{
-                code: productCode || `MANUAL-${sanitizeForId(productName)}`,
-                name: productName,
-                quantity: item.quantity || 1
-              }],
-              xmlStatus: hasCode ? 'Aguardando XML' : 'Sem Código'
-            }).then(() => {
-              fetch('/api/xml/cache/invalidate', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ collection: 'invoices' })
-              }).catch(() => {});
-            }).catch(e => console.error('Erro ao salvar invoice manual:', e));
-
           } catch (err) {
             console.error("Erro ao atualizar data de compra:", err);
           }
@@ -255,48 +235,6 @@ export default function App() {
         } catch (err) {
           console.error("Erro ao remover dos entregues:", err);
           addNotification("Erro ao remover dos entregues", 0, 'info');
-        }
-      }
-
-      // Remover da Previsão de compra
-      const invoicesToDelete: string[] = [];
-      if (item.invoiceId) {
-        invoicesToDelete.push(item.invoiceId);
-      }
-
-      try {
-        const manualPref = `manual-inv-${sanitizeForId(productName)}-${sanitizeForId(supplierName)}`;
-        const invoicesRef = collection(db, 'invoices');
-        const invoiceSnap = await getDocs(invoicesRef);
-        invoiceSnap.forEach((docSnap) => {
-          const id = docSnap.id;
-          if (id.startsWith('manual-inv-')) {
-            const includesProduct = id.includes(sanitizeForId(productName));
-            const includesSupplier = id.includes(sanitizeForId(supplierName));
-            if (id.startsWith(manualPref) || (includesProduct && includesSupplier)) {
-              if (!invoicesToDelete.includes(id)) {
-                invoicesToDelete.push(id);
-              }
-            }
-          }
-        });
-      } catch (err) {
-        if (!String(err).toLowerCase().includes('quota')) {
-          console.error("Erro ao carregar faturas manuais para deletar:", err);
-        }
-      }
-
-      if (invoicesToDelete.length > 0) {
-        try {
-          await Promise.all(invoicesToDelete.map(id => deleteDoc(doc(db, 'invoices', id))));
-          fetch('/api/xml/cache/invalidate', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ collection: 'invoices' })
-          }).catch(() => {});
-          addNotification("Removido da Previsão de Compra", 1, 'info');
-        } catch (err) {
-          console.error("Erro ao deletar notas da previsão:", err);
         }
       }
     }
@@ -648,108 +586,116 @@ export default function App() {
       />
 
       <AnimatePresence mode="wait">
-        {currentPage === 'dashboard' && (
-          <DashboardView 
-            key="dashboard"
-            savedLists={savedLists}
-          />
-        )}
-        {currentPage === 'suppliers' && (
-          <SuppliersView 
-            key={currentPage}
-            suppliers={mainSuppliers}
-            allSuppliers={suppliers}
-            isLoading={isSuppliersLoading}
-            onRefresh={refreshSuppliers}
-            searchTerm={searchTerm}
-            setSearchTerm={setSearchTerm}
-            setIsAdding={setIsAdding}
-            handleEditSupplier={(s) => onEditSupplier(s, setIsAdding)}
-            setSupplierToDelete={(id) => setDeletion('supplier', id)}
-            addToCart={handleAddToCart}
-            handleExportExcel={handleExportExcel}
-            handleImportExcel={onImportExcel}
-            handleSyncSheets={onSyncSheets}
-            addNotification={addNotification}
-            onEditProduct={onEditProductFromShopping}
-            saveSupplier={saveSupplier}
-          />
-        )}
-        {currentPage === 'shopping' && (
-          <ShoppingView 
-            key="shopping"
-            suppliers={suppliers}
-            searchTerm={searchTerm}
-            setSearchTerm={setSearchTerm}
-            shoppingQuantities={shoppingQuantities}
-            setShoppingQuantities={setShoppingQuantities}
-            addToCart={handleAddToCart}
-            onEditProduct={onEditProductFromShopping}
-          />
-        )}
-        {currentPage === 'history' && (
-          <HistoryView 
-            key="history"
-            savedLists={savedLists}
-            isLoading={isLoadingLists}
-            onRefresh={refreshLists}
-            editSavedList={onEditSavedList}
-            deleteSavedList={(id) => setDeletion('list', id)}
-            toggleSavedListItemBought={handleToggleSavedListItemBought}
-            setActiveTargetList={onSetActiveTargetList}
-          />
-        )}
-        {currentPage === 'delivered' && (
-          <DeliveredProductsView 
-            key="delivered"
-            deliveredProducts={deliveredProducts}
-            toggleDeliveryStatus={toggleDeliveryStatus}
-            deleteDeliveredProduct={deleteDeliveredProduct}
-            updatePurchaseDate={updatePurchaseDate}
-            updateForecastDate={updateForecastDate}
-            updateDeliveryDate={updateDeliveryDate}
-          />
-        )}
-        {currentPage === 'reminders' && (
-          <RemindersView 
-            key="reminders"
-            reminders={reminders}
-            onRefresh={refreshReminders}
-            reminderProductName={reminderProductName}
-            setReminderProductName={setReminderProductName}
-            reminderDate={reminderDate}
-            setReminderDate={setReminderDate}
-            addReminder={onScheduleReminder}
-            deleteReminder={(id) => setDeletion('reminder', id)}
-          />
-        )}
-        {currentPage === 'ai' && (
-          <AIView 
-            key="ai"
-            suppliers={suppliers}
-            categories={categories}
-            deliveredProducts={deliveredProducts}
-            saveSupplier={saveSupplier}
-            updateForecastDate={updateForecastDate}
-            updateProductPriceInLists={updateProductPriceInLists}
-            addToCart={handleAddToCart}
-            addNotification={addNotification}
-          />
-        )}
-        {currentPage === 'purchase-forecast' && (
-          <PurchaseForecastView
-            key="purchase-forecast"
-            suppliers={suppliers}
-            saveSupplier={saveSupplier}
-            addNotification={addNotification}
-          />
-        )}
-        {currentPage === 'vendas' && (
-          <DREVendasView 
-            key="vendas"
-            addNotification={addNotification}
-          />
-        )}
+        <React.Suspense fallback={
+          <div className="flex flex-col items-center justify-center min-h-[400px] gap-3 text-gray-500 bg-white/50 backdrop-blur-sm rounded-2xl border border-gray-100 shadow-sm p-8">
+            <RefreshCcw className="animate-spin h-8 w-8 text-indigo-600" />
+            <span className="text-sm font-medium">Carregando painel...</span>
+          </div>
+        }>
+          {currentPage === 'dashboard' && (
+            <DashboardView 
+              key="dashboard"
+              savedLists={savedLists}
+            />
+          )}
+          {currentPage === 'suppliers' && (
+            <SuppliersView 
+              key={currentPage}
+              suppliers={mainSuppliers}
+              allSuppliers={suppliers}
+              isLoading={isSuppliersLoading}
+              onRefresh={refreshSuppliers}
+              searchTerm={searchTerm}
+              setSearchTerm={setSearchTerm}
+              setIsAdding={setIsAdding}
+              handleEditSupplier={(s) => onEditSupplier(s, setIsAdding)}
+              setSupplierToDelete={(id) => setDeletion('supplier', id)}
+              addToCart={handleAddToCart}
+              handleExportExcel={handleExportExcel}
+              handleImportExcel={onImportExcel}
+              handleSyncSheets={onSyncSheets}
+              addNotification={addNotification}
+              onEditProduct={onEditProductFromShopping}
+              saveSupplier={saveSupplier}
+            />
+          )}
+          {currentPage === 'shopping' && (
+            <ShoppingView 
+              key="shopping"
+              suppliers={suppliers}
+              searchTerm={searchTerm}
+              setSearchTerm={setSearchTerm}
+              shoppingQuantities={shoppingQuantities}
+              setShoppingQuantities={setShoppingQuantities}
+              addToCart={handleAddToCart}
+              onEditProduct={onEditProductFromShopping}
+            />
+          )}
+          {currentPage === 'history' && (
+            <HistoryView 
+              key="history"
+              savedLists={savedLists}
+              isLoading={isLoadingLists}
+              onRefresh={refreshLists}
+              editSavedList={onEditSavedList}
+              deleteSavedList={(id) => setDeletion('list', id)}
+              toggleSavedListItemBought={handleToggleSavedListItemBought}
+              setActiveTargetList={onSetActiveTargetList}
+            />
+          )}
+          {currentPage === 'delivered' && (
+            <DeliveredProductsView 
+              key="delivered"
+              deliveredProducts={deliveredProducts}
+              toggleDeliveryStatus={toggleDeliveryStatus}
+              deleteDeliveredProduct={deleteDeliveredProduct}
+              updatePurchaseDate={updatePurchaseDate}
+              updateForecastDate={updateForecastDate}
+              updateDeliveryDate={updateDeliveryDate}
+            />
+          )}
+          {currentPage === 'reminders' && (
+            <RemindersView 
+              key="reminders"
+              reminders={reminders}
+              onRefresh={refreshReminders}
+              reminderProductName={reminderProductName}
+              setReminderProductName={setReminderProductName}
+              reminderDate={reminderDate}
+              setReminderDate={setReminderDate}
+              addReminder={onScheduleReminder}
+              deleteReminder={(id) => setDeletion('reminder', id)}
+            />
+          )}
+          {currentPage === 'ai' && (
+            <AIView 
+              key="ai"
+              suppliers={suppliers}
+              categories={categories}
+              deliveredProducts={deliveredProducts}
+              saveSupplier={saveSupplier}
+              updateForecastDate={updateForecastDate}
+              updateProductPriceInLists={updateProductPriceInLists}
+              addToCart={handleAddToCart}
+              addNotification={addNotification}
+            />
+          )}
+          {currentPage === 'purchase-forecast' && (
+            <PurchaseForecastView
+              key="purchase-forecast"
+              suppliers={suppliers}
+              saveSupplier={saveSupplier}
+              addNotification={addNotification}
+              savedLists={savedLists}
+            />
+          )}
+          {currentPage === 'vendas' && (
+            <DREVendasView 
+              key="vendas"
+              addNotification={addNotification}
+            />
+          )}
+        </React.Suspense>
       </AnimatePresence>
 
       <Modals 

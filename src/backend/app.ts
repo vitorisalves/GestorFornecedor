@@ -120,6 +120,20 @@ app.get("/api/xml/suppliers", asyncHandler(async (req: Request, res: Response) =
   }
 }));
 
+app.get("/api/xml/authorized_users", asyncHandler(async (req: Request, res: Response) => {
+  try {
+    const snapshot = await fsOps.getDocs('authorized_users', 'authorized_users');
+    const data = snapshot.docs.map((doc: any) => {
+      const d = typeof doc.data === 'function' ? doc.data() : doc.data;
+      return { id: doc.id, ...d };
+    });
+    res.json(data);
+  } catch (error: any) {
+    console.error("Error fetching cached authorized_users:", error);
+    res.status(500).json({ error: "Error fetching authorized users", message: error.message });
+  }
+}));
+
 app.get("/api/xml/spendings", asyncHandler(async (req: Request, res: Response) => {
   try {
     const snapshot = await fsOps.getDocs('xml_spendings', 'xml_spendings');

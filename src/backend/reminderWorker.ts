@@ -25,7 +25,7 @@ export const startBackgroundReminderWorker = () => {
         const q = db.collection('reminders')
           .where('notified', '==', false)
           .where('date', '<=', nowStr);
-        snapshot = await fsOps.getDocs(q, 'reminders_pending');
+        snapshot = await fsOps.getDocs(q, 'reminders_pending', true);
       } else {
         // Client SDK Query
         const remindersColl = collection(db as any, 'reminders');
@@ -34,7 +34,7 @@ export const startBackgroundReminderWorker = () => {
           where('notified', '==', false),
           where('date', '<=', nowStr)
         );
-        snapshot = await fsOps.getDocs(q, 'reminders_pending');
+        snapshot = await fsOps.getDocs(q, 'reminders_pending', true);
       }
 
       // Reset standard delay on successful check

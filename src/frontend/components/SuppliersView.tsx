@@ -1319,30 +1319,29 @@ export const SuppliersView: React.FC<SuppliersViewProps> = ({
                           <td className="px-6 py-4 space-y-2 max-w-[190px]">
                             {/* Option list */}
                             <div className="flex flex-col gap-1">
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  // Find if there is an exact match to restore
-                                  const exact = findExactMatch(row.cProd, row.xProd);
-                                  if (exact) {
-                                    updateRow(row.id, {
-                                      reconciliationType: 'exact',
-                                      associatedSupplierId: exact.supplier.id || '',
-                                      associatedSupplierName: exact.supplier.name,
-                                      associatedProductCode: exact.product.code || ''
-                                    });
-                                  } else {
-                                    updateRow(row.id, { reconciliationType: 'new' });
-                                  }
-                                }}
-                                className={`w-full text-left px-2.5 py-1.5 rounded-lg text-[10px] font-black uppercase transition-all ${
-                                  row.reconciliationType === 'exact'
-                                    ? 'bg-emerald-100 text-emerald-800 border border-emerald-200'
-                                    : 'bg-slate-50 text-slate-500 hover:bg-slate-100 border border-slate-200/60'
-                                }`}
-                              >
-                                {isAutoLinked ? "✓ Auto-Vínculo" : "✓ Equivalente"}
-                              </button>
+                              {findExactMatch(row.cProd, row.xProd) && (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const exact = findExactMatch(row.cProd, row.xProd);
+                                    if (exact) {
+                                      updateRow(row.id, {
+                                        reconciliationType: 'exact',
+                                        associatedSupplierId: exact.supplier.id || '',
+                                        associatedSupplierName: exact.supplier.name,
+                                        associatedProductCode: exact.product.code || ''
+                                      });
+                                    }
+                                  }}
+                                  className={`w-full text-left px-2.5 py-1.5 rounded-lg text-[10px] font-black uppercase transition-all ${
+                                    row.reconciliationType === 'exact'
+                                      ? 'bg-emerald-100 text-emerald-800 border border-emerald-200'
+                                      : 'bg-slate-50 text-slate-500 hover:bg-slate-100 border border-slate-200/60'
+                                  }`}
+                                >
+                                  ✓ Auto-Vínculo Encontrado
+                                </button>
+                              )}
 
                               <button
                                 type="button"
@@ -1353,7 +1352,7 @@ export const SuppliersView: React.FC<SuppliersViewProps> = ({
                                   row.reconciliationType === 'manual'
                                     ? 'bg-indigo-100 text-indigo-800 border border-indigo-200'
                                     : 'bg-slate-50 text-slate-500 hover:bg-slate-100 border border-slate-200/60'
-                                }`}
+                                  }`}
                               >
                                 ✎ Substituir Manual
                               </button>
@@ -1369,7 +1368,7 @@ export const SuppliersView: React.FC<SuppliersViewProps> = ({
                                     : 'bg-slate-50 text-slate-500 hover:bg-slate-100 border border-slate-200/60'
                                 }`}
                               >
-                                ＋ Criar Novo
+                                {findExactMatch(row.cProd, row.xProd) ? "✗ Rejeitar Vínculo (Novo)" : "＋ Criar Novo"}
                               </button>
                             </div>
 
@@ -1488,8 +1487,18 @@ export const SuppliersView: React.FC<SuppliersViewProps> = ({
                               })()
                             ) : (
                               <div className="bg-amber-50/50 p-2.5 border border-amber-100 rounded-xl text-[10px] flex flex-col gap-1.5 font-bold text-amber-800">
-                                <span className="font-bold text-amber-700">Criar como novo produto em:</span>
                                 <div className="flex flex-col gap-1">
+                                  {findExactMatch(row.cProd, row.xProd) ? (
+                                    <span className="text-[10px] text-red-600 bg-red-50 p-1 border border-red-100 rounded mb-1">
+                                      ⚠️ Associação Rejeitada. Fallback Automático ativo para novo registro.
+                                    </span>
+                                  ) : (
+                                    <span className="text-[10px] text-amber-700 bg-amber-50 p-1 border border-amber-100 rounded mb-1">
+                                      ℹ️ Sem Vínculo Prévio. Fallback Automático ativo para novo registro.
+                                    </span>
+                                  )}
+                                  <span className="font-bold text-slate-700 uppercase text-[9px] tracking-wide">Destino do Novo Registro:</span>
+                                  
                                   <select
                                     value={row.targetType}
                                     onChange={(e) => updateRow(row.id, { targetType: e.target.value as any })}

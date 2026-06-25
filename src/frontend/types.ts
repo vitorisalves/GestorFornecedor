@@ -44,7 +44,7 @@ export interface SavedList {
   id: string;
   name: string;
   date: string;
-  items: (Product & { supplierName: string; bought: boolean; quantity: number, deliveryId?: string, invoiceId?: string })[];
+  items: (Product & { supplierName: string; bought: boolean; quantity: number, deliveryId?: string, invoiceId?: string, boughtAt?: string })[];
   total: number;
   shippingFee: number;
   createdBy?: string;

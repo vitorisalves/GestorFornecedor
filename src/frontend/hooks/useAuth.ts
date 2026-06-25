@@ -22,6 +22,73 @@ export const useAuth = () => {
   const [loginError, setLoginError] = useState('');
   const [authError, setAuthError] = useState<string | null>(null);
 
+  const invalidateBackendCache = async (collectionName: string) => {
+    try {
+      await fetch('/api/xml/cache/invalidate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ collection: collectionName })
+      });
+    } catch (err) {
+      console.warn("Backend cache invalidation failed:", err);
+    }
+  };
+
+  const loadAuthorizedUsers = async (force: boolean = false) => {
+    const adminEmail = 'vitorisalves1@gmail.com';
+    const isHardcodedAdmin = auth.currentUser?.email === adminEmail && auth.currentUser?.emailVerified;
+    const currentUid = auth.currentUser?.uid;
+    if (!currentUid) return;
+
+    const cacheDuration = 15 * 60 * 1000; // 15 minutes cache
+    const lastFetch = localStorage.getItem('authorized_users_last_fetch');
+    const cachedUsers = localStorage.getItem('cache_authorizedUsers');
+    const now = Date.now();
+
+    if (!force && lastFetch && cachedUsers && (now - Number(lastFetch)) < cacheDuration) {
+      setAuthorizedUsers(JSON.parse(cachedUsers));
+      return;
+    }
+
+    try {
+      let data: AuthorizedUser[] = [];
+      try {
+        const res = await fetch('/api/xml/authorized_users');
+        if (res.ok) {
+          data = await res.json() as AuthorizedUser[];
+        } else {
+          throw new Error("Backend caching route failed");
+        }
+      } catch (backendErr) {
+        console.warn("Backend authorized_users failed, resorting to client-side Firestore:", backendErr);
+        const snapshot = await getDocs(collection(db, 'authorized_users'));
+        data = snapshot.docs.map(doc => ({ ...doc.data() }) as AuthorizedUser);
+      }
+
+      // Deduplicate by CPF (keep latest request)
+      const uniqueMap = new Map<string, AuthorizedUser>();
+      data.forEach(u => {
+        if (!u.cpf) return;
+        const existing = uniqueMap.get(u.cpf);
+        if (!existing || (u.requestDate && existing.requestDate && new Date(u.requestDate) > new Date(existing.requestDate))) {
+          uniqueMap.set(u.cpf, u);
+        } else if (!existing) {
+          uniqueMap.set(u.cpf, u);
+        }
+      });
+      const uniqueData = Array.from(uniqueMap.values());
+
+      setAuthorizedUsers(uniqueData);
+      localStorage.setItem('cache_authorizedUsers', safeStringify(uniqueData));
+      localStorage.setItem('authorized_users_last_fetch', String(now));
+    } catch (err: any) {
+      handleFirestoreError(err, OperationType.GET, 'authorized_users');
+      if (cachedUsers) {
+        setAuthorizedUsers(JSON.parse(cachedUsers));
+      }
+    }
+  };
+
   useEffect(() => {
     const unsubAuth = onAuthStateChanged(auth, (user) => {
       if (user) {
@@ -44,8 +111,6 @@ export const useAuth = () => {
     const currentUid = auth.currentUser?.uid;
     if (!currentUid) return;
 
-    let unsubAll: (() => void) | undefined;
-
     // Listen only to the current user's document to save reads
     const unsubUser = onSnapshot(doc(db, 'authorized_users', currentUid), (snapshot) => {
       const adminEmail = 'vitorisalves1@gmail.com';
@@ -60,39 +125,11 @@ export const useAuth = () => {
 
         setIsApproved(userIsApproved);
 
-        // Fetch list if admin (REAL-TIME)
+        // Fetch list if admin (LOAD FROM CACHE / ON DEMAND)
         if (userIsAdmin) {
-          if (!unsubAll) {
-            unsubAll = onSnapshot(collection(db, 'authorized_users'), (allSnapshot) => {
-              const rawData = allSnapshot.docs.map(d => ({ ...d.data() }) as AuthorizedUser);
-              
-              // Deduplicate by CPF (keep latest request)
-              const uniqueMap = new Map<string, AuthorizedUser>();
-              rawData.forEach(u => {
-                if (!u.cpf) return;
-                const existing = uniqueMap.get(u.cpf);
-                if (!existing || (u.requestDate && existing.requestDate && new Date(u.requestDate) > new Date(existing.requestDate))) {
-                  uniqueMap.set(u.cpf, u);
-                } else if (!existing) {
-                  uniqueMap.set(u.cpf, u);
-                }
-              });
-              const data = Array.from(uniqueMap.values());
-              
-              setAuthorizedUsers(data);
-              localStorage.setItem('cache_authorizedUsers', safeStringify(data));
-            }, (err) => {
-               if (err.message.toLowerCase().includes('quota')) {
-                 setAuthError(err.message);
-               }
-            });
-          }
+          loadAuthorizedUsers(false);
         } else {
           setAuthorizedUsers([userData]);
-          if (unsubAll) {
-            unsubAll();
-            unsubAll = undefined;
-          }
         }
 
         // AUTO-LOGIN: Only if approved AND we have the intent to be logged in (cache_loggedCpf exists)
@@ -115,7 +152,6 @@ export const useAuth = () => {
 
     return () => {
       unsubUser();
-      if (unsubAll) (unsubAll as any)();
     };
   }, [isAuthReady, isLoggedIn]);
 
@@ -188,6 +224,7 @@ export const useAuth = () => {
         }
         const cleaned = cleanObject(updatedUser);
         await setDoc(doc(db, 'authorized_users', currentUid), cleaned);
+        await invalidateBackendCache('authorized_users');
         
         if (updatedUser.status === 'approved') {
           setIsLoggedIn(true);
@@ -220,6 +257,7 @@ export const useAuth = () => {
       try {
         const cleaned = cleanObject(newUser);
         await setDoc(doc(db, 'authorized_users', currentUid), cleaned);
+        await invalidateBackendCache('authorized_users');
         if (newUser.status === 'approved') {
           setIsLoggedIn(true);
           setLoggedCpf(cleanCpf);
@@ -255,6 +293,14 @@ export const useAuth = () => {
       } else {
         await updateDoc(doc(db, 'authorized_users', uid), { status });
       }
+      await invalidateBackendCache('authorized_users');
+      setAuthorizedUsers(prev => {
+        if (status === 'denied') {
+          return prev.filter(u => u.uid !== uid);
+        } else {
+          return prev.map(u => u.uid === uid ? { ...u, status } : u);
+        }
+      });
     } catch (e) {
       handleFirestoreError(e, OperationType.WRITE, `authorized_users/${uid}`);
     }
@@ -263,6 +309,8 @@ export const useAuth = () => {
   const confirmDeleteUser = async (uid: string) => {
     try {
       await deleteDoc(doc(db, 'authorized_users', uid));
+      await invalidateBackendCache('authorized_users');
+      setAuthorizedUsers(prev => prev.filter(u => u.uid !== uid));
     } catch (e) {
       handleFirestoreError(e, OperationType.WRITE, `authorized_users/${uid}`);
     }
@@ -285,6 +333,7 @@ export const useAuth = () => {
     updateUserStatus,
     removeUserRequest: confirmDeleteUser,
     isAdmin,
-    isAuthReady
+    isAuthReady,
+    loadAuthorizedUsers: (force: boolean = false) => loadAuthorizedUsers(force)
   };
 };

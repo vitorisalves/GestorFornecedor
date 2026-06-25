@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react';
+import { SavedList } from '../types';
 
 interface Invoice {
     id: string;
@@ -50,18 +51,37 @@ export const usePurchaseForecastNotifications = (
 
         const checkForecasts = async () => {
             try {
+                const cacheDuration = 15 * 60 * 1000; // 15 minutes cache
+                const lastCheck = localStorage.getItem('forecast_notification_last_check');
+                const cachedInvoices = localStorage.getItem('cached_invoices');
+                const now = Date.now();
+
                 let data: Invoice[] = [];
                 let fetchSuccess = false;
 
-                try {
-                    const res = await fetch('/api/xml/invoices?t=' + Date.now());
-                    if (res.ok) {
-                        data = await res.ok ? await res.json() : [];
-                        localStorage.setItem('cached_invoices', JSON.stringify(data));
+                const useCache = lastCheck && cachedInvoices && (now - Number(lastCheck)) < cacheDuration;
+
+                if (useCache) {
+                    try {
+                        data = JSON.parse(cachedInvoices || '[]');
                         fetchSuccess = true;
+                    } catch (err) {
+                        console.warn("[ForecastNotifications] Erro ao carregar cache de faturas:", err);
                     }
-                } catch (err) {
-                    console.warn("[ForecastNotifications] Falha ao comunicar com a API. Usando cache local.", err);
+                }
+
+                if (!useCache || data.length === 0) {
+                    try {
+                        const res = await fetch('/api/xml/invoices?t=' + Date.now());
+                        if (res.ok) {
+                            data = await res.json();
+                            localStorage.setItem('cached_invoices', JSON.stringify(data));
+                            localStorage.setItem('forecast_notification_last_check', String(now));
+                            fetchSuccess = true;
+                        }
+                    } catch (err) {
+                        console.warn("[ForecastNotifications] Falha ao comunicar com a API. Usando cache local.", err);
+                    }
                 }
 
                 const cached = localStorage.getItem('cached_invoices');
@@ -147,8 +167,65 @@ export const usePurchaseForecastNotifications = (
                     });
                 });
 
+                const cachedLists = localStorage.getItem('cache_savedLists');
+                let savedLists: SavedList[] = [];
+                if (cachedLists) {
+                    try {
+                        savedLists = JSON.parse(cachedLists);
+                    } catch (e) {}
+                }
+
+                savedLists.forEach(list => {
+                    list.items.forEach(item => {
+                        if (item.bought) {
+                            const listDate = item.boughtAt 
+                                ? new Date(item.boughtAt).toISOString().split('T')[0] 
+                                : new Date(list.date).toISOString().split('T')[0];
+                            const pCode = String(item.code !== undefined && item.code !== null ? item.code : '');
+                            
+                            let targetKey = Object.keys(productHistory).find(existingKey => 
+                                areCodesCompatible(existingKey, pCode)
+                            );
+                            
+                            if (!targetKey) {
+                                targetKey = Object.keys(productHistory).find(existingKey => {
+                                    const hist = productHistory[existingKey];
+                                    return hist.name === item.name && hist.supplier === item.supplierName;
+                                });
+                            }
+                            
+                            if (!targetKey) {
+                                targetKey = pCode || `${item.supplierName}-${item.name}`;
+                            }
+                            
+                            if (!productHistory[targetKey]) {
+                                productHistory[targetKey] = { 
+                                    dates: [], 
+                                    name: item.name, 
+                                    supplier: item.supplierName, 
+                                    lastQuantity: 0,
+                                    code: targetKey || pCode,
+                                    xmlStatus: 'Confirmado via XML'
+                                };
+                            }
+                            
+                            productHistory[targetKey].supplier = item.supplierName;
+                            productHistory[targetKey].lastQuantity = (item.quantity !== undefined ? item.quantity : 0);
+                            productHistory[targetKey].name = item.name;
+                            
+                            if (pCode && !pCode.toUpperCase().startsWith('MANUAL') && String(productHistory[targetKey].code).toUpperCase().startsWith('MANUAL')) {
+                                productHistory[targetKey].code = pCode;
+                            }
+                            
+                            if (!productHistory[targetKey].dates.includes(listDate)) {
+                                productHistory[targetKey].dates.push(listDate);
+                            }
+                        }
+                    });
+                });
+
                 const computedForecasts: Forecast[] = Object.values(productHistory)
-                    .filter(item => item.dates.length >= 1)
+                    .filter(item => item.dates.length >= 2)
                     .map(item => {
                         const dates = item.dates.sort();
                         let avgInterval = 30; // 30 days default
