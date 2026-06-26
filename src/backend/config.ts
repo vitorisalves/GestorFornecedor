@@ -1,6 +1,7 @@
 import path from "path";
 import fs from "fs";
 import { fileURLToPath } from "url";
+import firebaseConfigJsonStatic from "../../firebase-applet-config.json";
 
 const HARDCODED_FIREBASE_FALLBACK = {
   "projectId": "gen-lang-client-0797058892",
@@ -14,6 +15,11 @@ const HARDCODED_FIREBASE_FALLBACK = {
 };
 
 const getFileFirebaseConfig = (): any => {
+  // Use a importação estática resolvida pelo bundler para Vercel
+  if (firebaseConfigJsonStatic && firebaseConfigJsonStatic.projectId) {
+    return firebaseConfigJsonStatic;
+  }
+
   try {
     const configPath = path.join(process.cwd(), 'firebase-applet-config.json');
     if (fs.existsSync(configPath)) {

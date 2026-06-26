@@ -170,6 +170,9 @@ function getCacheFilePath(key: string): string {
 }
 
 function saveCacheToDisk(key: string, docs: Array<{ id: string; data: any }>) {
+  if (IS_VERCEL) {
+    return; // Não grava cache em disco no ambiente do Vercel (sistema de arquivos read-only/efêmero)
+  }
   try {
     const filePath = getCacheFilePath(key);
     fs.writeFileSync(filePath, JSON.stringify({
@@ -183,6 +186,9 @@ function saveCacheToDisk(key: string, docs: Array<{ id: string; data: any }>) {
 }
 
 function loadCacheFromDisk(key: string): CachedDocs | null {
+  if (IS_VERCEL) {
+    return null; // Não carrega cache do disco no Vercel para evitar ler dados estáticos pré-empacotados desatualizados
+  }
   try {
     const filePath = getCacheFilePath(key);
     if (fs.existsSync(filePath)) {
