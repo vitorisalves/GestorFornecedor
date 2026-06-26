@@ -134,7 +134,13 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
     doc.text(`Operador: ${list.createdBy || 'Sistema'}`, 14, 44);
     
     // Table
-    const tableData = list.items.map(item => [
+    const sortedItemsForPDF = [...list.items].sort((a, b) => {
+      if (a.bought && !b.bought) return 1;
+      if (!a.bought && b.bought) return -1;
+      return 0;
+    });
+
+    const tableData = sortedItemsForPDF.map(item => [
       item.bought ? '[X]' : '[ ]',
       item.name,
       item.supplierName,
@@ -325,14 +331,20 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
                               </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-100">
-                              {list.items.map((item, idx) => (
-                                <HistoryItemRow
-                                  key={`${list.id}-${item.name}-${item.supplierName}-${idx}`}
-                                  listId={list.id}
-                                  item={item}
-                                  onToggle={toggleSavedListItemBought}
-                                />
-                              ))}
+                              {[...list.items]
+                                .sort((a, b) => {
+                                  if (a.bought && !b.bought) return 1;
+                                  if (!a.bought && b.bought) return -1;
+                                  return 0;
+                                })
+                                .map((item, idx) => (
+                                  <HistoryItemRow
+                                    key={`${list.id}-${item.name}-${item.supplierName}-${idx}`}
+                                    listId={list.id}
+                                    item={item}
+                                    onToggle={toggleSavedListItemBought}
+                                  />
+                                ))}
                             </tbody>
                           </table>
                         </div>

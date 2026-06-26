@@ -69,7 +69,19 @@ app.post("/api/xml/process", asyncHandler(async (req: Request, res: Response) =>
   const { xmlData } = req.body;
   const parsedData = xmlService.parseNFe(xmlData);
   
-  // Salva no Firestore
+  // 1. Busca faturas existentes para comparação antes de salvar o novo XML
+  let existingInvoices: any[] = [];
+  try {
+    const snapshot = await fsOps.getDocs('invoices', 'invoices');
+    existingInvoices = snapshot.docs.map((doc: any) => {
+      const d = typeof doc.data === 'function' ? doc.data() : doc.data;
+      return { id: doc.id, ...d };
+    });
+  } catch (e) {
+    console.error("Erro ao buscar faturas anteriores para comparação de preços:", e);
+  }
+
+  // 2. Salva no Firestore
   const docRef = fsOps.doc('invoices', parsedData.id);
   const docSnapshot = await fsOps.getDoc(docRef);
 
@@ -79,7 +91,122 @@ app.post("/api/xml/process", asyncHandler(async (req: Request, res: Response) =>
   fsOps.invalidateCache('xml_spendings'); // Invalida o cache de gastos XML, pois um novo arquivo foi inserido
   fsOps.invalidateCache('invoices'); // Invalida o cache de faturas, pois uma nova fatura foi importada
   
+  // 3. Comparação de preços dos produtos da nota atual com as compras anteriores
+  const currentInvoiceId = parsedData.id;
+  const currentInvoiceDate = parsedData.date || new Date().toISOString();
+  const currentProducts = parsedData.products || [];
+
+  for (const prod of currentProducts) {
+    if (!prod.name || prod.name === 'N/A') continue;
+
+    const normName = prod.name.trim().toLowerCase();
+    const prodCode = prod.code || 'N/A';
+
+    // Procura por compras anteriores do mesmo produto
+    const previousPurchases: { date: string; price: number; supplierName: string }[] = [];
+
+    existingInvoices.forEach(inv => {
+      if (inv.id === currentInvoiceId) return; // ignora a nota atual
+      if (!Array.isArray(inv.products)) return;
+
+      inv.products.forEach((p: any) => {
+        if (!p.name || p.name === 'N/A') return;
+        const otherNormName = p.name.trim().toLowerCase();
+        const otherCode = p.code || 'N/A';
+
+        const isMatch = (prodCode !== 'N/A' && prodCode === otherCode) || (normName === otherNormName);
+        if (isMatch) {
+          const price = Number(p.vUnCom || p.price || p.vUnTrib || 0);
+          if (price > 0) {
+            previousPurchases.push({
+              date: inv.date || '2026-06-19T00:00:00Z',
+              price,
+              supplierName: inv.supplierName || 'Desconhecido'
+            });
+          }
+        }
+      });
+    });
+
+    if (previousPurchases.length > 0) {
+      // Ordena de forma cronológica crescente para pegar a última compra anterior
+      previousPurchases.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+      const lastPrevious = previousPurchases[previousPurchases.length - 1];
+
+      const oldPrice = lastPrevious.price;
+      const newPrice = Number(prod.vUnCom || prod.price || prod.vUnTrib || 0);
+
+      if (newPrice > oldPrice) {
+        // Preço subiu!
+        const percentIncrease = ((newPrice - oldPrice) / oldPrice) * 100;
+        const increaseId = `${currentInvoiceId}_${prodCode !== 'N/A' ? prodCode : prod.name.replace(/[^a-zA-Z0-9]/g, '_')}`;
+
+        const priceIncreaseDoc = {
+          id: increaseId,
+          productName: prod.name,
+          productCode: prodCode,
+          supplierName: parsedData.supplierName || 'Desconhecido',
+          oldPrice,
+          newPrice,
+          percentIncrease,
+          invoiceId: currentInvoiceId,
+          invoiceDate: currentInvoiceDate,
+          alreadyImported: exists, // marca se a nota já foi importada anteriormente
+          createdAt: new Date().toISOString()
+        };
+
+        // Salva o alerta de aumento de preço no Firestore
+        const piRef = fsOps.doc('price_increases', increaseId);
+        await fsOps.set(piRef, priceIncreaseDoc, 'price_increases/' + increaseId);
+        fsOps.invalidateCache('price_increases');
+
+        // Gera e dispara uma notificação push informando o aumento
+        try {
+          const formattedOld = oldPrice.toFixed(2);
+          const formattedNew = newPrice.toFixed(2);
+          const formattedPercent = percentIncrease.toFixed(1);
+          await PushService.broadcast(
+            "Alerta de Aumento de Preço",
+            `O produto "${prod.name}" subiu de R$ ${formattedOld} para R$ ${formattedNew} (+${formattedPercent}%)!`,
+            "/dashboard"
+          );
+        } catch (pushErr) {
+          console.warn("Erro ao enviar notificação de aumento de preço:", pushErr);
+        }
+      }
+    }
+  }
+  
   res.json({ status: exists ? 'updated' : 'imported', id: parsedData.id });
+}));
+
+app.get("/api/xml/price-increases", asyncHandler(async (req: Request, res: Response) => {
+  try {
+    const snapshot = await fsOps.getDocs('price_increases', 'price_increases', true);
+    const data = snapshot.docs.map((doc: any) => {
+      const d = typeof doc.data === 'function' ? doc.data() : doc.data;
+      return { id: doc.id, ...d };
+    });
+    data.sort((a: any, b: any) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
+    res.json(data);
+  } catch (error: any) {
+    console.error("Error fetching price increases:", error);
+    res.status(500).json({ error: "Error fetching price increases", message: error.message });
+  }
+}));
+
+app.post("/api/xml/price-increases/delete", asyncHandler(async (req: Request, res: Response) => {
+  const { ids } = req.body;
+  if (!Array.isArray(ids) || ids.length === 0) {
+    return res.status(400).json({ error: "Format or list of IDs is invalid" });
+  }
+
+  for (const id of ids) {
+    const docRef = fsOps.doc('price_increases', id);
+    await fsOps.delete(docRef, 'price_increases/' + id);
+  }
+  fsOps.invalidateCache('price_increases');
+  res.json({ status: "success", deletedCount: ids.length });
 }));
 
 app.get("/api/xml/invoices", asyncHandler(async (req: Request, res: Response) => {

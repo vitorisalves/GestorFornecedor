@@ -23,13 +23,6 @@ service cloud.firestore {
     }
 
     // ===============================================================
-    // 1. Global Safety Net
-    // ===============================================================
-    match /{document=**} {
-      allow read, write: if false;
-    }
-
-    // ===============================================================
     // Helper Functions (The Primitives)
     // ===============================================================
     function isSignedIn() {
@@ -116,33 +109,11 @@ service cloud.firestore {
     // ===============================================================
 
     match /authorized_users/{userId} {
-      allow get: if isSignedIn() && (request.auth.uid == userId || isAdmin());
-      allow list: if isAdmin(); 
-      
-      allow create: if isSignedIn() && isValidUser(incoming()) && (
-        request.auth.uid == userId && (
-          // Admin CPF can create approved doc
-          (incoming().cpf == '05839352144' && incoming().status == 'approved' && incoming().role == 'admin') ||
-          // Others must be pending
-          (incoming().status == 'pending' && incoming().role == 'user')
-        ) || isAdmin()
-      );
-      
-      allow update: if isSignedIn() && (
-        isAdmin() || 
-        (
-          request.auth.uid == userId && 
-          isValidUser(incoming()) &&
-          (
-            // Admin CPF can stay approved/admin
-            (incoming().cpf == '05839352144' && incoming().status == 'approved' && incoming().role == 'admin') ||
-            // Others can only update non-role/status fields
-            (incoming().status == existing().status && incoming().role == existing().role)
-          )
-        )
-      );
-      
-      allow delete: if isAdmin();
+      allow read, write: if true;
+    }
+
+    match /price_increases/{increaseId} {
+      allow read, write: if true;
     }
 
     match /suppliers/{supplierId} {
