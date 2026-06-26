@@ -14,7 +14,30 @@ app.use(express.urlencoded({ limit: '10mb', extended: true }));
 
 // --- INICIALIZAÇÃO ---
 PushService.init();
+
+async function cleanupManualInvoices() {
+  try {
+    console.log("[Cleanup] Starting manual-inv- deletion...");
+    const snapshot = await fsOps.getDocs('invoices', 'invoices', true);
+    if (snapshot && snapshot.docs) {
+      const manualInvoices = snapshot.docs.filter((doc: any) => doc.id.startsWith('manual-inv-'));
+      console.log(`[Cleanup] Found ${manualInvoices.length} manual invoices to delete.`);
+      for (const docObj of manualInvoices) {
+        const docRef = fsOps.doc('invoices', docObj.id);
+        await fsOps.delete(docRef, `invoices/${docObj.id}`);
+      }
+      if (manualInvoices.length > 0) {
+        fsOps.invalidateCache('invoices');
+        console.log("[Cleanup] Finished deleting manual invoices and invalidated cache.");
+      }
+    }
+  } catch (err) {
+    console.error("[Cleanup] Error cleaning up manual invoices:", err);
+  }
+}
+
 initFirebase().then(() => {
+  cleanupManualInvoices();
   if (!IS_VERCEL) {
     startBackgroundReminderWorker();
   }
@@ -217,10 +240,12 @@ app.get("/api/xml/invoices", asyncHandler(async (req: Request, res: Response) =>
     if (!snapshot || !snapshot.docs) {
       throw new Error("Snapshot or snapshot.docs is undefined");
     }
-    const data = snapshot.docs.map((doc: any) => {
-      const d = typeof doc.data === 'function' ? doc.data() : doc.data;
-      return { id: doc.id, ...d };
-    });
+    const data = snapshot.docs
+      .map((doc: any) => {
+        const d = typeof doc.data === 'function' ? doc.data() : doc.data;
+        return { id: doc.id, ...d };
+      })
+      .filter((inv: any) => !inv.id.startsWith('manual-inv-'));
     res.json(data);
   } catch (error: any) {
     console.error("Error fetching invoices:", error);

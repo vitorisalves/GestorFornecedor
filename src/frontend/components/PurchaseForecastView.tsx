@@ -211,15 +211,7 @@ export const PurchaseForecastView: React.FC<Props> = ({ suppliers, saveSupplier,
                 xmlStatus?: 'Aguardando XML' | 'Confirmado via XML' | 'Sem Código'
             }> = {};
 
-            const activeXmlIds = new Set(data.filter(inv => !inv.id.startsWith('manual-inv-')).map(inv => inv.id));
-            const filteredInvoices = data.filter(invoice => {
-                if (invoice.id.startsWith('manual-inv-')) {
-                    if (invoice.xmlStatus === 'Confirmado via XML' && invoice.associatedXmlInvoiceId && activeXmlIds.has(invoice.associatedXmlInvoiceId)) {
-                        return false;
-                    }
-                }
-                return true;
-            });
+            const filteredInvoices = data.filter(invoice => !invoice.id.startsWith('manual-inv-'));
 
             filteredInvoices.forEach(invoice => {
                 const date = new Date(invoice.date).toISOString().split('T')[0];
@@ -242,7 +234,7 @@ export const PurchaseForecastView: React.FC<Props> = ({ suppliers, saveSupplier,
                             supplier: invoice.supplierName, 
                             lastQuantity: 0,
                             code: targetKey || pCode,
-                            xmlStatus: invoice.id.startsWith('manual-inv-') ? (invoice.xmlStatus || 'Aguardando XML') : 'Confirmado via XML'
+                            xmlStatus: 'Confirmado via XML'
                         };
                     }
                     
@@ -250,7 +242,7 @@ export const PurchaseForecastView: React.FC<Props> = ({ suppliers, saveSupplier,
                     productHistory[targetKey].supplier = invoice.supplierName;
                     productHistory[targetKey].lastQuantity = (product.quantity !== undefined ? product.quantity : 0);
                     productHistory[targetKey].name = product.name;
-                    productHistory[targetKey].xmlStatus = invoice.id.startsWith('manual-inv-') ? (invoice.xmlStatus || 'Aguardando XML') : 'Confirmado via XML';
+                    productHistory[targetKey].xmlStatus = 'Confirmado via XML';
                     
                     // Keep the real code instead of "MANUAL-..." if possible
                     if (pCode && !pCode.toUpperCase().startsWith('MANUAL') && String(productHistory[targetKey].code).toUpperCase().startsWith('MANUAL')) {
@@ -262,67 +254,6 @@ export const PurchaseForecastView: React.FC<Props> = ({ suppliers, saveSupplier,
                     }
                 });
             });
-
-            let listsToProcess = savedLists;
-            if (!listsToProcess) {
-                const cachedLists = localStorage.getItem('cache_savedLists');
-                if (cachedLists) {
-                    try {
-                        listsToProcess = JSON.parse(cachedLists);
-                    } catch (e) {}
-                }
-            }
-
-            if (listsToProcess) {
-                listsToProcess.forEach(list => {
-                    list.items.forEach(item => {
-                        if (item.bought) {
-                            const listDate = item.boughtAt 
-                                ? new Date(item.boughtAt).toISOString().split('T')[0] 
-                                : new Date(list.date).toISOString().split('T')[0];
-                            const pCode = String(item.code !== undefined && item.code !== null ? item.code : '');
-                            
-                            let targetKey = Object.keys(productHistory).find(existingKey => 
-                                areCodesCompatible(existingKey, pCode)
-                            );
-                            
-                            if (!targetKey) {
-                                targetKey = Object.keys(productHistory).find(existingKey => {
-                                    const hist = productHistory[existingKey];
-                                    return hist.name === item.name && hist.supplier === item.supplierName;
-                                });
-                            }
-                            
-                            if (!targetKey) {
-                                targetKey = pCode || `${item.supplierName}-${item.name}`;
-                            }
-                            
-                            if (!productHistory[targetKey]) {
-                                productHistory[targetKey] = { 
-                                    dates: [], 
-                                    name: item.name, 
-                                    supplier: item.supplierName, 
-                                    lastQuantity: 0,
-                                    code: targetKey || pCode,
-                                    xmlStatus: 'Confirmado via XML'
-                                };
-                            }
-                            
-                            productHistory[targetKey].supplier = item.supplierName;
-                            productHistory[targetKey].lastQuantity = (item.quantity !== undefined ? item.quantity : 0);
-                            productHistory[targetKey].name = item.name;
-                            
-                            if (pCode && !pCode.toUpperCase().startsWith('MANUAL') && String(productHistory[targetKey].code).toUpperCase().startsWith('MANUAL')) {
-                                productHistory[targetKey].code = pCode;
-                            }
-                            
-                            if (!productHistory[targetKey].dates.includes(listDate)) {
-                                productHistory[targetKey].dates.push(listDate);
-                            }
-                        }
-                    });
-                });
-            }
 
             const computedForecasts: Forecast[] = Object.values(productHistory)
                 .filter(data => data.dates.length >= 2)
