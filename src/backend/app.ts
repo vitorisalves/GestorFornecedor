@@ -1,6 +1,6 @@
 import express, { Request, Response, NextFunction } from "express";
 import { initFirebase, fsOps } from "./firebase";
-import { EXTERNAL_API_CONFIG, IS_VERCEL, PUSH_CONFIG } from "./config";
+import { EXTERNAL_API_CONFIG, IS_VERCEL, PUSH_CONFIG, getFirebaseConfig } from "./config";
 import { AIService } from "./services/aiService";
 import { PushService } from "./services/pushService";
 import { OmieService } from "./services/omieService";
@@ -60,6 +60,47 @@ app.get("/api/health", asyncHandler(async (req: Request, res: Response) => {
     timestamp: new Date().toISOString(),
     config: { baseUrl: EXTERNAL_API_CONFIG.baseUrl }
   });
+}));
+
+app.get("/api/debug-db", asyncHandler(async (req: Request, res: Response) => {
+  try {
+    const config = await getFirebaseConfig();
+    let docsCount = 0;
+    let firstDocId = null;
+    let errorMsg = null;
+    let isOfflineCacheUsed = false;
+
+    try {
+      const snapshot = await fsOps.getDocs('invoices', 'invoices', true);
+      docsCount = snapshot?.docs?.length || 0;
+      if (docsCount > 0) {
+        firstDocId = snapshot.docs[0].id;
+      }
+    } catch (e: any) {
+      errorMsg = e?.message || String(e);
+    }
+
+    res.json({
+      environment: {
+        IS_VERCEL,
+        NODE_ENV: process.env.NODE_ENV,
+        VERCEL: process.env.VERCEL,
+        VERCEL_ENV: process.env.VERCEL_ENV
+      },
+      firebaseConfig: {
+        projectId: config.projectId,
+        firestoreDatabaseId: config.firestoreDatabaseId,
+        hasApiKey: !!config.apiKey
+      },
+      queryResult: {
+        docsCount,
+        firstDocId,
+        error: errorMsg
+      }
+    });
+  } catch (error: any) {
+    res.status(500).json({ error: error?.message || String(error) });
+  }
 }));
 
 // --- ROTAS EXCEL / GOOGLE SHEETS ---

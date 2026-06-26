@@ -15,9 +15,10 @@ const HARDCODED_FIREBASE_FALLBACK = {
 };
 
 const getFileFirebaseConfig = (): any => {
-  // Use a importação estática resolvida pelo bundler para Vercel
-  if (firebaseConfigJsonStatic && firebaseConfigJsonStatic.projectId) {
-    return firebaseConfigJsonStatic;
+  // Use a importação estática resolvida pelo bundler para Vercel (com suporte a interop de default)
+  const staticConfig = (firebaseConfigJsonStatic as any)?.default || firebaseConfigJsonStatic;
+  if (staticConfig && staticConfig.projectId) {
+    return staticConfig;
   }
 
   try {

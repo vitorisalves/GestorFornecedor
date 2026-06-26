@@ -79,9 +79,6 @@ export function analyzePrices(invoices: any[], suppliers: Supplier[]): PriceAnal
     if (inv.id && inv.id.startsWith('manual-inv-')) return;
     if (!Array.isArray(inv.products)) return;
 
-    const invoiceYear = getYearFromDate(inv.date || '2026-06-19T00:00:00Z');
-    if (invoiceYear !== currentYear) return;
-
     inv.products.forEach((prod: any) => {
       if (!prod.name || prod.name === 'N/A') return;
       const name = prod.name;
