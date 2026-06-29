@@ -94,12 +94,18 @@ export const useAuth = () => {
       if (user) {
         setIsAuthReady(true);
       } else {
-        signInAnonymously(auth).catch(err => {
-          console.error("Auth error:", extractErrorMessage(err));
-          if (err.message.toLowerCase().includes('quota') || err.message.toLowerCase().includes('resource-exhausted')) {
-            setAuthError(err.message);
-          }
-        });
+        signInAnonymously(auth)
+          .then(() => {
+            setIsAuthReady(true);
+          })
+          .catch(err => {
+            console.error("Auth error during anonymous sign-in:", extractErrorMessage(err));
+            if (err.message.toLowerCase().includes('quota') || err.message.toLowerCase().includes('resource-exhausted')) {
+              setAuthError(err.message);
+            }
+            // Even if anonymous auth fails, set isAuthReady to true to prevent infinite loading spinner
+            setIsAuthReady(true);
+          });
       }
     });
     return () => unsubAuth();

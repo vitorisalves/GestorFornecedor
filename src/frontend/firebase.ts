@@ -27,7 +27,7 @@ if (getApps().length === 0) {
   }, firebaseConfig.firestoreDatabaseId || '(default)');
 } else {
   const app = getApp();
-  firestoreDb = getFirestore(app);
+  firestoreDb = getFirestore(app, firebaseConfig.firestoreDatabaseId || '(default)');
 }
 
 export const db = firestoreDb;
