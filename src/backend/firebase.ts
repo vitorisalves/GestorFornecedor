@@ -9,7 +9,7 @@ import {
   getDoc
 } from 'firebase/firestore/lite';
 import { initializeApp, getApps, getApp } from 'firebase/app';
-import { getFirebaseConfig, IS_VERCEL } from './config';
+import { getFirebaseConfig, IS_VERCEL } from './config.js';
 import * as fs from 'fs';
 import * as path from 'path';
 
