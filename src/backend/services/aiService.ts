@@ -1,5 +1,5 @@
 import { GoogleGenAI, Type } from "@google/genai";
-import { AI_CONFIG } from "../config";
+import { AI_CONFIG } from "../config.js";
 
 /**
  * Serviço de IA utilizando Google Gemini

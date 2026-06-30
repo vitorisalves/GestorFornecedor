@@ -1,12 +1,12 @@
 import express, { Request, Response, NextFunction } from "express";
-import { initFirebase, fsOps } from "./firebase";
-import { EXTERNAL_API_CONFIG, IS_VERCEL, PUSH_CONFIG, getFirebaseConfig } from "./config";
-import { AIService } from "./services/aiService";
-import { PushService } from "./services/pushService";
-import { OmieService } from "./services/omieService";
-import { ExcelService } from "./services/excelService";
-import { XMLService } from "./services/xmlService";
-import { startBackgroundReminderWorker } from "./reminderWorker";
+import { initFirebase, fsOps } from "./firebase.js";
+import { EXTERNAL_API_CONFIG, IS_VERCEL, PUSH_CONFIG, getFirebaseConfig } from "./config.js";
+import { AIService } from "./services/aiService.js";
+import { PushService } from "./services/pushService.js";
+import { OmieService } from "./services/omieService.js";
+import { ExcelService } from "./services/excelService.js";
+import { XMLService } from "./services/xmlService.js";
+import { startBackgroundReminderWorker } from "./reminderWorker.js";
 
 const app = express();
 app.use(express.json({ limit: '10mb' }));

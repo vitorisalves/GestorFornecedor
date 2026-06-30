@@ -1,6 +1,6 @@
 import webPush from "web-push";
-import { PUSH_CONFIG } from "../config";
-import { fsOps } from "../firebase";
+import { PUSH_CONFIG } from "../config.js";
+import { fsOps } from "../firebase.js";
 
 /**
  * Serviço de Notificações Push

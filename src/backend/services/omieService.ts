@@ -1,5 +1,5 @@
 import axios, { AxiosInstance } from "axios";
-import { EXTERNAL_API_CONFIG } from "../config";
+import { EXTERNAL_API_CONFIG } from "../config.js";
 
 /**
  * Serviço de Integração com API Externa (Omie/Proxy)
