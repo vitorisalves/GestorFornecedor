@@ -747,13 +747,13 @@ export const DashboardView: React.FC<DashboardViewProps> = () => {
             </button>
           </div>
 
-          <div className="relative h-[350px] w-full min-h-[350px]">
+          <div className="relative w-full h-[350px] min-h-[350px] min-w-0" style={{ width: '100%', height: '350px', minHeight: '350px', minWidth: '0px' }}>
             {isLoading ? (
               <div className="w-full h-full bg-slate-50 rounded-2xl animate-pulse flex items-center justify-center">
                 <span className="text-slate-400 text-xs font-bold uppercase tracking-wider">Carregando dados...</span>
               </div>
             ) : isChartReady && expenseData.length > 0 ? (
-              <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={350}>
+              <ResponsiveContainer width="100%" height={350} minWidth={0}>
                 <AreaChart data={expenseData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
                   <defs>
                     <linearGradient id="colorExpense" x1="0" y1="0" x2="0" y2="1">

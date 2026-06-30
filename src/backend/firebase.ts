@@ -65,10 +65,8 @@ export const initFirebase = async () => {
           console.log("[Firebase] Admin SDK verified successfully.");
           adminDisabled = false;
         } catch (healthErr: any) {
-          if (healthErr.message?.includes('PERMISSION_DENIED') || healthErr.code === 7) {
-            console.warn("[Firebase] Admin SDK health check failed (PERMISSION_DENIED). Falling back to Client SDK.");
-            adminDisabled = true;
-          }
+          console.warn("[Firebase] Admin SDK health check failed. Falling back to Client SDK. Error:", healthErr);
+          adminDisabled = true;
         }
       }
     } catch (e) {
@@ -185,9 +183,9 @@ function saveCacheToDisk(key: string, docs: Array<{ id: string; data: any }>) {
   }
 }
 
-function loadCacheFromDisk(key: string): CachedDocs | null {
-  if (IS_VERCEL) {
-    return null; // Não carrega cache do disco no Vercel para evitar ler dados estáticos pré-empacotados desatualizados
+function loadCacheFromDisk(key: string, forceOnVercel: boolean = false): CachedDocs | null {
+  if (IS_VERCEL && !forceOnVercel) {
+    return null; // Não carrega cache do disco no Vercel por padrão para evitar ler dados estáticos pré-empacotados desatualizados
   }
   try {
     const filePath = getCacheFilePath(key);
@@ -303,6 +301,17 @@ export const fsOps = {
       }
       return rawSnap;
     } catch (err: any) {
+      console.warn(`[Firestore] getDocs failed for collection ${cacheKey}, trying disk cache fallback. Error:`, err.message || err);
+      
+      const diskCached = cached || loadCacheFromDisk(cacheKey, true);
+      if (diskCached) {
+        console.log(`[FirestoreCache] Resilient fallback: serving cached data for collection ${cacheKey}.`);
+        return {
+          docs: diskCached.docs,
+          empty: diskCached.docs.length === 0
+        };
+      }
+
       const errStr = String(err?.message || err).toLowerCase();
       const isQuota = errStr.includes('quota') || errStr.includes('resource-exhausted') || errStr.includes('limit');
       
@@ -366,6 +375,16 @@ export const fsOps = {
         id: rawDoc.id
       };
     } catch (err: any) {
+      console.warn(`[Firestore] getDoc failed for document ${cacheKey}, trying cached fallback. Error:`, err.message || err);
+      if (cached) {
+        console.log(`[FirestoreCache] Resilient fallback: serving cached data for document ${cacheKey}.`);
+        return {
+          exists: () => cached.exists,
+          data: () => cached.data,
+          id: cacheKey.split('/').pop() || 'unknown'
+        };
+      }
+
       const errStr = String(err?.message || err).toLowerCase();
       const isQuota = errStr.includes('quota') || errStr.includes('resource-exhausted') || errStr.includes('limit');
 
