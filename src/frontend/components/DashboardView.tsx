@@ -190,7 +190,8 @@ export const DashboardView: React.FC<DashboardViewProps> = () => {
         if (suppliersRes.ok) {
           suppliersData = await suppliersRes.json();
         } else {
-          throw new Error("Backend suppliers failed");
+          const errData = await suppliersRes.json().catch(() => ({}));
+          throw new Error(`Backend suppliers failed: ${errData.message || errData.error || suppliersRes.statusText}`);
         }
       } catch (backendErr) {
         console.warn("Falling back to client-side Firestore for suppliers:", backendErr);
@@ -253,7 +254,8 @@ export const DashboardView: React.FC<DashboardViewProps> = () => {
           if (spendingsRes.ok) {
             items = await spendingsRes.json();
           } else {
-            throw new Error("Backend spendings failed");
+            const errData = await spendingsRes.json().catch(() => ({}));
+            throw new Error(`Backend spendings failed: ${errData.message || errData.error || spendingsRes.statusText}`);
           }
         } catch (backendErr) {
           console.warn("Falling back to client-side Firestore for spendings:", backendErr);
