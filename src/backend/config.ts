@@ -1,7 +1,6 @@
 import path from "path";
 import fs from "fs";
 import { fileURLToPath } from "url";
-import firebaseConfigJsonStatic from "../../firebase-applet-config.json";
 
 const HARDCODED_FIREBASE_FALLBACK = {
   "projectId": "gen-lang-client-0797058892",
@@ -15,28 +14,36 @@ const HARDCODED_FIREBASE_FALLBACK = {
 };
 
 const getFileFirebaseConfig = (): any => {
-  // Use a importação estática resolvida pelo bundler para Vercel (com suporte a interop de default)
-  const staticConfig = (firebaseConfigJsonStatic as any)?.default || firebaseConfigJsonStatic;
-  if (staticConfig && staticConfig.projectId) {
-    return staticConfig;
-  }
-
+  // 1. Procurar em caminhos relativos ao process.cwd()
   try {
-    const configPath = path.join(process.cwd(), 'firebase-applet-config.json');
-    if (fs.existsSync(configPath)) {
-      return JSON.parse(fs.readFileSync(configPath, 'utf8'));
+    const possiblePaths = [
+      path.join(process.cwd(), 'firebase-applet-config.json'),
+      path.join(process.cwd(), '..', 'firebase-applet-config.json'),
+      path.join(process.cwd(), '../..', 'firebase-applet-config.json')
+    ];
+    for (const configPath of possiblePaths) {
+      if (fs.existsSync(configPath)) {
+        return JSON.parse(fs.readFileSync(configPath, 'utf8'));
+      }
     }
   } catch (e) {
-    console.warn("[Config] Erro ao ler firebase-applet-config.json diretamente do cwd:", e);
+    console.warn("[Config] Erro ao ler firebase-applet-config.json no cwd:", e);
   }
 
+  // 2. Procurar em caminhos relativos ao arquivo atual (usando import.meta.url)
   try {
     if (typeof import.meta !== 'undefined' && import.meta && import.meta.url) {
       const __filename = fileURLToPath(import.meta.url);
       const __dirname = path.dirname(__filename);
-      const resolvingPath = path.resolve(__dirname, '../../firebase-applet-config.json');
-      if (fs.existsSync(resolvingPath)) {
-        return JSON.parse(fs.readFileSync(resolvingPath, 'utf8'));
+      const resolvingPaths = [
+        path.resolve(__dirname, '../../firebase-applet-config.json'),
+        path.resolve(__dirname, '../../../firebase-applet-config.json'),
+        path.resolve(__dirname, 'firebase-applet-config.json')
+      ];
+      for (const configPath of resolvingPaths) {
+        if (fs.existsSync(configPath)) {
+          return JSON.parse(fs.readFileSync(configPath, 'utf8'));
+        }
       }
     }
   } catch (e) {

@@ -37,8 +37,8 @@ async function cleanupManualInvoices() {
 }
 
 initFirebase().then(() => {
-  cleanupManualInvoices();
   if (!IS_VERCEL) {
+    cleanupManualInvoices();
     startBackgroundReminderWorker();
   }
 }).catch(err => console.error("[App] Erro na inicialização:", err));

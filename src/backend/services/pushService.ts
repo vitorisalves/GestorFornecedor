@@ -7,11 +7,16 @@ import { fsOps } from "../firebase";
  */
 export class PushService {
   static init() {
-    webPush.setVapidDetails(
-      PUSH_CONFIG.email,
-      PUSH_CONFIG.publicKey,
-      PUSH_CONFIG.privateKey
-    );
+    try {
+      webPush.setVapidDetails(
+        PUSH_CONFIG.email,
+        PUSH_CONFIG.publicKey,
+        PUSH_CONFIG.privateKey
+      );
+      console.log("[PushService] VAPID details initialized successfully.");
+    } catch (err) {
+      console.error("[PushService] Failed to initialize VAPID details:", err);
+    }
   }
 
   /**
