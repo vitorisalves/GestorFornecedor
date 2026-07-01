@@ -73,6 +73,8 @@ export const DashboardView: React.FC<DashboardViewProps> = () => {
   // Upload state
   const [isUploading, setIsUploading] = useState(false);
   const [xmlLogs, setXmlLogs] = useState<{ type: 'success' | 'warning' | 'error', text: string }[]>([]);
+  const [batchPreview, setBatchPreview] = useState<any[]>([]);
+  const [isPreviewModalOpen, setIsPreviewModalOpen] = useState(false);
 
   // States of invoices and suppliers for pricing dashboard
   const [invoices, setInvoices] = useState<any[]>(() => {
@@ -226,72 +228,62 @@ export const DashboardView: React.FC<DashboardViewProps> = () => {
   }, []);
 
   // Fetch xml_spendings with caching
-  useEffect(() => {
-    let active = true;
-    const fetchSpendings = async () => {
-      const cacheDuration = 30 * 1000 * 60; // 30 minutes cache for extreme read optimization
-      const lastFetch = localStorage.getItem('xml_spendings_last_fetch');
-      const cached = localStorage.getItem('cached_dashboard_xml_spendings');
-      const now = Date.now();
+  const fetchSpendings = async (force = false) => {
+    const cacheDuration = 30 * 1000 * 60; // 30 minutes cache for extreme read optimization
+    const lastFetch = localStorage.getItem('xml_spendings_last_fetch');
+    const cached = localStorage.getItem('cached_dashboard_xml_spendings');
+    const now = Date.now();
 
-      if (cached && lastFetch && (now - Number(lastFetch)) < cacheDuration) {
-        if (active) {
-          try {
-            setXmlSpendings(JSON.parse(cached));
-          } catch (e) {
-            console.error("Erro ao fazer parse dos dados cacheados de gastos:", e);
-          }
-          setIsLoading(false);
-        }
-        return;
-      }
-
-      setIsLoading(true);
+    if (!force && cached && lastFetch && (now - Number(lastFetch)) < cacheDuration) {
       try {
-        let items: any[] = [];
-        try {
-          const spendingsRes = await fetch('/api/xml/spendings');
-          if (spendingsRes.ok) {
-            items = await spendingsRes.json();
-          } else {
-            const errData = await spendingsRes.json().catch(() => ({}));
-            throw new Error(`Backend spendings failed: ${errData.message || errData.error || spendingsRes.statusText}`);
-          }
-        } catch (backendErr) {
-          console.warn("Falling back to client-side Firestore for spendings:", backendErr);
-          const q = collection(db, 'xml_spendings');
-          const snapshot = await getDocs(q);
-          snapshot.forEach((doc) => {
-            items.push({ id: doc.id, ...doc.data() });
-          });
-        }
+        setXmlSpendings(JSON.parse(cached));
+      } catch (e) {
+        console.error("Erro ao fazer parse dos dados cacheados de gastos:", e);
+      }
+      setIsLoading(false);
+      return;
+    }
 
-        if (active) {
-          setXmlSpendings(items);
-          localStorage.setItem('cached_dashboard_xml_spendings', JSON.stringify(items));
-          localStorage.setItem('xml_spendings_last_fetch', String(now));
+    setIsLoading(true);
+    try {
+      let items: any[] = [];
+      try {
+        const spendingsRes = await fetch('/api/xml/spendings');
+        if (spendingsRes.ok) {
+          items = await spendingsRes.json();
+        } else {
+          const errData = await spendingsRes.json().catch(() => ({}));
+          throw new Error(`Backend spendings failed: ${errData.message || errData.error || spendingsRes.statusText}`);
         }
-      } catch (err: any) {
-        console.error("Erro ao carregar dados XML de gastos:", err);
-        if (cached && active) {
-          try {
-            setXmlSpendings(JSON.parse(cached));
-          } catch (e) {
-            console.error(e);
-          }
-        }
-        handleFirestoreError(err, OperationType.GET, 'xml_spendings');
-      } finally {
-        if (active) {
-          setIsLoading(false);
+      } catch (backendErr) {
+        console.warn("Falling back to client-side Firestore for spendings:", backendErr);
+        const q = collection(db, 'xml_spendings');
+        const snapshot = await getDocs(q);
+        snapshot.forEach((doc) => {
+          items.push({ id: doc.id, ...doc.data() });
+        });
+      }
+
+      setXmlSpendings(items);
+      localStorage.setItem('cached_dashboard_xml_spendings', JSON.stringify(items));
+      localStorage.setItem('xml_spendings_last_fetch', String(now));
+    } catch (err: any) {
+      console.error("Erro ao carregar dados XML de gastos:", err);
+      if (cached) {
+        try {
+          setXmlSpendings(JSON.parse(cached));
+        } catch (e) {
+          console.error(e);
         }
       }
-    };
+      handleFirestoreError(err, OperationType.GET, 'xml_spendings');
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
+  useEffect(() => {
     fetchSpendings();
-    return () => {
-      active = false;
-    };
   }, []);
 
   const expenseChartRef = useRef<HTMLDivElement>(null);
@@ -350,9 +342,11 @@ export const DashboardView: React.FC<DashboardViewProps> = () => {
 
   const processXmlFiles = async (files: File[]) => {
     setIsUploading(true);
+    const previews: any[] = [];
     const logs: { type: 'success' | 'warning' | 'error', text: string }[] = [];
-    let earliestDate: Date | null = null;
-    let latestDate: Date | null = null;
+
+    // Detecção de duplicados localmente antes da pré-visualização consolidada
+    const tempKeys = new Set<string>();
 
     for (const file of files) {
       try {
@@ -370,46 +364,20 @@ export const DashboardView: React.FC<DashboardViewProps> = () => {
 
         const parsed = parseNFeXml(text, file.name);
 
-        // Identificação nas notas para duplicados
+        // Prevenção de duplicidade na própria seleção local
+        if (tempKeys.has(parsed.nfeKey)) {
+          logs.push({ type: 'warning', text: `Arquivo duplicado ignorado na seleção: ${file.name}` });
+          continue;
+        }
+        tempKeys.add(parsed.nfeKey);
+
         const alreadyExists = xmlSpendings.some(item => item.id === parsed.nfeKey);
-        if (alreadyExists) {
-          logs.push({ 
-            type: 'warning', 
-            text: `Aviso: A nota com chave "${parsed.nfeKey}" do arquivo "${file.name}" já constava no sistema. Atualizando dados.` 
-          });
-        }
 
-        // Salvar apenas os dados necessários do XML no Banco de Dados
-        const docRef = doc(db, 'xml_spendings', parsed.nfeKey);
-        try {
-          await setDoc(docRef, {
-            id: parsed.nfeKey,
-            supplierName: parsed.supplierName,
-            dhEmi: parsed.dhEmi,
-            vTotTrib: parsed.vTotTrib,
-            fileName: file.name
-          });
-
-          // Envia o XML para o endpoint central para extrair e armazenar os produtos e preços reais
-          await fetch('/api/xml/process', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ xmlData: text })
-          });
-        } catch (setDocErr) {
-          handleFirestoreError(setDocErr, OperationType.WRITE, `xml_spendings/${parsed.nfeKey}`);
-          throw setDocErr;
-        }
-
-        const parsedDate = new Date(parsed.dhEmi + 'T00:00:00');
-        if (!isNaN(parsedDate.getTime())) {
-          if (!earliestDate || parsedDate < earliestDate) earliestDate = parsedDate;
-          if (!latestDate || parsedDate > latestDate) latestDate = parsedDate;
-        }
-
-        logs.push({ 
-          type: 'success', 
-          text: `Sucesso: Nota de "${parsed.supplierName}" (R$ ${parsed.vTotTrib.toFixed(2)}) importada.` 
+        previews.push({
+          ...parsed,
+          xmlText: text,
+          fileName: file.name,
+          alreadyExists
         });
 
       } catch (err: any) {
@@ -417,17 +385,77 @@ export const DashboardView: React.FC<DashboardViewProps> = () => {
       }
     }
 
-    if (earliestDate && latestDate) {
-      setStartDate(format(startOfMonth(earliestDate), 'yyyy-MM-dd'));
-      setEndDate(format(endOfMonth(latestDate), 'yyyy-MM-dd'));
+    if (logs.length > 0) {
+      setXmlLogs(prev => [...logs, ...prev]);
     }
 
-    setXmlLogs(prev => [...logs, ...prev]);
+    if (previews.length > 0) {
+      setBatchPreview(previews);
+      setIsPreviewModalOpen(true);
+    }
     setIsUploading(false);
+  };
 
-    // Atualiza imediatamente o histórico de produtos e preços do XML
-    await fetchPricingData(true);
-    await fetchPriceIncreases();
+  const handleConfirmBatchImport = async () => {
+    if (batchPreview.length === 0) return;
+    setIsUploading(true);
+    const logs: { type: 'success' | 'warning' | 'error', text: string }[] = [];
+    let earliestDate: Date | null = null;
+    let latestDate: Date | null = null;
+
+    try {
+      const xmlsToSend = batchPreview.map(p => p.xmlText);
+      const res = await fetch('/api/xml/process-batch', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ xmls: xmlsToSend })
+      });
+
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.message || errData.error || "Erro no processamento do lote pelo servidor.");
+      }
+
+      const { results } = await res.json();
+
+      results.forEach((r: any) => {
+        if (r.status === 'error') {
+          logs.push({ type: 'error', text: `Erro ao importar arquivo: ${r.error}` });
+        } else {
+          logs.push({
+            type: r.status === 'updated' ? 'warning' : 'success',
+            text: `Sucesso: Nota de "${r.supplierName}" (R$ ${r.vTotTrib.toFixed(2)}) ${r.status === 'updated' ? 'atualizada' : 'importada'}.`
+          });
+
+          const parsedDate = new Date(r.dhEmi + 'T00:00:00');
+          if (!isNaN(parsedDate.getTime())) {
+            if (!earliestDate || parsedDate < earliestDate) earliestDate = parsedDate;
+            if (!latestDate || parsedDate > latestDate) latestDate = parsedDate;
+          }
+        }
+      });
+
+      if (earliestDate && latestDate) {
+        setStartDate(format(startOfMonth(earliestDate), 'yyyy-MM-dd'));
+        setEndDate(format(endOfMonth(latestDate), 'yyyy-MM-dd'));
+      }
+
+      setXmlLogs(prev => [...logs, ...prev]);
+      setIsPreviewModalOpen(false);
+      setBatchPreview([]);
+
+      // Força a atualização simultânea e imediata de todos os dashboards, incluindo o GASTO MENSAL
+      await fetchPricingData(true);
+      await fetchSpendings(true);
+      await fetchPriceIncreases();
+
+    } catch (err: any) {
+      console.error("Erro na importação em lote:", err);
+      logs.push({ type: 'error', text: `Falha na importação em lote: ${err.message || err}` });
+      setXmlLogs(prev => [...logs, ...prev]);
+    } finally {
+      setIsUploading(false);
+    }
   };
 
   const handleDeleteXmlSpending = async (id: string) => {
@@ -443,7 +471,9 @@ export const DashboardView: React.FC<DashboardViewProps> = () => {
         console.error("Erro ao deletar fatura do banco de preços central:", apiErr);
       }
 
+      // Atualiza os dados de preço e os gastos imediatamente após a exclusão
       await fetchPricingData(true);
+      await fetchSpendings(true);
     } catch (err) {
       console.error("Erro ao deletar gasto XML:", err);
       handleFirestoreError(err, OperationType.DELETE, `xml_spendings/${id}`);
@@ -590,6 +620,110 @@ export const DashboardView: React.FC<DashboardViewProps> = () => {
 
   return (
     <div className="p-4 md:p-8 space-y-8 max-w-7xl mx-auto pb-24">
+      {/* Batch Import Preview Modal */}
+      {isPreviewModalOpen && batchPreview.length > 0 && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-300">
+          <div className="bg-white w-full max-w-4xl rounded-3xl shadow-xl border border-slate-100 overflow-hidden flex flex-col max-h-[85vh] animate-in zoom-in-95 duration-300">
+            {/* Modal Header */}
+            <div className="p-6 bg-slate-50 border-b border-slate-100 flex items-center justify-between">
+              <div>
+                <h3 className="text-lg font-black text-slate-900 uppercase tracking-tight flex items-center gap-2">
+                  <FileCheck2 className="w-5 h-5 text-indigo-600" />
+                  Conciliação e Pré-visualização de XML em Lote
+                </h3>
+                <p className="text-xs text-slate-600 mt-1">
+                  Revise as faturas consolidadas abaixo antes de persistir as mudanças no banco de dados.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setIsPreviewModalOpen(false);
+                  setBatchPreview([]);
+                }}
+                className="p-2 hover:bg-slate-200 rounded-full transition-colors text-slate-500"
+              >
+                <XCircle className="w-6 h-6" />
+              </button>
+            </div>
+
+            {/* Modal Body (Table) */}
+            <div className="p-6 overflow-y-auto flex-1 space-y-4">
+              <div className="overflow-x-auto border border-slate-100 rounded-2xl">
+                <table className="w-full text-left border-collapse">
+                  <thead>
+                    <tr className="bg-slate-50 border-b border-slate-100">
+                      <th className="p-3 text-[10px] font-black text-slate-600 uppercase tracking-wider">Arquivo</th>
+                      <th className="p-3 text-[10px] font-black text-slate-600 uppercase tracking-wider">Fornecedor (Emitente)</th>
+                      <th className="p-3 text-[10px] font-black text-slate-600 uppercase tracking-wider">Emissão (dhEmi)</th>
+                      <th className="p-3 text-[10px] font-black text-slate-600 uppercase tracking-wider">Chave de Acesso (NF-e)</th>
+                      <th className="p-3 text-right text-[10px] font-black text-slate-600 uppercase tracking-wider">Valor Total (vNF)</th>
+                      <th className="p-3 text-center text-[10px] font-black text-slate-600 uppercase tracking-wider">Conciliação</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {batchPreview.map((item, idx) => (
+                      <tr key={item.nfeKey || idx} className="hover:bg-slate-50/50 transition-colors">
+                        <td className="p-3 text-xs font-bold text-slate-800 max-w-[150px] truncate">{item.fileName}</td>
+                        <td className="p-3 text-xs font-bold text-slate-900 max-w-[180px] truncate uppercase">{item.supplierName}</td>
+                        <td className="p-3 text-xs font-semibold text-slate-500">{item.dhEmi}</td>
+                        <td className="p-3 text-[10px] font-mono text-slate-400 select-all">{item.nfeKey}</td>
+                        <td className="p-3 text-xs font-black text-right text-indigo-700">{formatCurrency(item.vTotTrib)}</td>
+                        <td className="p-3 text-center">
+                          {item.alreadyExists ? (
+                            <span className="inline-flex items-center gap-1 px-2.5 py-1 text-[10px] font-black uppercase tracking-wider rounded-full bg-amber-50 text-amber-700 border border-amber-100">
+                              <AlertCircle className="w-3 h-3" />
+                              Atualizar
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 px-2.5 py-1 text-[10px] font-black uppercase tracking-wider rounded-full bg-emerald-50 text-emerald-700 border border-emerald-100">
+                              <FileCheck2 className="w-3 h-3" />
+                              Novo Registro
+                            </span>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="p-6 bg-slate-50 border-t border-slate-100 flex items-center justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => {
+                  setIsPreviewModalOpen(false);
+                  setBatchPreview([]);
+                }}
+                className="px-4 py-2 text-xs font-black uppercase text-slate-600 hover:text-slate-800 transition-colors"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmBatchImport}
+                disabled={isUploading}
+                className="flex items-center gap-2 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white text-xs font-black uppercase rounded-2xl transition-all shadow-sm font-bold"
+              >
+                {isUploading ? (
+                  <>
+                    <RefreshCcw className="w-4 h-4 animate-spin" />
+                    Processando...
+                  </>
+                ) : (
+                  <>
+                    <FileCheck2 className="w-4 h-4" />
+                    Confirmar Importação ({batchPreview.length} XMLs)
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Header & Filters */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 bg-white p-6 rounded-3xl border border-slate-100 shadow-sm animate-in fade-in slide-in-from-top-4 duration-500">
         <div>

@@ -129,6 +129,7 @@ app.post("/api/ai/process-document", asyncHandler(async (req: Request, res: Resp
 
 // --- ROTAS XML ---
 const xmlService = new XMLService();
+
 app.post("/api/xml/process", asyncHandler(async (req: Request, res: Response) => {
   const { xmlData } = req.body;
   const parsedData = xmlService.parseNFe(xmlData);
@@ -145,15 +146,25 @@ app.post("/api/xml/process", asyncHandler(async (req: Request, res: Response) =>
     console.error("Erro ao buscar faturas anteriores para comparação de preços:", e);
   }
 
-  // 2. Salva no Firestore
+  // 2. Salva no Firestore tanto na coleção invoices quanto em xml_spendings
   const docRef = fsOps.doc('invoices', parsedData.id);
   const docSnapshot = await fsOps.getDoc(docRef);
-
   const exists = typeof docSnapshot.exists === 'function' ? docSnapshot.exists() : !!docSnapshot.exists;
   
   await fsOps.set(docRef, parsedData, 'invoices/' + parsedData.id);
-  fsOps.invalidateCache('xml_spendings'); // Invalida o cache de gastos XML, pois um novo arquivo foi inserido
-  fsOps.invalidateCache('invoices'); // Invalida o cache de faturas, pois uma nova fatura foi importada
+  
+  // Salva também em xml_spendings para persistência simultânea multitabelas
+  const spendingRef = fsOps.doc('xml_spendings', parsedData.id);
+  await fsOps.set(spendingRef, {
+    id: parsedData.id,
+    supplierName: parsedData.supplierName,
+    dhEmi: parsedData.date,
+    vTotTrib: parsedData.vTotTrib || 0,
+    fileName: `upload_${parsedData.id}.xml`
+  }, 'xml_spendings/' + parsedData.id);
+
+  fsOps.invalidateCache('xml_spendings'); // Invalida o cache de gastos XML
+  fsOps.invalidateCache('invoices'); // Invalida o cache de faturas
   
   // 3. Comparação de preços dos produtos da nota atual com as compras anteriores
   const currentInvoiceId = parsedData.id;
@@ -242,6 +253,139 @@ app.post("/api/xml/process", asyncHandler(async (req: Request, res: Response) =>
   }
   
   res.json({ status: exists ? 'updated' : 'imported', id: parsedData.id });
+}));
+
+app.post("/api/xml/process-batch", asyncHandler(async (req: Request, res: Response) => {
+  const { xmls } = req.body;
+  if (!Array.isArray(xmls) || xmls.length === 0) {
+    return res.status(400).json({ error: "Formato inválido. 'xmls' deve ser um array contendo strings XML." });
+  }
+
+  console.log(`[Batch XML] Iniciando processamento de lote com ${xmls.length} arquivos.`);
+
+  // 1. Busca faturas existentes exatamente uma vez para o lote inteiro
+  let existingInvoices: any[] = [];
+  try {
+    const snapshot = await fsOps.getDocs('invoices', 'invoices');
+    existingInvoices = snapshot.docs.map((doc: any) => {
+      const d = typeof doc.data === 'function' ? doc.data() : doc.data;
+      return { id: doc.id, ...d };
+    });
+  } catch (e) {
+    console.error("Erro ao buscar faturas anteriores para lote:", e);
+  }
+
+  const results = [];
+
+  for (const xmlData of xmls) {
+    try {
+      const parsedData = xmlService.parseNFe(xmlData);
+      const currentInvoiceId = parsedData.id;
+      const currentInvoiceDate = parsedData.date || new Date().toISOString();
+      const currentProducts = parsedData.products || [];
+
+      const docRef = fsOps.doc('invoices', parsedData.id);
+      const docSnapshot = await fsOps.getDoc(docRef);
+      const exists = typeof docSnapshot.exists === 'function' ? docSnapshot.exists() : !!docSnapshot.exists;
+
+      // Persiste na tabela invoices
+      await fsOps.set(docRef, parsedData, 'invoices/' + parsedData.id);
+
+      // Persiste simultaneamente na tabela xml_spendings
+      const spendingRef = fsOps.doc('xml_spendings', parsedData.id);
+      await fsOps.set(spendingRef, {
+        id: parsedData.id,
+        supplierName: parsedData.supplierName,
+        dhEmi: parsedData.date,
+        vTotTrib: parsedData.vTotTrib || 0,
+        fileName: `upload_${parsedData.id}.xml`
+      }, 'xml_spendings/' + parsedData.id);
+
+      // Compara preços dos produtos
+      for (const prod of currentProducts) {
+        if (!prod.name || prod.name === 'N/A') continue;
+
+        const normName = prod.name.trim().toLowerCase();
+        const prodCode = prod.code || 'N/A';
+
+        const previousPurchases: { date: string; price: number; supplierName: string }[] = [];
+
+        existingInvoices.forEach(inv => {
+          if (inv.id === currentInvoiceId) return;
+          if (!Array.isArray(inv.products)) return;
+
+          inv.products.forEach((p: any) => {
+            if (!p.name || p.name === 'N/A') return;
+            const otherNormName = p.name.trim().toLowerCase();
+            const otherCode = p.code || 'N/A';
+
+            const isMatch = (prodCode !== 'N/A' && prodCode === otherCode) || (normName === otherNormName);
+            if (isMatch) {
+              const price = Number(p.vUnCom || p.price || p.vUnTrib || 0);
+              if (price > 0) {
+                previousPurchases.push({
+                  date: inv.date || '2026-06-19T00:00:00Z',
+                  price,
+                  supplierName: inv.supplierName || 'Desconhecido'
+                });
+              }
+            }
+          });
+        });
+
+        if (previousPurchases.length > 0) {
+          previousPurchases.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+          const lastPrevious = previousPurchases[previousPurchases.length - 1];
+          const oldPrice = lastPrevious.price;
+          const newPrice = Number(prod.vUnCom || prod.price || prod.vUnTrib || 0);
+
+          if (newPrice > oldPrice) {
+            const percentIncrease = ((newPrice - oldPrice) / oldPrice) * 100;
+            const increaseId = `${currentInvoiceId}_${prodCode !== 'N/A' ? prodCode : prod.name.replace(/[^a-zA-Z0-9]/g, '_')}`;
+
+            const priceIncreaseDoc = {
+              id: increaseId,
+              productName: prod.name,
+              productCode: prodCode,
+              supplierName: parsedData.supplierName || 'Desconhecido',
+              oldPrice,
+              newPrice,
+              percentIncrease,
+              invoiceId: currentInvoiceId,
+              invoiceDate: currentInvoiceDate,
+              alreadyImported: exists,
+              createdAt: new Date().toISOString()
+        };
+
+            const piRef = fsOps.doc('price_increases', increaseId);
+            await fsOps.set(piRef, priceIncreaseDoc, 'price_increases/' + increaseId);
+          }
+        }
+      }
+
+      // Adiciona o parsedData no existingInvoices local para comparação em cascata
+      existingInvoices.push(parsedData);
+
+      results.push({
+        id: parsedData.id,
+        supplierName: parsedData.supplierName,
+        dhEmi: parsedData.date,
+        vTotTrib: parsedData.vTotTrib || 0,
+        status: exists ? 'updated' : 'imported'
+      });
+    } catch (err: any) {
+      console.error(`Erro ao processar arquivo no lote:`, err);
+      results.push({ id: 'unknown', error: err.message || String(err), status: 'error' });
+    }
+  }
+
+  // Invalida os caches globais UMA ÚNICA VEZ ao término de todo o lote!
+  fsOps.invalidateCache('xml_spendings');
+  fsOps.invalidateCache('invoices');
+  fsOps.invalidateCache('price_increases');
+
+  console.log(`[Batch XML] Lote finalizado com sucesso. Registros processados: ${results.length}`);
+  res.json({ results });
 }));
 
 app.get("/api/xml/price-increases", asyncHandler(async (req: Request, res: Response) => {

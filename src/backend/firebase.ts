@@ -65,12 +65,12 @@ export const initFirebase = async () => {
           console.log("[Firebase] Admin SDK verified successfully.");
           adminDisabled = false;
         } catch (healthErr: any) {
-          console.warn("[Firebase] Admin SDK health check failed. Falling back to Client SDK. Error:", healthErr);
+          console.log("[Firebase] Admin SDK status: client-only mode active (Server SDK bypassed).");
           adminDisabled = true;
         }
       }
     } catch (e) {
-      console.warn("[Firebase] Admin SDK init failed, using Client only.", e);
+      console.log("[Firebase] Admin SDK status: client-only mode active.");
     }
 
     // Initialize Client SDK
@@ -127,6 +127,59 @@ const safeStringify = (obj: any): string => {
   }
 };
 
+let g_quotaExceededActive = false;
+let g_quotaExceededTime = 0;
+const QUOTA_COOLDOWN = 3600000; // 1 hora de cooldown antes de tentar o Firestore novamente
+
+function checkQuotaExceeded(): boolean {
+  if (g_quotaExceededActive) {
+    if (Date.now() - g_quotaExceededTime > QUOTA_COOLDOWN) {
+      g_quotaExceededActive = false;
+      try {
+        const flagFile = path.join(process.cwd(), 'firestore_quota_exceeded_flag.json');
+        if (fs.existsSync(flagFile)) {
+          fs.unlinkSync(flagFile);
+        }
+      } catch (e) {}
+      console.log("[FirestoreCache] Cooldown expirado. Tentando restabelecer conexao com o Firestore...");
+      return false;
+    }
+    return true;
+  }
+
+  try {
+    const flagFile = path.join(process.cwd(), 'firestore_quota_exceeded_flag.json');
+    if (fs.existsSync(flagFile)) {
+      const content = fs.readFileSync(flagFile, 'utf-8');
+      const parsed = JSON.parse(content);
+      if (parsed && parsed.time && (Date.now() - parsed.time < QUOTA_COOLDOWN)) {
+        g_quotaExceededActive = true;
+        g_quotaExceededTime = parsed.time;
+        return true;
+      } else {
+        fs.unlinkSync(flagFile);
+      }
+    }
+  } catch (e) {}
+
+  return false;
+}
+
+function setQuotaExceededActive() {
+  if (!g_quotaExceededActive) {
+    g_quotaExceededActive = true;
+    g_quotaExceededTime = Date.now();
+    console.warn("[FirestoreCache] Circuito Aberto: Limite de Cota do Firestore Excedido. Ativando bypass automatico de cache offline.");
+    
+    if (!IS_VERCEL) {
+      try {
+        const flagFile = path.join(process.cwd(), 'firestore_quota_exceeded_flag.json');
+        fs.writeFileSync(flagFile, JSON.stringify({ time: g_quotaExceededTime }), 'utf-8');
+      } catch (e) {}
+    }
+  }
+}
+
 /**
  * Handler centralizado para erros de Firestore
  */
@@ -138,8 +191,17 @@ export const handleFirestoreError = (error: unknown, operationType: OperationTyp
     path
   };
   
+  const errStr = errInfo.error.toLowerCase();
+  const isQuota = errStr.includes('quota') || errStr.includes('resource-exhausted') || errStr.includes('limit') || errStr.includes('permission_denied') || errStr.includes('insufficient permissions');
+  
+  if (isQuota) {
+    setQuotaExceededActive();
+    console.log(`[FirestoreCache] Operacao restrita (${operationType}) em ${path} tratada com bypass offline por limite de cota.`);
+    return errInfo;
+  }
+
   // Skip throwing for NOT_FOUND / 404
-  if (errInfo.error.toLowerCase().includes('not found') || errInfo.error.includes('404')) {
+  if (errStr.includes('not found') || errStr.includes('404')) {
     console.warn('[FirestoreWarn]', safeStringify(errInfo));
     return errInfo;
   }
@@ -162,6 +224,7 @@ interface CachedDoc {
 
 const g_docsCache: Record<string, CachedDocs> = {};
 const g_docCache: Record<string, CachedDoc> = {};
+const g_pendingPromises: Record<string, Promise<any>> = {};
 
 function getCacheFilePath(key: string): string {
   return path.join(process.cwd(), `firestore_cache_${key.replace(/[^a-zA-Z0-9_-]/g, '_')}.json`);
@@ -243,11 +306,25 @@ export const fsOps = {
     let cached = g_docsCache[cacheKey];
     if (!cached) {
       // Tenta carregar do cache persistido em disco
-      const diskCached = loadCacheFromDisk(cacheKey);
+      const diskCached = loadCacheFromDisk(cacheKey, checkQuotaExceeded());
       if (diskCached) {
         g_docsCache[cacheKey] = diskCached;
         cached = diskCached;
       }
+    }
+
+    if (checkQuotaExceeded()) {
+      console.warn(`[FirestoreCache] [Bypass Ativo] Servindo cache local/memória para a coleção: ${cacheKey}`);
+      if (cached) {
+        return {
+          docs: cached.docs,
+          empty: cached.docs.length === 0
+        };
+      }
+      return {
+        docs: [],
+        empty: true
+      };
     }
 
     const now = Date.now();
@@ -260,83 +337,90 @@ export const fsOps = {
       };
     }
 
-    try {
-      const db: any = await getDb();
-      let rawSnap: any;
-      if (db.collection) {
-        if (typeof collOrQuery === 'string') rawSnap = await db.collection(collOrQuery).get();
-        else if (collOrQuery.get) rawSnap = await collOrQuery.get();
-      } else {
-        if (typeof collOrQuery === 'string') rawSnap = await getDocs(collection(db, collOrQuery));
-        else rawSnap = await getDocs(collOrQuery);
-      }
+    if (g_pendingPromises[cacheKey]) {
+      console.log(`[FirestoreCache] Coalescing duplicate parallel getDocs request for: ${cacheKey}`);
+      return g_pendingPromises[cacheKey];
+    }
 
-      if (rawSnap && rawSnap.docs) {
-        const snapDocs = rawSnap.docs.map((doc: any) => {
-          const dData = typeof doc.data === 'function' ? doc.data() : (doc.data || {});
-          return {
-            id: doc.id,
-            ref: doc.ref,
-            data: () => dData
-          };
-        });
-
-        // Atualiza em memória
-        g_docsCache[cacheKey] = {
-          timestamp: now,
-          docs: snapDocs
-        };
-
-        // Salva cópia serializável em disco
-        const serializableDocs = snapDocs.map((doc: any) => ({
-          id: doc.id,
-          data: doc.data()
-        }));
-        saveCacheToDisk(cacheKey, serializableDocs);
-
-        return {
-          docs: snapDocs,
-          empty: snapDocs.length === 0
-        };
-      }
-      return rawSnap;
-    } catch (err: any) {
-      console.warn(`[Firestore] getDocs failed for collection ${cacheKey}, trying disk cache fallback. Error:`, err.message || err);
-      
-      const diskCached = cached || loadCacheFromDisk(cacheKey, true);
-      if (diskCached) {
-        console.log(`[FirestoreCache] Resilient fallback: serving cached data for collection ${cacheKey}.`);
-        return {
-          docs: diskCached.docs,
-          empty: diskCached.docs.length === 0
-        };
-      }
-
-      const errStr = String(err?.message || err).toLowerCase();
-      const isQuota = errStr.includes('quota') || errStr.includes('resource-exhausted') || errStr.includes('limit');
-      
-      if (isQuota) {
-        if (cached) {
-          console.warn(`[FirestoreCache] [Quota Exceeded] Retornando cache offline para a coleção ${cacheKey}.`);
-          return {
-            docs: cached.docs,
-            empty: cached.docs.length === 0
-          };
+    const fetchPromise = (async () => {
+      try {
+        const db: any = await getDb();
+        let rawSnap: any;
+        if (db.collection) {
+          if (typeof collOrQuery === 'string') rawSnap = await db.collection(collOrQuery).get();
+          else if (collOrQuery.get) rawSnap = await collOrQuery.get();
         } else {
-          console.warn(`[FirestoreCache] [Quota Exceeded] Sem cache para coleção ${cacheKey}. Retornando lista vazia fallback.`);
+          if (typeof collOrQuery === 'string') rawSnap = await getDocs(collection(db, collOrQuery));
+          else rawSnap = await getDocs(collOrQuery);
+        }
+
+        if (rawSnap && rawSnap.docs) {
+          const snapDocs = rawSnap.docs.map((doc: any) => {
+            const dData = typeof doc.data === 'function' ? doc.data() : (doc.data || {});
+            return {
+              id: doc.id,
+              ref: doc.ref,
+              data: () => dData
+            };
+          });
+
+          // Atualiza em memória
+          g_docsCache[cacheKey] = {
+            timestamp: now,
+            docs: snapDocs
+          };
+
+          // Salva cópia serializável em disco
+          const serializableDocs = snapDocs.map((doc: any) => ({
+            id: doc.id,
+            data: doc.data()
+          }));
+          saveCacheToDisk(cacheKey, serializableDocs);
+
           return {
-            docs: [],
-            empty: true
+            docs: snapDocs,
+            empty: snapDocs.length === 0
           };
         }
-      }
+        return rawSnap;
+      } catch (err: any) {
+        const errStr = String(err?.message || err).toLowerCase();
+        const isQuota = errStr.includes('quota') || errStr.includes('resource-exhausted') || errStr.includes('limit') || errStr.includes('permission_denied') || errStr.includes('insufficient permissions');
+        
+        if (isQuota) {
+          setQuotaExceededActive();
+          console.log(`[FirestoreCache] [Bypass Ativo] Operacao de getDocs para ${cacheKey} usando cache local por limite de cota.`);
+        } else {
+          console.warn(`[Firestore] getDocs failed for collection ${cacheKey}, trying disk cache fallback. Error:`, err.message || err);
+        }
+        
+        const diskCached = cached || loadCacheFromDisk(cacheKey, true);
+        if (diskCached) {
+          return {
+            docs: diskCached.docs,
+            empty: diskCached.docs.length === 0
+          };
+        }
 
-      if (typeof err.message === 'string' && (err.message.toLowerCase().includes('not found') || err.message.includes('404'))) {
-        console.warn(`[FirestoreWarn] List operation failed (Not Found) at ${path}`);
-        return { docs: [] };
+        if (typeof err.message === 'string' && (err.message.toLowerCase().includes('not found') || err.message.includes('404'))) {
+          console.warn(`[FirestoreWarn] List operation failed (Not Found) at ${path}`);
+          return { docs: [] };
+        }
+        
+        handleFirestoreError(err, OperationType.LIST, path);
+        return {
+          docs: [],
+          empty: true
+        };
       }
-      handleFirestoreError(err, OperationType.LIST, path);
-      throw err;
+    })();
+
+    g_pendingPromises[cacheKey] = fetchPromise;
+
+    try {
+      return await fetchPromise;
+    } finally {
+      delete g_pendingPromises[cacheKey];
     }
   },
   doc: async (coll: string, id: string) => {
@@ -346,6 +430,23 @@ export const fsOps = {
   getDoc: async (refPromise: any, path: string = 'unknown') => {
     const cacheKey = path;
     const cached = g_docCache[cacheKey];
+
+    if (checkQuotaExceeded()) {
+      console.warn(`[FirestoreCache] [Bypass Ativo] Servindo cache offline para o documento: ${cacheKey}`);
+      if (cached) {
+        return {
+          exists: () => cached.exists,
+          data: () => cached.data,
+          id: cacheKey.split('/').pop() || 'unknown'
+        };
+      }
+      return {
+        exists: () => false,
+        data: () => ({}),
+        id: cacheKey.split('/').pop() || 'unknown'
+      };
+    }
+
     const now = Date.now();
     const isCacheExpired = !cached || (now - cached.timestamp > 86400000); // 24 hours (86,400,000ms) TTL for extreme read optimization
 
@@ -357,57 +458,63 @@ export const fsOps = {
       };
     }
 
-    try {
-      const ref = await refPromise;
-      const rawDoc = ref.get ? await ref.get() : await getDoc(ref);
-      const existsVal = typeof rawDoc.exists === 'function' ? rawDoc.exists() : !!rawDoc.exists;
-      const dData = typeof rawDoc.data === 'function' ? rawDoc.data() : (rawDoc.data || {});
+    if (g_pendingPromises[cacheKey]) {
+      console.log(`[FirestoreCache] Coalescing duplicate parallel getDoc request for: ${cacheKey}`);
+      return g_pendingPromises[cacheKey];
+    }
 
-      g_docCache[cacheKey] = {
-        timestamp: now,
-        exists: existsVal,
-        data: dData
-      };
+    const fetchPromise = (async () => {
+      try {
+        const ref = await refPromise;
+        const rawDoc = ref.get ? await ref.get() : await getDoc(ref);
+        const existsVal = typeof rawDoc.exists === 'function' ? rawDoc.exists() : !!rawDoc.exists;
+        const dData = typeof rawDoc.data === 'function' ? rawDoc.data() : (rawDoc.data || {});
 
-      return {
-        exists: () => existsVal,
-        data: () => dData,
-        id: rawDoc.id
-      };
-    } catch (err: any) {
-      console.warn(`[Firestore] getDoc failed for document ${cacheKey}, trying cached fallback. Error:`, err.message || err);
-      if (cached) {
-        console.log(`[FirestoreCache] Resilient fallback: serving cached data for document ${cacheKey}.`);
-        return {
-          exists: () => cached.exists,
-          data: () => cached.data,
-          id: cacheKey.split('/').pop() || 'unknown'
+        g_docCache[cacheKey] = {
+          timestamp: now,
+          exists: existsVal,
+          data: dData
         };
-      }
 
-      const errStr = String(err?.message || err).toLowerCase();
-      const isQuota = errStr.includes('quota') || errStr.includes('resource-exhausted') || errStr.includes('limit');
+        return {
+          exists: () => existsVal,
+          data: () => dData,
+          id: rawDoc.id
+        };
+      } catch (err: any) {
+        const errStr = String(err?.message || err).toLowerCase();
+        const isQuota = errStr.includes('quota') || errStr.includes('resource-exhausted') || errStr.includes('limit') || errStr.includes('permission_denied') || errStr.includes('insufficient permissions');
+        
+        if (isQuota) {
+          setQuotaExceededActive();
+          console.log(`[FirestoreCache] [Bypass Ativo] Operacao de getDoc para ${cacheKey} usando cache local por limite de cota.`);
+        } else {
+          console.warn(`[Firestore] getDoc failed for document ${cacheKey}, trying cached fallback. Error:`, err.message || err);
+        }
 
-      if (isQuota) {
         if (cached) {
-          console.warn(`[FirestoreCache] [Quota Exceeded] Retornando cache offline para o documento ${cacheKey}.`);
           return {
             exists: () => cached.exists,
             data: () => cached.data,
             id: cacheKey.split('/').pop() || 'unknown'
           };
-        } else {
-          console.warn(`[FirestoreCache] [Quota Exceeded] Sem cache para o documento ${cacheKey}. Retornando documento inexistente vazio fallback.`);
-          return {
-            exists: () => false,
-            data: () => ({}),
-            id: cacheKey.split('/').pop() || 'unknown'
-          };
         }
-      }
 
-      handleFirestoreError(err, OperationType.GET, path);
-      throw err;
+        handleFirestoreError(err, OperationType.GET, path);
+        return {
+          exists: () => false,
+          data: () => ({}),
+          id: cacheKey.split('/').pop() || 'unknown'
+        };
+      }
+    })();
+
+    g_pendingPromises[cacheKey] = fetchPromise;
+
+    try {
+      return await fetchPromise;
+    } finally {
+      delete g_pendingPromises[cacheKey];
     }
   },
   update: async (refPromise: any, data: any, path: string = 'unknown') => {

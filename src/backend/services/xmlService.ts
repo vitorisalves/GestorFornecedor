@@ -94,9 +94,24 @@ export class XMLService {
         throw new Error("Não foi possível encontrar a estrutura infNFe no XML.");
     }
 
-    const id = nfe["@_Id"] || (nfe.emit?.CNPJ ? `${nfe.emit.CNPJ}_${nfe.ide?.nNF}` : null) || nfe.ide?.nNF || `unknown_${Date.now()}`;
+    const rawId = nfe["@_Id"] || (nfe.emit?.CNPJ ? `${nfe.emit.CNPJ}_${nfe.ide?.nNF}` : null) || nfe.ide?.nNF || `unknown_${Date.now()}`;
+    let id = rawId;
+    if (id.startsWith("NFe")) {
+      id = id.substring(3);
+    }
     const supplierName = nfe.emit?.xNome || "Desconhecido";
     const items = nfe.det;
+    
+    // Extrai o valor total da NF-e (vNF) para gastos mensais
+    let vTotTrib = 0;
+    try {
+      const totalObj = nfe.total || {};
+      const icmsTot = totalObj.ICMSTot || {};
+      const valStr = String(icmsTot.vNF || icmsTot.vTotTrib || "0");
+      vTotTrib = parseFloat(valStr.replace(',', '.')) || 0;
+    } catch (e) {
+      console.warn("Erro ao extrair valor total da nota no XMLService:", e);
+    }
     
     const products = Array.isArray(items) 
       ? items.map(item => {
@@ -124,6 +139,7 @@ export class XMLService {
       id,
       supplierName,
       date: nfe.ide?.dhEmi || new Date().toISOString(),
+      vTotTrib,
       products
     };
   }
