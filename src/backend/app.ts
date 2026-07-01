@@ -53,6 +53,23 @@ const asyncHandler = (fn: Function) => (req: Request, res: Response, next: NextF
   });
 };
 
+const handleCacheAndEtag = (collectionName: string) => {
+  return (req: Request, res: Response, next: NextFunction) => {
+    const version = fsOps.getCollectionVersion(collectionName);
+    const etag = `W/"${collectionName}_${version}"`;
+
+    // Cache no navegador/proxy de 1 min ativo + revalidação em background de até 2 min
+    res.setHeader("Cache-Control", "public, max-age=60, stale-while-revalidate=120");
+    res.setHeader("ETag", etag);
+
+    if (req.headers["if-none-match"] === etag) {
+      console.log(`[HTTP Cache] 304 Not Modified para a coleção: ${collectionName}`);
+      return res.status(304).end();
+    }
+    next();
+  };
+};
+
 // --- ROTAS DE DIAGNÓSTICO ---
 app.get("/api/health", asyncHandler(async (req: Request, res: Response) => {
   res.json({ 
@@ -388,7 +405,7 @@ app.post("/api/xml/process-batch", asyncHandler(async (req: Request, res: Respon
   res.json({ results });
 }));
 
-app.get("/api/xml/price-increases", asyncHandler(async (req: Request, res: Response) => {
+app.get("/api/xml/price-increases", handleCacheAndEtag("price_increases"), asyncHandler(async (req: Request, res: Response) => {
   try {
     const snapshot = await fsOps.getDocs('price_increases', 'price_increases', true);
     const data = snapshot.docs.map((doc: any) => {
@@ -417,7 +434,7 @@ app.post("/api/xml/price-increases/delete", asyncHandler(async (req: Request, re
   res.json({ status: "success", deletedCount: ids.length });
 }));
 
-app.get("/api/xml/invoices", asyncHandler(async (req: Request, res: Response) => {
+app.get("/api/xml/invoices", handleCacheAndEtag("invoices"), asyncHandler(async (req: Request, res: Response) => {
   console.log("Fetching invoices...");
   try {
     const snapshot = await fsOps.getDocs('invoices', 'invoices');
@@ -443,7 +460,7 @@ app.get("/api/xml/invoices", asyncHandler(async (req: Request, res: Response) =>
   }
 }));
 
-app.get("/api/xml/suppliers", asyncHandler(async (req: Request, res: Response) => {
+app.get("/api/xml/suppliers", handleCacheAndEtag("suppliers"), asyncHandler(async (req: Request, res: Response) => {
   try {
     const snapshot = await fsOps.getDocs('suppliers', 'suppliers');
     const data = snapshot.docs.map((doc: any) => {
@@ -457,7 +474,7 @@ app.get("/api/xml/suppliers", asyncHandler(async (req: Request, res: Response) =
   }
 }));
 
-app.get("/api/xml/authorized_users", asyncHandler(async (req: Request, res: Response) => {
+app.get("/api/xml/authorized_users", handleCacheAndEtag("authorized_users"), asyncHandler(async (req: Request, res: Response) => {
   try {
     const snapshot = await fsOps.getDocs('authorized_users', 'authorized_users');
     const data = snapshot.docs.map((doc: any) => {
@@ -471,7 +488,7 @@ app.get("/api/xml/authorized_users", asyncHandler(async (req: Request, res: Resp
   }
 }));
 
-app.get("/api/xml/spendings", asyncHandler(async (req: Request, res: Response) => {
+app.get("/api/xml/spendings", handleCacheAndEtag("xml_spendings"), asyncHandler(async (req: Request, res: Response) => {
   try {
     const snapshot = await fsOps.getDocs('xml_spendings', 'xml_spendings');
     const data = snapshot.docs.map((doc: any) => {
@@ -485,7 +502,7 @@ app.get("/api/xml/spendings", asyncHandler(async (req: Request, res: Response) =
   }
 }));
 
-app.get("/api/xml/categories", asyncHandler(async (req: Request, res: Response) => {
+app.get("/api/xml/categories", handleCacheAndEtag("categories"), asyncHandler(async (req: Request, res: Response) => {
   try {
     const snapshot = await fsOps.getDocs('categories', 'categories');
     const data = snapshot.docs.map((doc: any) => {
@@ -499,7 +516,7 @@ app.get("/api/xml/categories", asyncHandler(async (req: Request, res: Response) 
   }
 }));
 
-app.get("/api/xml/delivered_products", asyncHandler(async (req: Request, res: Response) => {
+app.get("/api/xml/delivered_products", handleCacheAndEtag("delivered_products"), asyncHandler(async (req: Request, res: Response) => {
   try {
     const snapshot = await fsOps.getDocs('delivered_products', 'delivered_products');
     const data = snapshot.docs.map((doc: any) => {
@@ -513,7 +530,7 @@ app.get("/api/xml/delivered_products", asyncHandler(async (req: Request, res: Re
   }
 }));
 
-app.get("/api/xml/reminders", asyncHandler(async (req: Request, res: Response) => {
+app.get("/api/xml/reminders", handleCacheAndEtag("reminders"), asyncHandler(async (req: Request, res: Response) => {
   try {
     const snapshot = await fsOps.getDocs('reminders', 'reminders');
     const data = snapshot.docs.map((doc: any) => {
@@ -527,7 +544,7 @@ app.get("/api/xml/reminders", asyncHandler(async (req: Request, res: Response) =
   }
 }));
 
-app.get("/api/xml/shopping_lists", asyncHandler(async (req: Request, res: Response) => {
+app.get("/api/xml/shopping_lists", handleCacheAndEtag("shopping_lists"), asyncHandler(async (req: Request, res: Response) => {
   try {
     const snapshot = await fsOps.getDocs('shopping_lists', 'shopping_lists');
     const data = snapshot.docs.map((doc: any) => {

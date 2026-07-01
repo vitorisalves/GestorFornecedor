@@ -225,6 +225,15 @@ interface CachedDoc {
 const g_docsCache: Record<string, CachedDocs> = {};
 const g_docCache: Record<string, CachedDoc> = {};
 const g_pendingPromises: Record<string, Promise<any>> = {};
+const g_collectionVersions: Record<string, number> = {};
+
+function getCollectionVersion(key: string): number {
+  const clean = key.split('/')[0];
+  if (!g_collectionVersions[clean]) {
+    g_collectionVersions[clean] = 1;
+  }
+  return g_collectionVersions[clean];
+}
 
 function getCacheFilePath(key: string): string {
   return path.join(process.cwd(), `firestore_cache_${key.replace(/[^a-zA-Z0-9_-]/g, '_')}.json`);
@@ -274,6 +283,13 @@ function loadCacheFromDisk(key: string, forceOnVercel: boolean = false): CachedD
 
 const invalidateCache = (pathStr: string) => {
   const cleanCollection = pathStr.split('/')[0];
+  if (g_collectionVersions[cleanCollection]) {
+    g_collectionVersions[cleanCollection]++;
+  } else {
+    g_collectionVersions[cleanCollection] = 2;
+  }
+  console.log(`[FirestoreCache] Collection version incremented for ${cleanCollection}: ${g_collectionVersions[cleanCollection]}`);
+
   if (g_docsCache[cleanCollection]) {
     delete g_docsCache[cleanCollection];
     console.log(`[FirestoreCache] Invalidated collection cache for: ${cleanCollection}`);
@@ -565,5 +581,8 @@ export const fsOps = {
   },
   invalidateCache: (pathStr: string) => {
     invalidateCache(pathStr);
+  },
+  getCollectionVersion: (pathStr: string) => {
+    return getCollectionVersion(pathStr);
   }
 };
